@@ -27,3 +27,19 @@ export function draftsFor(requests: readonly RequestItem[], cityId: string): Req
   return requests.filter((request) => request.status === 'draft' && request.cityId.toLowerCase() === city)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
+
+/**
+ * Businesses taken off a draft where they are seen (the map's list in «add to this request» mode): off its list, its
+ * saved snapshots and a campaign's recipients. A request past its draft is not changed: null.
+ */
+export function removeFromRequest(request: RequestItem, ids: readonly string[]): { patch: Partial<RequestItem>; removed: number } | null {
+  if (request.status !== 'draft') return null
+  const gone = new Set(ids.filter((id) => request.businessIds.includes(id)))
+  if (!gone.size) return { patch: {}, removed: 0 }
+  const patch: Partial<RequestItem> = {
+    businessIds: request.businessIds.filter((id) => !gone.has(id)),
+    liveBusinesses: request.liveBusinesses?.filter((business) => !gone.has(business.id)),
+  }
+  if (request.campaign) patch.campaign = { ...request.campaign, included: request.campaign.included.filter((id) => !gone.has(id)) }
+  return { patch, removed: gone.size }
+}

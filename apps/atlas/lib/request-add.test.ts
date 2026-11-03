@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { draftsFor, mergeIntoRequest } from './request-add.ts'
+import { draftsFor, mergeIntoRequest, removeFromRequest } from './request-add.ts'
 import type { LiveBusinessSnapshot, RequestItem } from './types.ts'
 
 const business = (id: string, whatsapp: boolean): LiveBusinessSnapshot => ({ id, name: `منشأة ${id}`, category: 'صيدلية', district: 'العليا', street: '', latitude: null, longitude: null, wholesale: false, whatsapp, reason: '', fit: null })
@@ -31,4 +31,14 @@ test('the drafts offered are the city\'s own, latest first', () => {
     { ...base, id: 'jeddah', cityId: 'jeddah' },
   ]
   assert.deepEqual(draftsFor(requests, 'Riyadh').map((item) => item.id), ['new', 'old'])
+})
+
+test('a business comes off a draft in place: its list, its snapshot and a campaign\'s recipients', () => {
+  const campaign = { ...base, type: 'campaign' as const, businessIds: ['a', 'b'], liveBusinesses: [business('a', true), business('b', true)], campaign: { templateId: 't', variables: {}, included: ['a', 'b'] } }
+  const result = removeFromRequest(campaign, ['b', 'zz'])
+  assert.equal(result?.removed, 1)
+  assert.deepEqual(result?.patch.businessIds, ['a'])
+  assert.deepEqual(result?.patch.liveBusinesses?.map((item) => item.id), ['a'])
+  assert.deepEqual(result?.patch.campaign?.included, ['a'])
+  assert.equal(removeFromRequest({ ...base, status: 'awaiting' }, ['a']), null)
 })

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ClipboardList, ListPlus, Loader2, LogIn, MapPin, Megaphone, PlusCircle, Search, SearchX } from 'lucide-react'
 import { readAddTarget } from '@/lib/handoff'
 import { draftsFor } from '@/lib/request-add'
+import type { BusinessDot } from './lens-map-canvas'
 import { TYPE_LABEL } from '@/lib/format'
 import { EmptyState, NoResult } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
@@ -49,7 +50,7 @@ const MAX_DISTRICTS = 5
  * activity, picked and turned into a request — a quote request, a WhatsApp campaign or a saved list. The request
  * opens in «الطلبات» for review; nothing is sent from here (docs/atlas-product-foundation.md §5).
  */
-export function BusinessesPanel({ city, districts, query, onLocate, located }: {
+export function BusinessesPanel({ city, districts, query, onLocate, located, onMarkers, pointed = null, onPoint }: {
   city: string
   districts: string[]
   query?: string
@@ -57,17 +58,26 @@ export function BusinessesPanel({ city, districts, query, onLocate, located }: {
   onLocate?: (row: PublicDirectoryEntity) => void
   /** The business the map is marking now. */
   located?: string | null
+  /** The list's businesses for the map, each named at its place (olive once in the request being built). */
+  onMarkers?: (dots: BusinessDot[], rows: PublicDirectoryEntity[]) => void
+  /** The business under the pointer on the map: its row is lit. */
+  pointed?: string | null
+  /** A row under the pointer or focus: its dot on the map is lit. */
+  onPoint?: (id: string | null) => void
 }) {
   const router = useRouter()
   const cities = useCities()
   const reduce = useReducedMotion()
-  const { createDraft, addToRequest, requests } = useAppStore()
+  const { createDraft, addToRequest, removeFromRequest, requests } = useAppStore()
   // the request a pick joins: named by the address when the person came from it («أضف منشآت من الخريطة»), or chosen
   // from the city's drafts; only a draft can still take businesses
   const [addId, setAddId] = useState<string | null>(null)
   useEffect(() => { setAddId(readAddTarget(window.location.search)) }, [])
   const drafts = draftsFor(requests, city)
   const target = addId ? drafts.find((request) => request.id === addId) ?? null : null
+  // the businesses already in that request: marked in the list and on the map, and taken off it right here
+  const inRequest = new Set(target?.businessIds ?? [])
+  const inRequestKey = target?.businessIds.join('|') ?? ''
   const [activity, setActivity] = useState(query ?? '')
   // a short confirm flash on the picked rows the moment a draft is prepared, before the request page opens
   const [flashing, setFlashing] = useState(false)
@@ -192,6 +202,23 @@ export function BusinessesPanel({ city, districts, query, onLocate, located }: {
     window.setTimeout(go, 260)
   }
 
+  // the answer's businesses go to the map as named dots while the list is on screen, and leave with it
+  const markers = useRef(onMarkers)
+  markers.current = onMarkers
+  useEffect(() => {
+    const ready = status === 'ready' ? rows : []
+    markers.current?.(ready.flatMap((row) => (row.latitude != null && row.longitude != null
+      ? [{ id: row.id, lon: row.longitude, lat: row.latitude, name: row.name, inRequest: inRequest.has(row.id) }] : [])), ready)
+    // keyed by the answer and the request's list, not the Set rebuilt each render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, status, inRequestKey])
+  useEffect(() => () => markers.current?.([], []), [])
+
+  function removeHere(row: PublicDirectoryEntity) {
+    if (!target) return
+    if (removeFromRequest(target.id, [row.id])) toast.success(`أُزيلت ${row.name} من «${target.title}»`, { description: 'تبقى في القائمة هنا إن أردت إعادتها.' })
+  }
+
   function addTo(requestId: string) {
     const request = requests.find((item) => item.id === requestId)
     const picks = rows.filter((row) => picked.has(row.id))
@@ -213,7 +240,7 @@ export function BusinessesPanel({ city, districts, query, onLocate, located }: {
       {target && (
         <p role="status" className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">
           <PlusCircle className="size-4 shrink-0" aria-hidden />
-          <span className="min-w-0 flex-1">تضيف إلى «{target.title}»</span>
+          <span className="min-w-0 flex-1">تضيف إلى «{target.title}» · فيه {counted(target.businessIds.length, 'business')}</span>
           <button type="button" onClick={() => setAddId(null)} className="shrink-0 font-semibold underline-offset-4 hover:underline">طلب جديد بدلاً منه</button>
         </p>
       )}
@@ -286,12 +313,17 @@ export function BusinessesPanel({ city, districts, query, onLocate, located }: {
           )}
           <ul className="max-h-80 divide-y overflow-y-auto text-base">
             {shown.map((row) => (
-              <li key={row.id} id={`biz-row-${row.id}`} className="scroll-mt-2">
+              <li key={row.id} id={`biz-row-${row.id}`} className="scroll-mt-2" onMouseEnter={() => onPoint?.(row.id)} onMouseLeave={() => onPoint?.(null)}
+                onFocus={() => onPoint?.(row.id)} onBlur={() => onPoint?.(null)}>
                 {/* the whole row answers a hover and a press (cheap CSS, so a long list stays smooth); a picked row keeps
                     a soft olive tint, and flashes once the moment its draft is prepared */}
                 <div className={cn('flex items-center gap-2 py-2 transition-colors hover:bg-muted/40 active:bg-muted/60',
-                  picked.has(row.id) && 'bg-primary/5', flashing && picked.has(row.id) && 'atlas-confirm-flash')}>
-                  <input type="checkbox" aria-label={`اختيار ${row.name}`} checked={picked.has(row.id)} onChange={() => toggle(row.id)} className="size-4 shrink-0 accent-primary" />
+                  picked.has(row.id) && 'bg-primary/5', pointed === row.id && 'bg-muted/60', flashing && picked.has(row.id) && 'atlas-confirm-flash')}>
+                  {/* a business already in the request is not picked again: it says so, and comes off with «أزل» */}
+                  {inRequest.has(row.id)
+                    ? <button type="button" onClick={() => removeHere(row)} aria-label={`أزل ${row.name} من «${target?.title ?? ''}»`}
+                        className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary outline-none hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:py-1.5">في الطلب · أزل</button>
+                    : <input type="checkbox" aria-label={`اختيار ${row.name}`} checked={picked.has(row.id)} onChange={() => toggle(row.id)} className="size-4 shrink-0 accent-primary" />}
                   <button type="button" onClick={() => setOpenId(openId === row.id ? null : row.id)} aria-expanded={openId === row.id} className="min-w-0 flex-1 text-start">
                     <span className="block truncate font-medium">{row.name}</span>
                     <span className="block truncate text-sm text-muted-foreground">{row.category}{row.district ? ` · ${row.district}` : ''}</span>
