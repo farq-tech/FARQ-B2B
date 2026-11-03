@@ -12,9 +12,11 @@ export type MapQuery = {
   /** The studied activity typed as words (`activity`), or a main activity by id (`main`); one or the other. */
   activity: string | null
   main: string | null
+  /** The figure shading the districts (`layer`), one of the lens's own figures. */
+  layer: string | null
 }
 
-export type MapView = { city: string; lens: string; tool: string; districts: string[]; q: string | null; activity?: string | null; main?: string | null }
+export type MapView = { city: string; lens: string; tool: string; districts: string[]; q: string | null; activity?: string | null; main?: string | null; layer?: string | null }
 
 /** Values the map starts on, which the address leaves out to stay short. */
 export const MAP_DEFAULTS = { city: 'Riyadh', lens: 'shops', activity: 'صيدلية' } as const
@@ -36,9 +38,10 @@ export function cleanQuery(raw: string | null | undefined): string | null {
 /**
  * Reads the address. `lenses` maps each group to its steps; a lens outside it, or a step outside the lens it would
  * open in, is dropped. A city or a district only passes its shape here: whether it exists is checked once the city's
- * list and districts load.
+ * list and districts load. `layers` maps each group to the figures that may shade its map; a `layer` outside the
+ * lens it would open in is dropped.
  */
-export function readMapQuery(search: string, lenses: Record<string, string[]>, goalLens: Record<string, string> = {}): MapQuery {
+export function readMapQuery(search: string, lenses: Record<string, string[]>, goalLens: Record<string, string> = {}, layers: Record<string, string[]> = {}): MapQuery {
   const query = new URLSearchParams(search)
   const city = query.get('city')
   const rawLens = query.get('lens') ?? goalLens[query.get('goal') ?? ''] ?? null
@@ -48,15 +51,18 @@ export function readMapQuery(search: string, lenses: Record<string, string[]>, g
   const districts = [...new Set((query.get('district') ?? '').split(',').map((id) => id.trim()).filter((id) => DISTRICT.test(id)))].slice(0, MAX_DISTRICTS)
   const main = query.get('main')
   const validMain = main != null && MAIN.test(main) ? main : null
+  const rawLayer = query.get('layer')
+  const layer = rawLayer != null && (layers[lens ?? MAP_DEFAULTS.lens] ?? []).includes(rawLayer) ? rawLayer : null
   // a main activity named by id wins over typed words; its name is checked against the city's list once it loads
-  return { city: city != null && CITY.test(city) ? city : null, lens, tool, districts, q: cleanQuery(query.get('q')), main: validMain, activity: validMain ? null : cleanQuery(query.get('activity')) }
+  return { city: city != null && CITY.test(city) ? city : null, lens, tool, districts, q: cleanQuery(query.get('q')), main: validMain, activity: validMain ? null : cleanQuery(query.get('activity')), layer }
 }
 
 /**
  * Writes the view into `search`, keeping any other parameter it holds. Defaults are left out (the first step of the
- * lens, Riyadh, the shops lens), and the landing's one-time `goal` and `search` go once they have been acted on.
+ * lens, Riyadh, the shops lens, the lens's own shading figure `firstLayer`), and the landing's one-time `goal` and
+ * `search` go once they have been acted on.
  */
-export function writeMapQuery(search: string, view: MapView, firstStep: string): string {
+export function writeMapQuery(search: string, view: MapView, firstStep: string, firstLayer?: string): string {
   const query = new URLSearchParams(search)
   const set = (key: string, value: string | null) => { if (value) query.set(key, value); else query.delete(key) }
   // one-time intents from a landing link: the lens they chose is now in the address, and the search box was focused
@@ -70,6 +76,7 @@ export function writeMapQuery(search: string, view: MapView, firstStep: string):
   const activity = cleanQuery(view.activity)
   set('main', view.main && MAIN.test(view.main) ? view.main : null)
   set('activity', view.main || activity === MAP_DEFAULTS.activity ? null : activity)
+  set('layer', view.layer && view.layer !== firstLayer ? view.layer : null)
   const text = query.toString()
   return text ? `?${text}` : ''
 }

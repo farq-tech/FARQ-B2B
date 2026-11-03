@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { LoadError } from '@/components/shared/load-error'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
 import { formatDistance, numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
@@ -29,7 +30,7 @@ const COLORS = [PALETTE.olive, PALETTE.ochre, PALETTE.slate]
 const MAX_SITES = 3
 const reachLabel = (reach: Reach) => (reach.kind === 'radius'
   ? formatDistance(reach.metres)
-  : `${reach.minutes} د بالسيارة`)
+  : `${numberFormat.format(reach.minutes)} د بالسيارة`)
 const sameReach = (a: Reach, b: Reach) => a.kind === b.kind && (a.kind === 'radius' ? a.metres === (b as typeof a).metres : a.minutes === (b as typeof a).minutes)
 const show = (value: number | null | undefined) => (value == null ? 'غير متاح' : numberFormat.format(Math.round(value)))
 
@@ -128,6 +129,12 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
     cardFor(city, site, geometry, activity).then(put, (): void => put({ status: 'error', message: 'تعذر حساب بطاقة الموقع.' }))
   }, [keyOf, results, city, activity])
 
+  // a site whose area or figures failed is worked out again from the start; the other sites stay as they are
+  const retrySite = useCallback((site: { id: number }) => {
+    requested.current.delete(keyOf(site))
+    setSites((current) => [...current])   // a new list of the same sites runs the effect above once more
+  }, [keyOf])
+
   // «ابدأ من هنا»: a first visit compares the city's two most populous districts in one tap, a site in each
   const sample = useMemo(() => {
     const outline = new Map(features.map((feature) => [String(feature.properties.id), feature.geometry]))
@@ -139,6 +146,12 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
   }, [districts, features])
 
   const labelled = useMemo(() => sites.map((site, index) => ({ ...site, label: String(index + 1), color: COLORS[index], result: results[keyOf(site)] })), [sites, results, keyOf])
+  // sites whose area or figures failed: said once above the table, and asked again together
+  const failed = labelled.filter((site) => site.result?.status === 'error')
+  const retryFailed = () => {
+    for (const site of failed) requested.current.delete(keyOf(site))
+    setSites((current) => [...current])
+  }
 
   useEffect(() => {
     const areas: Area[] = labelled.flatMap((site) => (site.result?.geometry ? [{ id: String(site.id), color: site.color, geometry: site.result.geometry }] : []))
@@ -228,6 +241,10 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
           المنطقة: كل ما تصله السيارة في {numberFormat.format(reach.minutes)} دقائق على الطرق.
         </Explained>
       )}
+      {failed.length > 0 && (
+        <LoadError what="المواقع" title={`تعذر حساب ${failed.length === 1 ? 'الموقع' : 'المواقع'} ${failed.map((site) => site.label).join('، ')}.`}
+          detail={failed[0].result?.message} onRetry={retryFailed} />
+      )}
       {labelled.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-base tabular-nums">
@@ -252,7 +269,15 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
                 {labelled.map((site) => {
                   const result = site.result
                   if (!result || result.status === 'loading') return <td key={site.id} className="py-2.5 text-center" aria-busy="true"><Skeleton className="mx-auto h-5 w-12" aria-hidden /><span className="sr-only">جارٍ الحساب</span></td>
-                  if (result.status === 'error') return <td key={site.id} className="py-2.5 text-center text-sm text-muted-foreground">—</td>
+                  // the reason is said once, here, with a retry; the figure rows below only mark the column
+                  if (result.status === 'error') {
+                    return (
+                      <td key={site.id} className="py-2.5 text-center text-sm">
+                        <span role="alert" className="block text-destructive">{result.message}</span>
+                        <button type="button" onClick={() => retrySite(site)} className="mt-1 font-semibold text-primary underline">أعد المحاولة</button>
+                      </td>
+                    )
+                  }
                   const value = scoreById.get(site.id)
                   return (
                     <td key={site.id} className="py-2.5 text-center">
@@ -271,7 +296,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
                     {labelled.map((site) => {
                       const result = site.result
                       if (!result || result.status === 'loading') return <td key={site.id} className="py-2 text-center" aria-busy="true"><Skeleton className="mx-auto h-4 w-10" aria-hidden /><span className="sr-only">جارٍ الحساب</span></td>
-                      if (result.status === 'error') return <td key={site.id} className="py-2 text-center text-sm text-destructive">{result.message}</td>
+                      if (result.status === 'error') return <td key={site.id} className="py-2 text-center text-sm text-muted-foreground">غير متاح</td>
                       const value = row.value(result.figures!)
                       return (
                         <td key={site.id} className="py-2 text-center">

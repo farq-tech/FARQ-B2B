@@ -418,5 +418,5 @@
 - له شرح واحد في `apps/atlas/lib/explanations.ts`.
 - يظهر «غير متاح» عند النقص.
 - أرقامه إنجليزية عبر `numberFormat`.
-- يُسجَّل في `docs/opportunity-map-improvement-log.md` بصيغة: الفجوة، والتغيير، والتحقق والحدود.
+- يُسجَّل في ملف جديد داخل `docs/improvement-log/` بصيغة: الفجوة، والتغيير، والتحقق والحدود.
 - يمر بـ`pnpm build` و`python -m unittest` و`git diff --check` قبل الدفع.

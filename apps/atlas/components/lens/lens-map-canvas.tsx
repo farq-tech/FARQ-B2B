@@ -1,30 +1,21 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { GeoJSONSource, Map as MapboxMap } from 'mapbox-gl'
+import type { GeoJSONSource, Map as MapboxMap, StyleSpecification } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import type { DistrictFeature } from '@/lib/insights-api'
 import { LoadError } from '@/components/shared/load-error'
 import { cn } from '@/lib/utils'
 import { PEEK_PX } from './map-sheet'
 import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
+import { boundsOf } from './map-bounds'
+import { cityFrame, framePadding } from './map-framing'
 
 const STYLE_URL = 'mapbox://styles/mapbox/light-v11'
+const STYLE_JSON = 'https://api.mapbox.com/styles/v1/mapbox/light-v11'
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 // five steps from low to high; a district without the figure is left unshaded
 export const SHADES = OLIVE_STEPS   // Farq olive (--primary) for the highest districts
-
-function boundsOf(features: { geometry?: { coordinates?: unknown } | null }[]): [[number, number], [number, number]] | null {
-  let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity
-  const visit = (coords: unknown): void => {
-    if (Array.isArray(coords) && typeof coords[0] === 'number') {
-      const [x, y] = coords as [number, number]
-      west = Math.min(west, x); east = Math.max(east, x); south = Math.min(south, y); north = Math.max(north, y)
-    } else if (Array.isArray(coords)) coords.forEach(visit)
-  }
-  features.forEach((feature) => visit(feature.geometry?.coordinates))
-  return west < Infinity ? [[west, south], [east, north]] : null
-}
 
 /** Quantile step (0-4) of each district's value, so every lens reads as five even groups whatever the scale. */
 export function shadeSteps(values: Map<string, number | null>): Map<string, number> {
@@ -38,6 +29,41 @@ export function shadeSteps(values: Map<string, number | null>): Map<string, numb
     steps.set(id, Math.min(4, Math.floor((5 * below) / known.length)))
   })
   return steps
+}
+
+type StyleLayer = { id: string; type: string; layout?: Record<string, unknown>; paint?: Record<string, unknown> }
+
+/**
+ * What the Atlas changes on one basemap layer: place names in Arabic where Mapbox has them, and the Atlas palette
+ * (warm stone land, soft water, quiet green parks, white streets). Applied to the style before the map draws, so no
+ * English name and no default colour ever shows (they flashed for seconds while the map loaded).
+ */
+function dressLayer(layer: StyleLayer): { layout: Record<string, unknown>; paint: Record<string, unknown> } {
+  const layout: Record<string, unknown> = {}
+  const paint: Record<string, unknown> = {}
+  // only names: road numbers and house numbers keep their own field
+  if (layer.type === 'symbol' && layer.layout?.['text-field'] != null && JSON.stringify(layer.layout['text-field']).includes('name')) {
+    layout['text-field'] = ['coalesce', ['get', 'name_ar'], ['get', 'name']]
+  }
+  if (layer.type === 'background') paint['background-color'] = PALETTE.land
+  else if (layer.type === 'fill' && /^water/.test(layer.id)) paint['fill-color'] = PALETTE.water
+  else if (layer.type === 'fill' && /landuse|park|national-park|landcover/.test(layer.id)) paint['fill-color'] = PALETTE.wash
+  else if (layer.type === 'fill' && /building/.test(layer.id)) paint['fill-color'] = PALETTE.pebble
+  else if (layer.type === 'line' && /road|street|bridge|tunnel/.test(layer.id)) paint['line-color'] = PALETTE.white
+  else if (layer.type === 'symbol') { paint['text-color'] = PALETTE.bark; paint['text-halo-color'] = PALETTE.ground }
+  return { layout, paint }
+}
+
+/** The basemap style, dressed before it reaches the map; null when it cannot be fetched (the map then dresses it on load). */
+async function dressedStyle(token: string): Promise<StyleSpecification | null> {
+  const response = await fetch(`${STYLE_JSON}?access_token=${encodeURIComponent(token)}`).catch(() => null)
+  const style = response?.ok ? await response.json().catch(() => null) as (StyleSpecification & { layers?: StyleLayer[] }) | null : null
+  if (!style || !Array.isArray(style.layers)) return null
+  const layers = style.layers.map((layer) => {
+    const { layout, paint } = dressLayer(layer)
+    return { ...layer, layout: { ...layer.layout, ...layout }, paint: { ...layer.paint, ...paint } }
+  })
+  return { ...style, layers } as StyleSpecification
 }
 
 export type Circle = { lon: number; lat: number; radius_m: number }
@@ -68,7 +94,7 @@ export type ListingDot = { id: string; lon: number; lat: number; color: string; 
 
 export { circlePolygon }
 
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName, hover, onPoint }: {
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName, hover, onPoint, cover = 0, onDistrictClick, pin, onPin }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -86,9 +112,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   streets?: StreetLine[] | null
   onStreet?: ((id: string) => void) | null
   focus?: { lon: number; lat: number } | null
-  /** A district picked from a list: the map flies to it. `cover` is the share of the screen a phone's sheet covers below
-   * the map's own peek, so the district lands in the part still visible; `nonce` repeats a pick of the same district. */
-  zoomTo?: { id: string; nonce: number; cover: number } | null
+  /** Districts picked from a list or named by a link: the map frames them. `cover` is the share of the screen a phone's
+   * sheet covers below the map's own peek, so they land in the part still visible; `nonce` repeats a pick of the same. */
+  zoomTo?: { ids: string[]; nonce: number; cover: number } | null
   /** The visible area [west, south, east, north] each time the map settles. */
   onBounds?: ((bounds: [number, number, number, number]) => void) | null
   /** Told when the map fails to open and when a retry brings it back, so the page can clear what would sit over the notice. */
@@ -100,6 +126,13 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   /** The district under a mouse pointer and where it is on the map (pixels from the map's corner), or null when it
    * leaves the districts. Mouse only: a tap picks the district instead. */
   onPoint?: ((point: { id: string; x: number; y: number; width: number; height: number } | null) => void) | null
+  /** The share of the screen a phone's sheet covers now (0 while it peeks), kept clear when the map frames the city. */
+  cover?: number
+  /** A click on a district, and where on the ground it landed, told before the district is picked or released. */
+  onDistrictClick?: ((hit: { id: string; lon: number; lat: number }) => void) | null
+  /** A place a card is pinned to: the map tells where it is on screen (`onPin`) each time the map moves. */
+  pin?: { lon: number; lat: number } | null
+  onPin?: ((point: { x: number; y: number; width: number; height: number } | null) => void) | null
 }) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<MapboxMap | null>(null)
@@ -112,8 +145,19 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   point.current = onPoint
   const reportBounds = useRef(onBounds)
   reportBounds.current = onBounds
+  const districtClick = useRef(onDistrictClick)
+  districtClick.current = onDistrictClick
+  const reportPin = useRef(onPin)
+  reportPin.current = onPin
+  const sheetCover = useRef(cover)
+  sheetCover.current = cover
+  // the first city framing is instant (nothing is on screen yet); a city changed later is flown to
+  const framed = useRef(false)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState('')
+  // why the map did not open, in words that point the visitor the right way: a dropped connection is theirs to fix;
+  // a map the server cannot serve right now is not, and the panel's figures still work either way
+  const [errorDetail, setErrorDetail] = useState<string | undefined>(undefined)
   // a retry opens the map again in place, so the lens, the step and the picked districts stay as they were
   const [attempt, setAttempt] = useState(0)
   const failed = useRef(onFailed)
@@ -129,35 +173,32 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
       const response = await fetch('/api/mapbox-token', { cache: 'no-store' }).catch(() => null)
       const token = response?.ok ? await response.json().then((body) => body.token as string | undefined).catch(() => null) : null
       if (disposed) return
-      if (!token) { setError('الخريطة'); return }
+      if (!token) {
+        setErrorDetail(response ? 'الخريطة غير متاحة الآن من جهتنا، والأرقام والقوائم في اللوحة تعمل. أعد المحاولة بعد قليل.' : 'تحقق من الاتصال ثم أعد المحاولة. الأرقام في اللوحة تبقى كما هي.')
+        setError('الخريطة'); return
+      }
       const mapboxgl = await import('mapbox-gl').then((module) => module.default).catch(() => null)
       if (disposed || !container.current) return
-      if (!mapboxgl) { setError('الخريطة'); return }
+      if (!mapboxgl) { setErrorDetail(undefined); setError('الخريطة'); return }
       mapboxgl.accessToken = token
-      const instance = new mapboxgl.Map({ container: container.current, style: STYLE_URL, center: [46.68, 24.71], zoom: 9.5 })
+      const style = await dressedStyle(token)
+      if (disposed || !container.current) return
+      const instance = new mapboxgl.Map({ container: container.current, style: style ?? STYLE_URL, center: [46.68, 24.71], zoom: 9.5 })
       map.current = instance
       // a map drawn while its box was hidden or smaller (the phone's list view, a sheet) keeps that size until told:
       // follow the box, so showing it fills the screen
       const watch = new ResizeObserver(() => instance.resize())
       watch.observe(container.current)
       instance.once('remove', () => watch.disconnect())
+      // the style could not be fetched dressed: dress it as soon as it is parsed, before its tiles draw
+      if (!style) instance.once('style.load', () => {
+        for (const layer of (instance.getStyle()?.layers ?? []) as StyleLayer[]) {
+          const { layout, paint } = dressLayer(layer)
+          if (layout['text-field']) instance.setLayoutProperty(layer.id, 'text-field', layout['text-field'] as ['coalesce', ...unknown[]])
+          for (const [property, value] of Object.entries(paint)) { try { instance.setPaintProperty(layer.id, property as 'fill-color', value as string) } catch { /* not this layer's property */ } }
+        }
+      })
       instance.on('load', () => {
-        // place names on the basemap in Arabic where Mapbox has them
-        for (const layer of instance.getStyle().layers ?? []) {
-          if (layer.type === 'symbol' && instance.getLayoutProperty(layer.id, 'text-field') != null) {
-            instance.setLayoutProperty(layer.id, 'text-field', ['coalesce', ['get', 'name_ar'], ['get', 'name']])
-          }
-        }
-        // the basemap in the Atlas palette: warm stone land, soft water, quiet green parks, white streets
-        for (const layer of instance.getStyle().layers ?? []) {
-          const paint = (property: 'background-color' | 'fill-color' | 'line-color' | 'text-color' | 'text-halo-color', value: string) => { try { instance.setPaintProperty(layer.id, property, value) } catch { /* not this layer's property */ } }
-          if (layer.type === 'background') paint('background-color', PALETTE.land)
-          else if (layer.type === 'fill' && /^water/.test(layer.id)) paint('fill-color', PALETTE.water)
-          else if (layer.type === 'fill' && /landuse|park|national-park|landcover/.test(layer.id)) paint('fill-color', PALETTE.wash)
-          else if (layer.type === 'fill' && /building/.test(layer.id)) paint('fill-color', PALETTE.pebble)
-          else if (layer.type === 'line' && /road|street|bridge|tunnel/.test(layer.id)) paint('line-color', PALETTE.white)
-          else if (layer.type === 'symbol') { paint('text-color', PALETTE.bark); paint('text-halo-color', PALETTE.ground) }
-        }
         instance.addSource('districts', { type: 'geojson', data: EMPTY, promoteId: 'id' })
         // shading and outlines sit under the basemap's place and road names; district names go on top of everything
         const layers = instance.getStyle().layers ?? []
@@ -238,7 +279,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
           if (cluster) { instance.easeTo({ center: (cluster.geometry as GeoJSON.Point).coordinates as [number, number], zoom: instance.getZoom() + 2 }); return }
           if (pick.current) { pick.current({ lon: event.lngLat.lng, lat: event.lngLat.lat }); return }
           const id = instance.queryRenderedFeatures(event.point, { layers: ['district-fill'] })[0]?.properties?.id
-          if (id != null) toggle.current(String(id))
+          if (id == null) return
+          districtClick.current?.({ id: String(id), lon: event.lngLat.lng, lat: event.lngLat.lat })
+          toggle.current(String(id))
         })
         for (const layer of ['listing-dot', 'listing-cluster', 'street-line']) {
           instance.on('mouseenter', layer, () => { instance.getCanvas().style.cursor = 'pointer' })
@@ -317,24 +360,42 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     if (ready && focus) map.current?.flyTo({ center: [focus.lon, focus.lat], zoom: Math.max(map.current.getZoom(), 15) })
   }, [ready, focus])
 
+  // the city's districts fill the part of the map in view, leaving out the few far from the city (map-framing.ts)
   useEffect(() => {
     const instance = map.current
-    const bounds = boundsOf(features)
-    if (ready && instance && bounds) instance.fitBounds(bounds, { padding: 24, duration: 0 })
+    const bounds = cityFrame(features)
+    if (!ready || !instance || !bounds) return
+    const box = instance.getContainer()
+    const phone = !window.matchMedia('(min-width: 64rem)').matches
+    const padding = framePadding({ height: box.clientHeight, width: box.clientWidth, phone, cover: sheetCover.current, peek: PEEK_PX })
+    instance.fitBounds(bounds, { padding, maxZoom: 13, duration: framed.current ? 800 : 0 })
+    framed.current = true
   }, [ready, features])
 
   useEffect(() => {
     const instance = map.current
-    const feature = zoomTo && features.find((item) => String(item.properties.id) === zoomTo.id)
-    const bounds = feature ? boundsOf([feature]) : null
+    if (!ready || !instance || !pin) { reportPin.current?.(null); return }
+    const report = () => {
+      const at = instance.project([pin.lon, pin.lat])
+      const box = instance.getContainer()
+      reportPin.current?.({ x: at.x, y: at.y, width: box.clientWidth, height: box.clientHeight })
+    }
+    report()
+    instance.on('move', report)
+    instance.on('resize', report)
+    return () => { instance.off('move', report); instance.off('resize', report) }
+  }, [ready, pin])
+
+  useEffect(() => {
+    const instance = map.current
+    const wanted = new Set(zoomTo?.ids ?? [])
+    const picked = features.filter((item) => wanted.has(String(item.properties.id)))
+    const bounds = picked.length ? boundsOf(picked) : null
     if (!ready || !instance || !bounds || !zoomTo) return
-    const height = instance.getContainer().clientHeight
-    const phone = zoomTo.cover > 0
+    const box = instance.getContainer()
     // the sheet covers `cover` of the whole screen, of which the map already ends above the peek
-    const bottom = phone ? Math.max(24, zoomTo.cover * (height + PEEK_PX) - PEEK_PX + 24) : 48
-    const top = phone ? 120 : 48
-    if (top + bottom >= height - 40) return
-    instance.fitBounds(bounds, { padding: { top, bottom, left: 32, right: 32 }, maxZoom: 15, duration: 900 })
+    const padding = framePadding({ height: box.clientHeight, width: box.clientWidth, phone: zoomTo.cover > 0 || !window.matchMedia('(min-width: 64rem)').matches, cover: zoomTo.cover, peek: PEEK_PX })
+    instance.fitBounds(bounds, { padding, maxZoom: 15, duration: 900 })
     // runs after the city framing above, so a pick made while the map loads still lands once it is ready;
     // features stay out of the dependencies: a repaint of the same city never moves the camera again
   }, [ready, zoomTo])
@@ -342,7 +403,13 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   return (
     <div className="relative h-full w-full">
       <div ref={container} className="h-full w-full" />
-      {error && <LoadError what={error} onRetry={retry} className={cn('absolute inset-x-4 top-4 z-[15] mx-auto max-w-sm bg-card/95 backdrop-blur', errorClassName)} />}
+      {/* a light veil while the basemap opens, in place of a half-drawn map */}
+      {!ready && !error && (
+        <div role="status" className="absolute inset-0 z-[4] grid place-items-center bg-muted/70">
+          <span className="animate-pulse rounded-full border bg-card/95 px-4 py-2 text-sm font-medium text-muted-foreground shadow-sm">جارٍ تحميل الخريطة</span>
+        </div>
+      )}
+      {error && <LoadError what={error} detail={errorDetail} onRetry={retry} className={cn('absolute inset-x-4 top-4 z-[15] mx-auto max-w-sm bg-card/95 backdrop-blur', errorClassName)} />}
     </div>
   )
 }

@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { NoResult } from '@/components/shared/empty-state'
 import { Explained } from '@/components/shared/explained'
+import { LoadError } from '@/components/shared/load-error'
 import { Skeleton, SkeletonRows, SkeletonStatus } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
@@ -14,7 +16,7 @@ import { CATEGORICAL, PALETTE as TONE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { useMainActivities } from '@/lib/main-activities'
-import { weekSummary } from './tool-answers'
+import { territoriesSummary, weekSummary } from './tool-answers'
 
 type Territory = { territory: number; weight: number; districts: { district_ar: string; district_id: string | number }[] }
 type Customer = Stop & { name: string; district_ar: string }
@@ -74,6 +76,22 @@ function Stepper({ id, label, value, min, max, onChange, less, more }: {
   )
 }
 
+const STOPS_LISTED = 200
+
+/** The stops in the order the route visits them, numbered, with each one's district; the rest stay on the map. */
+function StopOrder({ order, byId }: { order: string[]; byId: Map<string, Customer> }) {
+  return (
+    <>
+      <ol className="mt-2 max-h-64 space-y-1 overflow-y-auto text-base tabular-nums">
+        {order.slice(0, STOPS_LISTED).map((id, index) => (
+          <li key={id} className="flex gap-2"><span className="w-10 shrink-0 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span><span className="truncate">{byId.get(id)?.name || 'منشأة بلا اسم'}</span><span className="ms-auto shrink-0 text-sm text-muted-foreground">{byId.get(id)?.district_ar}</span></li>
+        ))}
+      </ol>
+      {order.length > STOPS_LISTED && <p className="mt-1 text-sm text-muted-foreground">و{numberFormat.format(order.length - STOPS_LISTED)} محطة أخرى على الخريطة</p>}
+    </>
+  )
+}
+
 const duration = (seconds: number) => {
   const minutes = Math.round(seconds / 60)
   return minutes < 60 ? `${numberFormat.format(minutes)} دقيقة` : `${numberFormat.format(Math.floor(minutes / 60))} ساعة ${numberFormat.format(minutes % 60)} دقيقة`
@@ -103,17 +121,23 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const [plan, setPlan] = useState<WeekPlan | null>(null)
   const [planStatus, setPlanStatus] = useState<'idle' | 'loading' | 'error' | 'too-many'>('idle')
   const [day, setDay] = useState<number | null>(null)
+  // a day routed without a start point sets out from its first stop, which the solved parts then leave out of their order
+  const [origin, setOrigin] = useState<string | null>(null)
   const abort = useRef<AbortController | null>(null)
+  // «أعد المحاولة» asks again for the territories, the rep's customers, or the week
+  const [attempt, setAttempt] = useState(0)
+  const [customersAttempt, setCustomersAttempt] = useState(0)
+  const [planAttempt, setPlanAttempt] = useState(0)
 
   // step 1-2: the territories, rebuilt whenever the activity, count or balance changes
   useEffect(() => {
     let active = true
     setStatus('loading'); setRep(null)
     postMarket<{ territories: Territory[] }>('territories', { city, count, weight, ...(mainId ? { main_id: mainId } : {}) })
-      .then((data) => { if (active) { setGroups(data.territories); setStatus('idle') } })
+      .then((data) => { if (active) { setGroups(data.territories ?? []); setStatus('idle') } })
       .catch(() => { if (active) setStatus('error') })
     return () => { active = false }
-  }, [city, count, weight, mainId])
+  }, [city, count, weight, mainId, attempt])
 
   // step 3: one rep's customers
   useEffect(() => {
@@ -131,7 +155,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
       setCustomers(payload.points ?? [])
     }).catch(() => { if (active) setCustomerError({ text: 'تعذر تحميل منشآت المنطقة.', login: false }) })
     return () => { active = false }
-  }, [rep, groups, city, mainId])
+  }, [rep, groups, city, mainId, customersAttempt])
 
   // the rep's week: rebuilt when the customers, the start point or the week's shape change
   useEffect(() => {
@@ -146,7 +170,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
     }).then((data) => { if (active) { setPlan(data); setPlanStatus('idle') } })
       .catch(() => { if (active) setPlanStatus('error') })
     return () => { active = false }
-  }, [customers, start, days, perDay])
+  }, [customers, start, days, perDay, planAttempt])
 
   const pickStart = useCallback((point: Point) => { setStart(point); setPicking(false) }, [])
 
@@ -159,7 +183,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
     abort.current?.abort()
     const controller = new AbortController()
     abort.current = controller
-    setParts([]); setRouteError(''); setProgress({ done: 0, total: 1 })
+    setParts([]); setRouteError(''); setProgress({ done: 0, total: 1 }); setOrigin(start ? null : only?.[0]?.id ?? null)
     try {
       await planRoute(from, through, (part, done, total) => {
         setParts((current) => { const next = [...current]; next[part.index] = part; return next })
@@ -173,7 +197,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const solved = parts.filter(Boolean)
   const meters = solved.reduce((total, part) => total + part.meters, 0)
   const seconds = solved.reduce((total, part) => total + part.seconds, 0)
-  const order = useMemo(() => solved.flatMap((part) => part.order), [solved])
+  const order = useMemo(() => [...(origin ? [origin] : []), ...solved.flatMap((part) => part.order)], [solved, origin])
   const byId = useMemo(() => new Map((customers ?? []).map((customer) => [customer.id, customer])), [customers])
   const showDay = (index: number) => {
     if (!plan || !customers) return
@@ -189,8 +213,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const summary = finished ? `${day != null ? `مسار ${names[day] ?? 'اليوم'}` : 'المسار'}: ${numberFormat.format(order.length)} محطة · ${km(meters)} · ${duration(seconds)}`
     : plan && planStatus === 'idle' ? weekSummary(visits, plan.days.length)
     : rep != null && customers ? `المندوب ${numberFormat.format(rep + 1)}: ${numberFormat.format(customers.length)} منشأة على الخريطة`
-      : groups && status !== 'loading' ? `${numberFormat.format(groups.length)} مناطق متوازنة ${weight === 'population' ? 'بالسكان' : 'بالمنشآت'}`
-        : null
+      : territoriesSummary(status, groups?.length ?? null, weight)
 
   // everything on the map comes from this one place
   useEffect(() => {
@@ -237,7 +260,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
           ))}
         </div>
         {status === 'loading' && <SkeletonRows label="جارٍ التقسيم" rows={groups?.length || 3} boxed leading="swatch" trailing className="mt-2" />}
-        {status === 'error' && <p role="alert" className="mt-2 text-base text-destructive">تعذر التقسيم.</p>}
+        {status === 'error' && <LoadError what="المناطق" title="تعذر تقسيم المناطق." onRetry={() => setAttempt((n) => n + 1)} className="mt-2" />}
         {groups && status !== 'loading' && (
           <ol className="mt-2 max-h-56 space-y-1.5 overflow-y-auto">
             {groups.map((group, index) => (
@@ -262,11 +285,14 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
         <Step n={3} title={`عملاء المندوب ${numberFormat.format(rep + 1)}`} done={Boolean(customers?.length)}>
           {!customers && !customerError && <SkeletonStatus><Skeleton className="h-6 w-44" /></SkeletonStatus>}
           {customerError && (
-            <p role="alert" className="text-base text-destructive">
-              {customerError.text} {customerError.login && <Link href="/login?next=%2Fmap%3Ftool%3Dterritories" className="font-semibold text-primary underline">تسجيل الدخول</Link>}
-            </p>
+            <LoadError what="منشآت المنطقة" detail={customerError.text} onRetry={() => setCustomersAttempt((n) => n + 1)}
+              action={customerError.login ? <Link href="/login?next=%2Fmap%3Ftool%3Dterritories" className="text-sm font-semibold text-primary underline">تسجيل الدخول</Link> : undefined} />
           )}
-          {customers && (
+          {customers && customers.length === 0 && (
+            <NoResult title={`لا منشأة ${mainId ? 'من هذا النشاط ' : ''}في منطقة المندوب ${numberFormat.format(rep + 1)}`}
+              body={mainId ? 'اختر «كل المنشآت» أو نشاطاً آخر، أو مندوباً آخر.' : 'اختر مندوباً آخر.'} />
+          )}
+          {customers && customers.length > 0 && (
             <p className="text-base">
               <strong>{numberFormat.format(customers.length)}</strong> منشأة على الخريطة
             </p>
@@ -289,7 +315,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
             <Stepper id="territories-per-day" label="زيارات اليوم حتى" value={perDay} min={1} max={100} onChange={setPerDay} less="زيارة أقل" more="زيارة أكثر" />
           </div>
           {planStatus === 'loading' && <SkeletonRows label="جارٍ تقسيم الأسبوع" rows={days} boxed leading="swatch" sub trailing className="mt-2" />}
-          {planStatus === 'error' && <p role="alert" className="mt-2 text-base text-destructive">تعذر تقسيم الأسبوع.</p>}
+          {planStatus === 'error' && <LoadError what="خطة الأسبوع" title="تعذر تقسيم الأسبوع." onRetry={() => setPlanAttempt((n) => n + 1)} className="mt-2" />}
           {planStatus === 'too-many' && <p role="alert" className="mt-2 text-base text-destructive">المنشآت أكثر من {numberFormat.format(WEEK_STOPS_MAX)}. اختر نشاطاً أدق أو مندوبين أكثر.</p>}
           {plan && planStatus === 'idle' && (
             <>
@@ -317,7 +343,14 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
                   )
                 })}
               </ol>
-              {day != null && routeError && <p role="alert" className="mt-2 text-base text-destructive">{routeError}</p>}
+              {day != null && routeError && <LoadError what="المسار" title="تعذر حساب مسار اليوم." detail={routeError} onRetry={() => showDay(day)} className="mt-2" />}
+              {/* the day's visits in the order the route takes them: with the full route hidden, this is the rep's list */}
+              {day != null && finished && (
+                <div className="mt-3">
+                  <p className="text-sm font-semibold">ترتيب زيارات {names[day] ?? 'اليوم'}</p>
+                  <StopOrder order={order} byId={byId} />
+                </div>
+              )}
               {plan.unplanned.length > 0 && (
                 <p className="mt-2 text-base"><strong>{numberFormat.format(plan.unplanned.length)}</strong> منشأة لا تتسع لها خطة هذا الأسبوع</p>
               )}
@@ -326,7 +359,8 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
         </Step>
       )}
 
-      {customers && customers.length > 0 && start && (
+      {/* owner decision (2026-11-02): the week plan replaces the one long route, so step 6 shows only when no plan can be made */}
+      {customers && customers.length > 0 && start && !plan && planStatus !== 'loading' && (
         <Step n={6} title="مسار الزيارة" done={finished && day == null}>
           <button onClick={() => route()} disabled={day == null && progress != null && !finished && !routeError} className="h-11 w-full rounded-lg bg-primary text-base font-semibold text-primary-foreground disabled:opacity-60">
             {day == null && progress && !finished && !routeError ? `جارٍ الحساب: ${numberFormat.format(progress.done)} من ${numberFormat.format(progress.total)}` : finished && day == null ? 'أعد حساب المسار' : `احسب المسار لـ ${numberFormat.format(customers.length)} محطة`}
@@ -334,7 +368,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
           {day == null && progress && !finished && !routeError && (
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${(100 * progress.done) / Math.max(1, progress.total)}%` }} /></div>
           )}
-          {day == null && routeError && <p role="alert" className="mt-2 text-base text-destructive">{routeError}</p>}
+          {day == null && routeError && <LoadError what="المسار" title="تعذر حساب المسار." detail={routeError} onRetry={() => route()} className="mt-2" />}
           {day == null && solved.length > 0 && (
             <>
               <div className="mt-3 grid grid-cols-3 gap-2 text-center tabular-nums">
@@ -342,12 +376,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
                 <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">المسافة</p><p className="text-lg font-bold">{km(meters)}</p></div>
                 <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">زمن القيادة</p><p className="text-base font-bold">{duration(seconds)}</p></div>
               </div>
-              <ol className="mt-3 max-h-64 space-y-1 overflow-y-auto text-base tabular-nums">
-                {order.slice(0, 200).map((id, index) => (
-                  <li key={id} className="flex gap-2"><span className="w-10 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span><span className="truncate">{byId.get(id)?.name}</span><span className="ms-auto shrink-0 text-sm text-muted-foreground">{byId.get(id)?.district_ar}</span></li>
-                ))}
-              </ol>
-              {order.length > 200 && <p className="mt-1 text-sm text-muted-foreground">و{numberFormat.format(order.length - 200)} محطة أخرى على الخريطة</p>}
+              <StopOrder order={order} byId={byId} />
             </>
           )}
         </Step>

@@ -15,13 +15,15 @@ export function populationMethod(source: string | null | undefined): string {
 }
 
 export const EXPLAIN = {
+  /** `sources` are those of the districts that have a figure; `total` is null when none has. A district every source
+   * puts at 0 has no figure (golden.py), so its card says that instead of naming the method of a number not shown. */
   population(sources: (string | null | undefined)[], total: number | null): string[] {
+    if (total == null || !sources.length) return ['لا رقم سكان لهذا النطاق في جرد فرق بعد، فيظهر «غير متاح» لا صفراً ولا تقديراً.']
     if (sources.length === 1) return [populationMethod(sources[0])]
     const measured = sources.filter((source) => source?.startsWith('910ths')).length
     return [
-      `مجموع سكان ${n(sources.length)} حياً.`,
+      `مجموع سكان ${counted(sources.length, 'district')}.`,
       measured === sources.length ? 'كل الأحياء أرقامها مقاسة.' : `${n(measured)} منها أرقامها مقاسة، والباقي تقدير من مباني الحي أو من خرائط الكثافة.`,
-      ...(total == null ? ['يظهر «غير متاح» إذا كان حي واحد على الأقل بلا رقم.'] : []),
     ]
   },
   businesses(scope: 'district' | 'districts' | 'city'): string[] {
@@ -136,12 +138,14 @@ export const EXPLAIN = {
   },
   topAge: ['الفئة العمرية الأكبر عدداً.', 'توزيع الأعمار نمط المنطقة كلها مضبوطاً على عدد سكان الحي، وليس قياساً لكل حي.'],
   activities: ['عدد منشآت كل نشاط رئيسي في الحي من دليل فرق.', 'المنشأة قد تُحسب في أكثر من نشاط.'],
-  gap(expected: number, present: number, rate: number): string[] {
+  gap(population: number, expected: number, present: number, rate: number): string[] {
+    const need = Math.round(expected)
     return [
-      `معدل المدينة لهذا النشاط: منشأة لكل ${n(rate)} ساكن.`,
-      `المتوقع للحي = سكانه ÷ ${n(rate)} = ${n(expected)} منشأة.`,
-      `الموجود ${n(present)}، فالفرق ${n(expected - present)}.`,
-      'الفرق الموجب يعني منشآت أقل مما يتحمله عدد السكان.',
+      `معدل المدينة لهذا النشاط: منشأة لكل ${n(rate)} ساكن، وهو سكان الأحياء التي فيها النشاط مقسوماً على عدد منشآته فيها.`,
+      `«يحتاج» = سكان الحي ÷ ${n(rate)}:`,
+      `${n(population)} ÷ ${n(rate)} = ${n(need)}`,
+      `الموجود في دليل فرق ${n(present)}، فالناقص ${n(need - present)}.`,
+      'الدليل لا يضم كل المنشآت الفعلية، فالنقص يدل على مكان البحث لا على طلب مؤكد.',
     ]
   },
   aroundPeople: ['مجموع سكان المباني السكنية داخل المنطقة.', 'سكان كل حي موزعون على مبانيه بحسب عدد الوحدات السكنية في كل مبنى.'],

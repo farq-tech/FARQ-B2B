@@ -1,15 +1,16 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { groupLabel } from '@/lib/real-estate'
 import { RELIABLE_LISTINGS } from './lenses'
-import { sumOf, type DistrictRow } from './city-data'
+import { sumKnown, sumOf, type DistrictRow } from './city-data'
 import type { LensId } from './lenses'
 import { Icon3D } from '@/components/shared/icon-3d'
+import { Skeleton } from '@/components/ui/skeleton'
 
 type Profile = {
   male: number | null
@@ -36,15 +37,21 @@ const LEAD: Record<LensId, FigureKey[]> = {
 const show = (value: number | null | undefined, unit = '') => (value == null ? 'غير متاح' : `${numberFormat.format(Math.round(value))}${unit}`)
 
 /** One figure; tapping it explains how it was worked out. */
-function Figure({ label, short, value, explain }: { label: string; short?: string; value: string; explain: string[] }) {
+type FigureSpec = { label: string; short?: string; value: string; note?: string | null; explain: string[]; /** Still being fetched: its shape, not «غير متاح». */ pending?: boolean }
+const MISSING = 'غير متاح'
+
+function Figure({ label, short, value, note, explain, pending }: FigureSpec) {
   // the value sits at the tile's foot, so a row's two figures line up even when one label runs to two lines; a long
   // label can show a short form, and its card keeps the full name
   return (
     <div className="flex flex-col justify-between gap-0.5 rounded-xl bg-muted/40 px-3 py-2.5">
       <p className="text-sm text-muted-foreground">{short ?? label}</p>
-      <Explained title={label} lines={explain} className={value === 'غير متاح' ? 'mt-0.5 self-start text-base text-muted-foreground' : 'mt-0.5 self-start text-xl font-bold'}>
-        {value}
-      </Explained>
+      {pending ? <Skeleton className="mt-1.5 h-6 w-16" aria-label={`جارٍ تحميل ${label}`} /> : (
+        <Explained title={label} lines={explain} className={value === MISSING ? 'mt-0.5 self-start text-base text-muted-foreground' : 'mt-0.5 self-start text-xl font-bold'}>
+          {value}
+        </Explained>
+      )}
+      {note && <p className="text-xs text-muted-foreground">{note}</p>}
     </div>
   )
 }
@@ -60,19 +67,39 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
   onClear: () => void
 }) {
   const [profile, setProfile] = useState<Profile | null>(null)
+  // the profile's figures (sex, nationality, ages) are «غير متاح» only once it has answered or failed, not while asked
+  const [profileDone, setProfileDone] = useState(false)
   const single = selected.length === 1 ? selected[0] : null
 
+  // keyed by the district's name, not its row: a fresh copy of the same row (the city's tables answering again) kept
+  // blanking the profile and asking for it once more
+  const singleName = single?.name ?? null
   useEffect(() => {
     setProfile(null)
-    if (!single) return
+    setProfileDone(false)
+    if (!singleName) return
     let active = true
-    postMarket<Profile>('district-profile', { city, district: single.name }).then((data) => { if (active) setProfile(data) }).catch(() => undefined)
+    postMarket<Profile>('district-profile', { city, district: singleName }).then((data) => { if (active) setProfile(data) }).catch(() => undefined)
+      .finally(() => { if (active) setProfileDone(true) })
     return () => { active = false }
-  }, [city, single])
+  }, [city, singleName])
 
   const scope = selected.length ? selected : rows
-  const people = sumOf(scope, 'population')
+  // a total over several districts covers those that have the figure, and says so when that is not all of them
+  const coverage = (sum: { known: number; of: number } | null) => (sum && sum.known < sum.of ? `في ${numberFormat.format(sum.known)} من ${counted(sum.of, 'district')}` : null)
+  const coverageLine = (sum: { known: number; of: number } | null) => {
+    const note = coverage(sum)
+    return note ? [`المجموع ${note} لها هذا الرقم؛ الباقي غير متاح.`] : []
+  }
+  const peopleSum = single ? null : sumKnown(scope, 'population')
+  const people = single ? single.population : peopleSum?.total ?? null
   const businesses = selected.length ? sumOf(scope, 'businesses') : total
+  const restaurantSum = single ? null : sumKnown(scope, 'restaurants')
+  const restaurants = single ? single.restaurants : restaurantSum?.total ?? null
+  // the rate over several districts uses only those with both figures, so the two sides cover the same districts
+  const paired = scope.filter((row) => row.population != null && row.businesses != null)
+  const pairedPeople = paired.reduce((sum, row) => sum + (row.population as number), 0)
+  const pairedBusinesses = paired.reduce((sum, row) => sum + (row.businesses as number), 0)
   const male = profile?.male ?? null
   const female = profile?.female ?? null
   // each share on its own tile: the two figures in one «57% · 43%» line ran left to right inside the Arabic label
@@ -84,31 +111,37 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
   const scopeKind = single ? 'district' : selected.length ? 'districts' : 'city'
 
   // one district's rate is its golden row's (the service works it out); several districts or the city add up first
-  const perBusiness = single ? single.residentsPerBusiness : people != null && businesses ? people / businesses : null
-  const figures: [FigureKey, ReactNode | false][] = [
-    ['population', <Figure label="السكان" value={show(people)} explain={EXPLAIN.population(scope.map((row) => row.populationSource), people)} />],
-    ['businesses', <Figure label="المنشآت" value={show(businesses)} explain={EXPLAIN.businesses(scopeKind)} />],
-    ['perBusiness', lens !== 'distributors' && <Figure label="ساكن لكل منشأة" value={show(perBusiness)} explain={EXPLAIN.residentsPerBusiness(people, businesses)} />],
-    ['unmet', single && <Figure label="بحث بلا نتيجة" value={single.unmetSearches != null && single.searches != null ? `${show(single.unmetSearches)} من ${show(single.searches)}` : 'غير متاح'} explain={EXPLAIN.unmet(single.searches, single.unmetSearches)} />],
-    ['restaurants', <Figure label="مطاعم على تطبيقات التوصيل" short="مطاعم التوصيل" value={show(sumOf(scope, 'restaurants'))} explain={EXPLAIN.restaurants} />],
-    ['male', single && <Figure label="الذكور" value={share(male)} explain={EXPLAIN.sex} />],
-    ['female', single && <Figure label="الإناث" value={share(female)} explain={EXPLAIN.sex} />],
-    ['saudi', single && <Figure label="السعوديون" value={profile?.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}%`} explain={EXPLAIN.saudi} />],
-    ['menuPrice', single && <Figure label="سعر الصنف المعتاد" value={show(single.menuPrice, ' ر.س')} explain={EXPLAIN.menuPrice(single.menuPricePlaces)} />],
-    ['villaShare', single && lens !== 'distributors' && <Figure label="حصة الفلل من المساكن" value={single.villaShare == null ? 'غير متاح' : `${Math.round(single.villaShare)}%`} explain={EXPLAIN.villaShare} />],
-    ['income', single && lens !== 'distributors' && <Figure label="متوسط الدخل" value={show(single.income, ' ر.س')} explain={EXPLAIN.income} />],
-    ['growth', single && lens !== 'marketers' && (
-      <Figure label="مبانٍ جديدة وتحت الإنشاء"
-        value={single.underConstruction != null && single.newBuildings != null ? show(single.underConstruction + single.newBuildings) : 'غير متاح'}
-        explain={EXPLAIN.growth(single.underConstruction, single.newBuildings)} />
-    )],
-    ['topAge', single && lens === 'marketers' && <Figure label="أكبر شريحة عمرية" value={topAge ? topAge.age_group : 'غير متاح'} explain={EXPLAIN.topAge} />],
+  const perBusiness = single ? single.residentsPerBusiness : paired.length && pairedBusinesses ? pairedPeople / pairedBusinesses : null
+  const pairedNote = !single && paired.length && paired.length < scope.length ? coverage({ known: paired.length, of: scope.length }) : null
+  const asking = Boolean(single) && !profileDone
+  const figures: [FigureKey, FigureSpec | false | null][] = [
+    ['population', { label: 'السكان', value: show(people), note: coverage(peopleSum), explain: [...EXPLAIN.population(scope.filter((row) => row.population != null).map((row) => row.populationSource), people), ...coverageLine(peopleSum)] }],
+    ['businesses', { label: 'المنشآت', value: show(businesses), explain: EXPLAIN.businesses(scopeKind) }],
+    ['perBusiness', lens !== 'distributors' && { label: 'ساكن لكل منشأة', value: show(perBusiness), note: pairedNote,
+      explain: single ? EXPLAIN.residentsPerBusiness(people, businesses) : EXPLAIN.residentsPerBusiness(paired.length ? pairedPeople : null, paired.length ? pairedBusinesses : null) }],
+    ['unmet', single && { label: 'بحث بلا نتيجة', value: single.unmetSearches != null && single.searches != null ? `${show(single.unmetSearches)} من ${show(single.searches)}` : MISSING, explain: EXPLAIN.unmet(single.searches, single.unmetSearches) }],
+    ['restaurants', { label: 'مطاعم على تطبيقات التوصيل', short: 'مطاعم التوصيل', value: show(restaurants), note: coverage(restaurantSum), explain: [...EXPLAIN.restaurants, ...coverageLine(restaurantSum)] }],
+    ['male', single && { label: 'الذكور', value: share(male), explain: EXPLAIN.sex, pending: asking }],
+    ['female', single && { label: 'الإناث', value: share(female), explain: EXPLAIN.sex, pending: asking }],
+    ['saudi', single && { label: 'السعوديون', value: profile?.saudi_pct == null ? MISSING : `${Math.round(profile.saudi_pct)}%`, explain: EXPLAIN.saudi, pending: asking }],
+    ['menuPrice', single && { label: 'سعر الصنف المعتاد', value: show(single.menuPrice, ' ر.س'), explain: EXPLAIN.menuPrice(single.menuPricePlaces) }],
+    ['villaShare', single && lens !== 'distributors' && { label: 'حصة الفلل من المساكن', value: single.villaShare == null ? MISSING : `${Math.round(single.villaShare)}%`, explain: EXPLAIN.villaShare }],
+    ['income', single && lens !== 'distributors' && { label: 'متوسط الدخل', value: show(single.income, ' ر.س'), explain: EXPLAIN.income }],
+    ['growth', single && lens !== 'marketers' && { label: 'مبانٍ جديدة وتحت الإنشاء',
+      value: single.underConstruction != null && single.newBuildings != null ? show(single.underConstruction + single.newBuildings) : MISSING,
+      explain: EXPLAIN.growth(single.underConstruction, single.newBuildings) }],
+    ['topAge', single && lens === 'marketers' && { label: 'أكبر شريحة عمرية', value: topAge ? topAge.age_group : MISSING, explain: EXPLAIN.topAge, pending: asking }],
   ]
   // the group's own decision figures lead (docs/atlas-product-foundation.md §3); the rest keep their order after them
   const lead = LEAD[lens]
   const rank = (key: FigureKey) => { const at = lead.indexOf(key); return at < 0 ? lead.length : at }
-  const ordered = figures.filter((entry): entry is [FigureKey, ReactNode] => Boolean(entry[1]))
+  const ordered = figures.filter((entry): entry is [FigureKey, FigureSpec] => Boolean(entry[1]))
     .map((entry, index) => ({ entry, index })).sort((a, b) => rank(a.entry[0]) - rank(b.entry[0]) || a.index - b.index).map(({ entry }) => entry)
+  // the group's lead figures keep their tiles even when missing; any other missing figure is named once on one quiet
+  // line, so a district with little data (Jeddah's central markets) reads in a glance instead of a wall of «غير متاح»
+  const folded = (key: FigureKey, spec: FigureSpec) => !spec.pending && spec.value === MISSING && !lead.includes(key)
+  const tiles = ordered.filter(([key, spec]) => !folded(key, spec))
+  const missing = ordered.filter(([key, spec]) => folded(key, spec))
   // a property seeker reads prices before searches; everyone else the other way round
   const pricesFirst = lens === 'property'
 
@@ -129,23 +162,35 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
 
   return (
     <section aria-label="الملخص" className="rounded-2xl border bg-card p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="truncate text-xl font-bold">{title}</h2>
+      {/* a long name («سوق الخضار والفواكه المركزي») wraps whole instead of losing its end, and the clear button keeps
+          its one line beside it instead of folding into two */}
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="min-w-0 text-xl font-bold text-balance break-words">{title}</h2>
         {selected.length > 0 && (
-          <button onClick={onClear} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm text-muted-foreground hover:text-foreground">
+          <button onClick={onClear} className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-sm whitespace-nowrap text-muted-foreground hover:text-foreground">
             <X className="size-4" aria-hidden /> إلغاء التحديد
           </button>
         )}
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        {ordered.map(([key, figure]) => <div key={key} className="contents">{figure}</div>)}
+        {tiles.map(([key, spec]) => <Figure key={key} {...spec} />)}
       </div>
+      {missing.length > 0 && (
+        // each name keeps its «i» as its own mark, so no comma is needed between them (a comma sat before the next icon)
+        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+          <span>{MISSING} {single ? 'لهذا الحي' : 'هنا'}:</span>
+          {missing.map(([key, spec]) => (
+            <Explained key={key} title={spec.label} lines={spec.explain} className="text-sm">{spec.short ?? spec.label}</Explained>
+          ))}
+        </p>
+      )}
       {selected.length > 1 && (
         <ul className="mt-3 divide-y text-base">
           {selected.map((row) => (
             <li key={row.id} className="flex items-center justify-between py-2">
               <span className="font-medium">{row.name}</span>
-              <span className="text-sm text-muted-foreground">{show(row.population)} ساكن · {show(row.businesses)} منشأة</span>
+              {/* a missing figure says what is missing («السكان غير متاح»), not «غير متاح ساكن» */}
+              <span className="text-sm text-muted-foreground tabular-nums">{row.population == null ? 'السكان غير متاح' : `${show(row.population)} ساكن`} · {row.businesses == null ? 'المنشآت غير متاح' : counted(row.businesses, 'business')}</span>
             </li>
           ))}
         </ul>

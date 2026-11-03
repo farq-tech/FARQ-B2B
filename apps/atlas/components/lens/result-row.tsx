@@ -108,12 +108,14 @@ export function useShowMore(step: number, reset: string) {
  * Under a list that shows part of what it ranks: «أعلى 30 من 120 حياً», so a cut list never reads as the whole city,
  * and «اعرض المزيد» while there is more to show. Nothing when every row is already shown.
  */
-export function MoreRows({ shown, total, noun, lead = 'أعلى', canMore, onMore }: {
+export function MoreRows({ shown, total, noun, lead = 'أعلى', suffix = '', canMore, onMore }: {
   shown: number
   total: number
   noun: Parameters<typeof counted>[1]
   /** the word before the figure: «أعلى» for a ranking, «أقرب» for a list by distance */
   lead?: string
+  /** words after the total when the list ranks only part of what the service counted («على الخريطة») */
+  suffix?: string
   /** whether more rows can be shown (defaults to shown < total) */
   canMore?: boolean
   onMore: () => void
@@ -121,7 +123,7 @@ export function MoreRows({ shown, total, noun, lead = 'أعلى', canMore, onMor
   if (shown >= total) return null
   return (
     <div className="flex items-center justify-between gap-2 pt-1.5 text-sm tabular-nums text-muted-foreground">
-      <span>{lead} {numberFormat.format(shown)} من {counted(total, noun)}</span>
+      <span>{lead} {numberFormat.format(shown)} من {counted(total, noun)}{suffix}</span>
       {(canMore ?? shown < total) && (
         <button type="button" onClick={onMore} className="rounded-md font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60">اعرض المزيد</button>
       )}

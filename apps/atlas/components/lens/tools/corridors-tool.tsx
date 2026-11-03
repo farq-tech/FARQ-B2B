@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2, SearchX } from 'lucide-react'
-import { EmptyState } from '@/components/shared/empty-state'
+import { Loader2 } from 'lucide-react'
+import { NoResult, NotAvailable } from '@/components/shared/empty-state'
+import { LoadError } from '@/components/shared/load-error'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
@@ -52,6 +53,9 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
   const [result, setResult] = useState<Result | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [active, setActive] = useState<number | null>(null)
+  // «أعد المحاولة» asks again for the streets, or for the picked street's units
+  const [attempt, setAttempt] = useState(0)
+  const [unitsAttempt, setUnitsAttempt] = useState(0)
   const [units, setUnits] = useState<Units | null>(null)
   const [unit, setUnit] = useState<Unit | null>(null)
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
@@ -68,7 +72,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
       .then((data) => { if (live) { setResult(data); setStatus('idle') } })
       .catch(() => { if (live) setStatus('error') })
     return () => { live = false }
-  }, [city, studied])
+  }, [city, studied, attempt])
 
   const corridors = useMemo(() => result?.features ?? [], [result])
   const colors = useMemo(() => {
@@ -98,7 +102,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
       })
       .catch(() => { if (live) setUnits({ status: 'error', available: true, total: 0, listings: [] }) })
     return () => { live = false }
-  }, [city, picked])
+  }, [city, picked, unitsAttempt])
 
   const clusters = useMemo(() => corridors.map((item) => ({ geometry: item.geometry, street_ar: item.properties.street_ar })), [corridors])
 
@@ -113,7 +117,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
     }))
     const top = corridors[0]?.properties
     const summary = mode !== 'cluster' || status === 'loading' || !result ? null
-      : top ? `${counted(corridors.length, 'street')} لـ«${studied.label}» · الأعلى: ${top.street_ar} ${numberFormat.format(top.n)} محل`
+      : top ? `${counted(corridors.length, 'street')} لـ«${studied.label}» · الأعلى: ${top.street_ar} ${counted(top.n, 'shop')}`
         : result.understood === false ? null : `لا شارع يتجمع فيه «${studied.label}»`
     onOverlay({
       summary, streets, onStreet: (id) => setActive(Number(id)), legend: streets.length ? { from: 'محلات أقل', to: 'محلات أكثر', shades: HEAT } : null,
@@ -159,10 +163,10 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
         ))}
       </div>
       {mode === 'gap' && <StreetOpportunities city={city} studied={studied} clusters={clusters} onOverlay={onOverlay} />}
-      {mode === 'cluster' && status === 'error' && <p role="alert" className="text-base text-destructive">تعذر جلب الشوارع.</p>}
-      {mode === 'cluster' && status === 'idle' && result?.understood === false && <p className="text-base text-muted-foreground">لم نتعرف على «{studied.label}». جرّب اسماً آخر للنشاط أو اختر نشاطاً رئيسياً.</p>}
+      {mode === 'cluster' && status === 'error' && <LoadError what="الشوارع" onRetry={() => setAttempt((n) => n + 1)} />}
+      {mode === 'cluster' && status === 'idle' && result?.understood === false && <NoResult title={`لم نتعرف على «${studied.label}»`} body="جرّب اسماً آخر للنشاط، أو اختر نشاطاً رئيسياً." />}
       {mode === 'cluster' && status === 'idle' && result && result.understood !== false && !corridors.length && (
-        <EmptyState compact icon={SearchX} title={`لا شارع يتجمع فيه «${studied.label}»`} body="يُحسب الشارع حين يكون عليه 5 محلات أو أكثر من النشاط. جرّب نشاطاً آخر أو «أين الفرصة»." />
+        <NoResult title={`لا شارع يتجمع فيه «${studied.label}»`} body="يُحسب الشارع حين يكون عليه 5 محلات أو أكثر من النشاط. جرّب نشاطاً آخر أو «أين الفرصة»." />
       )}
       {mode === 'cluster' && status === 'loading' && (
         <>
@@ -182,7 +186,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
                 aside={(
                   <Explained title={`${corridor.street_ar} · ${corridor.sub_ar}`} lines={EXPLAIN.corridor(corridor)} className="text-end">
                     <span>
-                      <span className="block font-bold text-primary">{numberFormat.format(corridor.n)} محل</span>
+                      <span className="block font-bold text-primary">{counted(corridor.n, 'shop')}</span>
                       <span className="block text-sm text-muted-foreground">{numberFormat.format(corridor.per_100m)} لكل 100 م</span>
                     </span>
                   </Explained>
@@ -190,7 +194,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
             ))}
           </ol>
           <MoreRows shown={Math.min(visible, corridors.length)} total={corridors.length} noun="street" onMore={showMore} />
-          {picked && units && <StreetUnits street={picked.properties.street_ar} units={units} onOpen={(item) => { setUnit(item); setFocus({ lon: item.lon, lat: item.lat }) }} />}
+          {picked && units && <StreetUnits street={picked.properties.street_ar} units={units} onRetry={() => setUnitsAttempt((n) => n + 1)} onOpen={(item) => { setUnit(item); setFocus({ lon: item.lon, lat: item.lat }) }} />}
         </>
       )}
     </section>
@@ -198,7 +202,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
 }
 
 /** «محلات متاحة على هذا الشارع»: the shops, showrooms and offices offered now within 60 m of the picked street. */
-function StreetUnits({ street, units, onOpen }: { street: string; units: Units; onOpen: (unit: Unit) => void }) {
+function StreetUnits({ street, units, onOpen, onRetry }: { street: string; units: Units; onOpen: (unit: Unit) => void; onRetry: () => void }) {
   const [limit, showMore] = useShowMore(UNITS_SHOWN, street)
   return (
     <div className="flex flex-col gap-2 rounded-xl border bg-background p-3">
@@ -207,9 +211,9 @@ function StreetUnits({ street, units, onOpen }: { street: string; units: Units; 
         {units.status === 'ready' && units.available && units.total > 0 && <span className="shrink-0 font-bold text-primary">{numberFormat.format(units.total)}</span>}
       </div>
       {units.status === 'loading' && <ResultRowsSkeleton label="جارٍ البحث عن الوحدات" rows={3} sub />}
-      {units.status === 'error' && <p role="alert" className="text-sm text-destructive">تعذر جلب الوحدات المعروضة.</p>}
-      {units.status === 'ready' && !units.available && <p className="text-sm text-muted-foreground">غير متاح</p>}
-      {units.status === 'ready' && units.available && !units.total && <EmptyState compact icon={SearchX} title="لا وحدات معروضة على هذا الشارع الآن" body="جرّب شارعاً آخر من القائمة." />}
+      {units.status === 'error' && <LoadError what="الوحدات المعروضة" onRetry={onRetry} />}
+      {units.status === 'ready' && !units.available && <NotAvailable what="الوحدات المعروضة" where="هذه المدينة" body="الشوارع وعدد محلات النشاط عليها تبقى في القائمة أعلاه." />}
+      {units.status === 'ready' && units.available && !units.total && <NoResult title="لا وحدات معروضة على هذا الشارع الآن" body="جرّب شارعاً آخر من القائمة." />}
       {units.status === 'ready' && units.available && units.rent && <StreetRent street={street} rent={units.rent} />}
       {units.status === 'ready' && units.total > 0 && (
         <>

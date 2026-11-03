@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Scale, SearchX, X } from 'lucide-react'
-import { EmptyState } from '@/components/shared/empty-state'
+import { Scale, X } from 'lucide-react'
+import { NoResult } from '@/components/shared/empty-state'
+import { LoadError } from '@/components/shared/load-error'
 import { Explained } from '@/components/shared/explained'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { StatTile } from '@/components/shared/stat'
@@ -10,7 +11,7 @@ import { Unavailable } from '@/components/shared/unavailable'
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { ltr, numberFormat, postMarket } from '@/lib/insights-api'
 import type { MainActivity } from '@/lib/main-activities'
 import { useStickyState, type StudiedActivity } from '@/lib/sticky-state'
 import { cn } from '@/lib/utils'
@@ -21,6 +22,7 @@ import { comparePairs } from './tool-answers'
 type Count = { district_ar: string; n: number }
 type Rival = { status: 'loading' } | { status: 'error' } | { status: 'ready'; counts: Count[]; total: number | null; understood: Understanding }
 type Order = 'first' | 'gap'
+const SHORT_NAME = 12
 
 /**
  * «قارن بنشاط آخر» inside «المنافسون»: a second activity's count in every district beside the studied one's, both
@@ -42,6 +44,8 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
   const [query, setQuery] = useState('')
   const [answer, setAnswer] = useState<Rival | null>(null)
   const [order, setOrder] = useStickyState<Order>('competitors.rivalOrder', 'gap')
+  // «أعد المحاولة» asks again for the same second activity
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     if (!rival) { setAnswer(null); return }
@@ -52,7 +56,7 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
       .then((data) => { if (live) setAnswer({ status: 'ready', counts: data.districts ?? [], total: typeof data.total === 'number' ? data.total : null, understood: data.understood }) })
       .catch(() => { if (live) setAnswer({ status: 'error' }) })
     return () => { live = false }
-  }, [city, rival])
+  }, [city, rival, attempt])
 
   const pairs = useMemo(() => (answer?.status === 'ready' ? comparePairs(rows, firstCounts, answer.counts, order) : []), [answer, firstCounts, rows, order])
   const [limit, showMore] = useShowMore(15, `${city}|${first.q ?? first.main_id}|${rival?.q ?? rival?.main_id}|${order}`)
@@ -86,6 +90,14 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
     )
   }
 
+  // short names («صيدلية»، «عيادة») label each row's figures themselves; long ones are read once as «الأول» and «الثاني»
+  const named = first.label.length <= SHORT_NAME && rival.label.length <= SHORT_NAME && first.label !== rival.label
+  const firstWord = named ? first.label : 'الأول'
+  const rivalWord = named ? rival.label : 'الثاني'
+  const byDistrictMissing = (counts: Count[], cityTotal: number | null) => counts.length === 0 && (cityTotal ?? 0) > 0
+  const missing = answer?.status !== 'ready' ? null
+    : byDistrictMissing(firstCounts, firstTotal) ? first.label
+      : byDistrictMissing(answer.counts, answer.total) ? rival.label : null
   const total = (value: number | null) => (value == null ? <Unavailable className="font-bold" /> : numberFormat.format(value))
   return (
     <section aria-label={`مقارنة «${first.label}» و«${rival.label}»`} className="flex flex-col gap-2 rounded-xl border p-3">
@@ -95,7 +107,7 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
         </Explained>
         <button type="button" onClick={() => setRival(null)} aria-label="أزل المقارنة" className="rounded-full p-1.5 hover:bg-muted"><X className="size-4" aria-hidden /></button>
       </div>
-      {answer?.status === 'error' && <p role="alert" className="text-sm text-destructive">تعذر حساب «{rival.label}».</p>}
+      {answer?.status === 'error' && <LoadError what={`منشآت «${rival.label}»`} onRetry={() => setAttempt((n) => n + 1)} />}
       {answer?.status === 'loading' && (
         <>
           <div className="grid grid-cols-2 gap-2" aria-hidden>
@@ -118,21 +130,27 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
                 className={cn('flex-1 rounded-lg border px-2 py-2 text-sm', order === id ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>{label}</button>
             ))}
           </div>
+          {/* the order buttons speak of «الأول» and «الثاني», so the key stays even when the rows carry the names */}
           <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span><span className="font-semibold text-foreground">الأول</span>: {first.label}</span>
             <span><span className="font-semibold text-foreground">الثاني</span>: {rival.label}</span>
           </p>
-          {pairs.length === 0 ? (
-            <EmptyState compact icon={SearchX} title="لا أحد من النشاطين في أحياء المدينة" body="جرّب نشاطاً ثانياً آخر." />
+          {missing ? (
+            // a city count with no district behind it: every district would read 0, which is not what is there
+            <p role="status" className="text-sm text-muted-foreground">أعداد «{missing}» حسب الحي غير متاحة الآن، فلا مقارنة بين الأحياء.</p>
+          ) : pairs.length === 0 ? (
+            <NoResult title="لا أحد من النشاطين في أحياء المدينة" body="جرّب نشاطاً ثانياً آخر." />
           ) : (
             <>
               <ol className="max-h-[40vh] divide-y overflow-y-auto text-base">
                 {pairs.slice(0, limit).map((item) => (
                   <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={(on) => onHover?.(on ? item.row.id : null)}
                     title={item.row.name}
-                    // the names are read once above; each row carries only its two figures, so a long name never hides the district
-                    value={`الأول ${numberFormat.format(item.a)}`}
-                    valueSub={`الثاني ${numberFormat.format(item.b)}`} />
+                    // in «حيث يزيد الأول على الثاني» the list is ordered by this difference, so each row says it
+                    sub={order === 'gap' ? `الفرق ${ltr(`${item.a - item.b > 0 ? '+' : item.a - item.b < 0 ? '−' : ''}${numberFormat.format(Math.abs(item.a - item.b))}`)}` : undefined}
+                    // each row carries only its two figures, under the activities' own names when they are short
+                    value={`${firstWord} ${numberFormat.format(item.a)}`}
+                    valueSub={`${rivalWord} ${numberFormat.format(item.b)}`} />
                 ))}
               </ol>
               <MoreRows shown={Math.min(limit, pairs.length)} total={pairs.length} noun="district" onMore={showMore} />

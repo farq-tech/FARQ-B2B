@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { setMapSheetFull } from '@/components/shared/whats-new'
 import { cn } from '@/lib/utils'
 import { settle, type SheetSnap } from './sheet-snap'
 
@@ -58,6 +59,9 @@ export function MapSheet({ snap, onSnap, title, summary, header, resetKey, child
   // a collapsed sheet starts its body from the top, and so does a newly opened step
   useEffect(() => { if (snap === 'peek' && body.current) body.current.scrollTop = 0 }, [snap])
   useEffect(() => { if (body.current) body.current.scrollTop = 0 }, [resetKey])
+  // a full sheet reaches up under the phone's filters, where «ما الجديد» sits: the bar steps aside meanwhile
+  useEffect(() => { setMapSheetFull(snap === 'full') }, [snap])
+  useEffect(() => () => setMapSheetFull(false), [])
 
   const start = (event: PointerEvent<HTMLDivElement>) => {
     if (!sheet.current) return

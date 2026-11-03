@@ -29,6 +29,12 @@ export function useStickyState<T>(key: string, initial: T) {
   return [value, set] as const
 }
 
+/** Whether a key was ever set on this page (by a pick, a shared link or another step), as opposed to still holding
+ * its default. Read during render: a set always re-renders every user of the key. */
+export function stickyHas(key: string): boolean {
+  return store.has(key)
+}
+
 /** The activity the user is studying: typed (q) or a main activity (main_id). */
 export type StudiedActivity = { q?: string; main_id?: string; label: string }
 
