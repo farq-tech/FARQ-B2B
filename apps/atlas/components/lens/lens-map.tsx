@@ -353,6 +353,15 @@ function SavedListCard({ onOpen }: { onOpen: (href: string) => void }) {
   return <section aria-label="المقارنات المحفوظة" className="rounded-2xl border bg-card p-4"><SavedList onOpen={onOpen} /></section>
 }
 
+/**
+ * A group's listings, cheapest first when they share one deal and period; a yearly and a monthly rent are never put in
+ * one price order (nothing is converted between periods), so a mixed group keeps its own order.
+ */
+function cheapestFirst(listings: Listing[]): Listing[] {
+  if (new Set(listings.map((listing) => listing.deal)).size > 1) return listings
+  return [...listings].sort((a, b) => (a.price_sar ?? Infinity) - (b.price_sar ?? Infinity))
+}
+
 type PointerStore = { get: () => Pointed | null; set: (next: Pointed | null) => void; subscribe: (listener: () => void) => () => void }
 
 /**
@@ -1177,8 +1186,7 @@ export function LensMap() {
           {/* the rentals step: a group of price pins names its cheapest, each opening its card in the step */}
           {!cardRow && !located && !group && !overlay.popup && listingGroup && cardAt && cardAt.x >= 0 && cardAt.y >= 0 && cardAt.x <= cardAt.width && cardAt.y <= cardAt.height && (
             <GroupCard count={listingGroup.count} noun="listing" at={cardAt}
-              items={listingGroup.ids.flatMap((id) => { const listing = stepListings.find((item) => item.id === id); return listing ? [listing] : [] })
-                .sort((a, b) => (a.price_sar ?? Infinity) - (b.price_sar ?? Infinity)).slice(0, 5)
+              items={cheapestFirst(listingGroup.ids.flatMap((id) => { const listing = stepListings.find((item) => item.id === id); return listing ? [listing] : [] })).slice(0, 5)
                 .map((listing) => ({ id: listing.id, title: priceLine(listing), sub: [typeLabel(listing.type), listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.district_ar].filter(Boolean).join(' · ') }))}
               onOpen={(id) => { setListingGroup(null); overlay.onListing?.(id) }} onClose={() => setListingGroup(null)} onExpand={() => { listingGroup.expand(); setListingGroup(null) }}
               {...(window.matchMedia('(min-width: 64rem)').matches
