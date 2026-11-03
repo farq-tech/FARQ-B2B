@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Calculator, ExternalLink, Loader2, Pencil, SearchX } from 'lucide-react'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -35,6 +36,8 @@ type Estimate = {
   available: boolean
   reason?: string
   comparables?: number
+  /** with too_few_comparables: how many the service needs for a price */
+  needed?: number
   scope?: { district_id: string; district_ar: string | null; comparables: number }[]
   per_sqm?: { low: number; mid: number; high: number }
   price?: { low: number; mid: number; high: number }
@@ -59,6 +62,42 @@ const PHONE_EXAMPLES = 4
 
 const sar = (value: number) => `${numberFormat.format(value)} ريال`
 
+type Answers = { city: string; district: string; deal: string; kind: string; area: string; age: string | null; streets: string | null; width: string | null; furnished: string | null }
+const DEFAULT_ANSWERS: Answers = { city: 'Riyadh', district: '', deal: 'rent_year', kind: 'floor', area: '', age: null, streets: null, width: null, furnished: 'no' }
+const oneOf = (value: string | null, ids: readonly (readonly [string, string])[] | readonly string[]) =>
+  value != null && ids.some((id) => (typeof id === 'string' ? id : id[0]) === value) ? value : null
+
+/** The answers a link carries, each kept only when it is one the page offers (city and district are checked once their lists load). */
+function readAnswers(params: URLSearchParams | { get: (key: string) => string | null }): Answers {
+  const area = (params.get('area') ?? '').replace(/[^0-9]/g, '').slice(0, 6)
+  return {
+    city: params.get('city')?.trim() || DEFAULT_ANSWERS.city,
+    district: params.get('district')?.trim() ?? '',
+    deal: oneOf(params.get('deal'), DEALS) ?? DEFAULT_ANSWERS.deal,
+    kind: oneOf(params.get('type'), KINDS) ?? DEFAULT_ANSWERS.kind,
+    area,
+    age: oneOf(params.get('age'), AGES),
+    streets: oneOf(params.get('streets'), STREETS),
+    width: oneOf(params.get('width'), WIDTHS),
+    furnished: oneOf(params.get('furnished'), ['no', 'yes']) ?? DEFAULT_ANSWERS.furnished,
+  }
+}
+
+/** The answers as a query string, leaving out what is at its default so a plain visit keeps a plain address. */
+function writeAnswers(answers: Answers): string {
+  const query = new URLSearchParams()
+  if (answers.city !== DEFAULT_ANSWERS.city) query.set('city', answers.city)
+  if (answers.district) query.set('district', answers.district)
+  if (answers.deal !== DEFAULT_ANSWERS.deal) query.set('deal', answers.deal)
+  if (answers.kind !== DEFAULT_ANSWERS.kind) query.set('type', answers.kind)
+  if (answers.area) query.set('area', answers.area)
+  if (answers.age) query.set('age', answers.age)
+  if (answers.streets) query.set('streets', answers.streets)
+  if (answers.width) query.set('width', answers.width)
+  if (answers.furnished && answers.furnished !== DEFAULT_ANSWERS.furnished) query.set('furnished', answers.furnished)
+  return query.toString()
+}
+
 /**
  * «سعّر عقارك»: a few questions about a property, then its likely price from the current listings most like it (same
  * deal and type, close in size, in its district and, when that has too few, the nearest districts), moved by the
@@ -67,24 +106,30 @@ const sar = (value: number) => `${numberFormat.format(value)} ريال`
  */
 export function PriceEstimator() {
   const cities = useCities()
-  const [city, setCity] = useState('Riyadh')
+  // the answers live in the address too (?city=…&district=…&area=…): an estimate can be reopened or shared as a link
+  // inside Atlas and comes back with the same answers, and its price is worked out again from today's listings.
+  // A value the page does not know is dropped, never guessed.
+  const params = useSearchParams()
+  const [initial] = useState(() => readAnswers(params))
+  const [city, setCityState] = useState(initial.city)
   // null while loading, 'error' when the list did not arrive (then a retry, not a picker that reads «غير متاح»)
   const [districts, setDistricts] = useState<{ id: string; name: string }[] | 'error' | null>(null)
   const [districtsAttempt, setDistrictsAttempt] = useState(0)
-  const [district, setDistrict] = useState('')
-  const [deal, setDeal] = useState('rent_year')
-  const [kind, setKind] = useState<string>('floor')
-  const [area, setArea] = useState('')
-  const [age, setAge] = useState<string | null>(null)
-  const [streets, setStreets] = useState<string | null>(null)
-  const [width, setWidth] = useState<string | null>(null)
-  const [furnished, setFurnished] = useState<string | null>('no')
+  const [district, setDistrict] = useState(initial.district)
+  // a new city starts with no district (the URL's district belongs to the city it came with)
+  const setCity = (next: string) => { if (next !== city) { setCityState(next); setDistrict('') } }
+  const [deal, setDeal] = useState(initial.deal)
+  const [kind, setKind] = useState<string>(initial.kind)
+  const [area, setArea] = useState(initial.area)
+  const [age, setAge] = useState<string | null>(initial.age)
+  const [streets, setStreets] = useState<string | null>(initial.streets)
+  const [width, setWidth] = useState<string | null>(initial.width)
+  const [furnished, setFurnished] = useState<string | null>(initial.furnished)
   const [result, setResult] = useState<Estimate | 'loading' | 'error' | null>(null)
   // the answers the shown price was worked out for: its heading names them, and a later change marks it out of date
   const [asked, setAsked] = useState<{ key: string; kind: string; area: number; districtName?: string; deal: string } | null>(null)
   const answer = useRef<HTMLElement>(null)
   const questions = useRef<HTMLElement>(null)
-  const [allExamples, setAllExamples] = useState(false)
   // on a phone the answer sits under the questions: bring it into view once it arrives
   // (only there: on a wide screen it sits beside them, kept in view, and scrolling would pull the page away from the
   // question the person was on)
@@ -95,9 +140,15 @@ export function PriceEstimator() {
 
   useEffect(() => {
     let live = true
-    setDistricts(null); setDistrict('')
+    setDistricts(null)
     postMarket<{ districts?: { district_id: string; district_ar: string }[] }>('real-estate', { city })
-      .then((data) => { if (live) setDistricts((data.districts ?? []).map((row) => ({ id: row.district_id, name: row.district_ar })).sort((a, b) => a.name.localeCompare(b.name, 'ar'))) })
+      .then((data) => {
+        if (!live) return
+        const list = (data.districts ?? []).map((row) => ({ id: row.district_id, name: row.district_ar })).sort((a, b) => a.name.localeCompare(b.name, 'ar'))
+        setDistricts(list)
+        // a district from the address that this city does not have is dropped
+        setDistrict((current) => (current && !list.some((item) => item.id === current) ? '' : current))
+      })
       .catch(() => { if (live) setDistricts('error') })
     return () => { live = false }
   }, [city, districtsAttempt])
@@ -105,6 +156,12 @@ export function PriceEstimator() {
   const districtItems = useMemo(() => districtList.map((item) => ({ id: item.id, label: item.name })), [districtList])
   const cityItems = useMemo(() => cities.map((item) => ({ value: item.en, label: item.ar || item.en })), [cities])
 
+  // the address follows the answers (replace, not push: «back» leaves the page instead of undoing one chip)
+  useEffect(() => {
+    const query = writeAnswers({ city, district, deal, kind, area, age, streets, width, furnished })
+    const next = query ? `${window.location.pathname}?${query}` : window.location.pathname
+    if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, '', next)
+  }, [city, district, deal, kind, area, age, streets, width, furnished])
   const areaNumber = Number(area.replace(/[^0-9]/g, ''))
   const ready = district && areaNumber >= 10
   const keyFor = (type: string) => JSON.stringify([city, district, deal, type, areaNumber, age, streets, width, furnished])
@@ -119,13 +176,20 @@ export function PriceEstimator() {
     if (type !== kind) setKind(type)
     setAsked({ key: keyFor(type), kind: type, area: areaNumber, districtName: districtList.find((item) => item.id === district)?.name, deal })
     setResult('loading')
-    setAllExamples(false)
     postMarket<Estimate>('price-estimate', {
       city, district_id: district, deal, type, area_sqm: areaNumber,
       ...(age ? { age } : {}), ...(streets ? { streets } : {}), ...(width ? { street_width: width } : {}), ...(furnished ? { furnished } : {}),
     }).then((estimate) => { if (ask === sequence.current) setResult(estimate) })
       .catch(() => { if (ask === sequence.current) setResult('error') })
   }
+  // a link that carries a district and an area prices itself once the district list confirms the district
+  const autoRun = useRef(Boolean(initial.district && Number(initial.area) >= 10))
+  useEffect(() => {
+    if (!autoRun.current || !Array.isArray(districts)) return
+    autoRun.current = false
+    if (ready) run()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the list arrives
+  }, [districts])
   const stale = asked != null && asked.key !== key && result !== 'loading'
   // the districts the comparables came from, for «أحياء المقارنة»
   const scopeNames = result && typeof result === 'object' ? (result.scope ?? []).map((item) => item.district_ar).filter((name): name is string => Boolean(name)) : []
@@ -202,15 +266,33 @@ export function PriceEstimator() {
         )}
         {result === 'error' && <LoadError what="السعر" onRetry={() => run()} />}
         {result && result !== 'loading' && result !== 'error' && !result.available && (
-          <EmptyState heading="h2" icon={SearchX} title="غير متاح" body={REASONS[result.reason ?? ''] ?? 'تعذر حساب سعر نثق به لهذا العقار.'}
-            // the same answers for the other types, one tap each, instead of scrolling back up to change one chip
-            action={asked && result.reason !== 'no_listings' ? (
-              <div className="flex flex-wrap justify-center gap-2">
-                {KINDS.filter((id) => id !== asked.kind).map((id) => (
-                  <Chip key={id} onClick={() => run(id)} disabled={!ready}><Icon3D type={id} className="size-5" />جرّب {typeLabel(id)}</Chip>
-                ))}
+          <div className="flex flex-col gap-4">
+            <EmptyState heading="h2" icon={SearchX} title="غير متاح" body={unavailableBody(result)}
+              // the same answers for the other types, one tap each, instead of scrolling back up to change one chip
+              action={asked && result.reason !== 'no_listings' ? (
+                <div className="flex flex-wrap justify-center gap-2">
+                  {KINDS.filter((id) => id !== asked.kind).map((id) => (
+                    <Chip key={id} onClick={() => run(id)} disabled={!ready}><Icon3D type={id} className="size-5" />جرّب {typeLabel(id)}</Chip>
+                  ))}
+                </div>
+              ) : undefined} />
+            {/* no price, but what was found is real: the districts tried, nearest first, with what each held, and the
+                few listings themselves; never a range drawn from them */}
+            {result.scope && result.scope.length > 0 && (
+              <div className="rounded-3xl border bg-card p-5">
+                <h2 className="text-base font-bold">الأحياء التي بحثنا فيها</h2>
+                <ul className="mt-2 flex flex-col divide-y text-sm">
+                  {result.scope.map((row, index) => (
+                    <li key={row.district_id} className="flex items-center justify-between gap-2 py-1.5">
+                      <span>{row.district_ar ?? 'حي غير مسمّى'}{index === 0 ? <span className="ms-1.5 text-xs text-muted-foreground">(حي عقارك)</span> : null}</span>
+                      <span className="tabular-nums text-muted-foreground">{row.comparables ? counted(row.comparables, 'listing') : 'لا عروض مشابهة'}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-            ) : undefined} />
+            )}
+            {result.examples && result.examples.length > 0 && <Comparables title="العروض المشابهة التي وجدناها" examples={result.examples} />}
+          </div>
         )}
         {stale && result && result !== 'error' && (
           <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-warning/30 bg-warning/5 p-3 text-sm">
@@ -248,37 +330,7 @@ export function PriceEstimator() {
               </ul>
             </div>
 
-            {result.examples && result.examples.length > 0 && (
-              <div className="rounded-3xl border bg-card p-5">
-                <h2 className="text-base font-bold">أقرب العروض المشابهة</h2>
-                {/* on a phone the first four (two rows), the rest one tap away, instead of four rows of squares under the price */}
-                <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {result.examples.map((item, index) => (
-                    <li key={item.id} className={cn(!allExamples && index >= PHONE_EXAMPLES && 'max-sm:hidden')}>
-                      {/* the photo (or, without one, the type's face) and its figures; the ad one tap away under them */}
-                      <div className="flex flex-col gap-1">
-                        {/* the same photo slot as a results card: the ad's photo as published (a tap opens it full size),
-                            and the type's face when there is none or it fails to load */}
-                        <div className="overflow-hidden rounded-xl">
-                          <Gallery photos={shownPhotos({ photo: item.photo, photos: [] })} className="aspect-square"
-                            fallback={<ListingFace size="tile" type={item.type} className="aspect-square" />} />
-                        </div>
-                        <span className="text-sm font-bold tabular-nums">{sar(item.price_sar)}</span>
-                        <span className="text-xs text-muted-foreground">{[`${numberFormat.format(item.area_sqm)} م²`, item.beds ? counted(item.beds, 'room') : null, item.district_ar].filter(Boolean).join(' · ')}</span>
-                        {item.url
-                          ? <a href={item.url} target="_blank" rel="noopener noreferrer" className="inline-flex w-fit items-center gap-1 rounded text-xs font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-9"><ExternalLink className="size-3" aria-hidden />شاهد الإعلان<span className="sr-only">، يفتح في نافذة جديدة</span></a>
-                          : <span className="text-xs text-muted-foreground">الإعلان غير متاح</span>}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                {!allExamples && result.examples.length > PHONE_EXAMPLES && (
-                  <Button variant="ghost" size="sm" className="mt-2 w-full sm:hidden" onClick={() => setAllExamples(true)}>
-                    اعرض الكل ({numberFormat.format(result.examples.length)})
-                  </Button>
-                )}
-              </div>
-            )}
+            {result.examples && result.examples.length > 0 && <Comparables title="أقرب العروض المشابهة" examples={result.examples} />}
             {/* on a phone the questions are a long scroll above: one tap back to change an answer */}
             <Button variant="outline" className="lg:hidden" onClick={() => questions.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })}>
               <Pencil aria-hidden />عدّل الإجابات
@@ -288,4 +340,50 @@ export function PriceEstimator() {
       </section>
     </main>
   )
+}
+
+type Example = NonNullable<Estimate['examples']>[number]
+
+/** The comparable listings as photo tiles: the first four on a phone, the rest one tap away. */
+function Comparables({ title, examples }: { title: string; examples: Example[] }) {
+  const [allExamples, setAllExamples] = useState(false)
+  return (
+    <div className="rounded-3xl border bg-card p-5">
+      <h2 className="text-base font-bold">{title}</h2>
+      {/* on a phone the first four (two rows), the rest one tap away, instead of four rows of squares under the price */}
+      <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {examples.map((item, index) => (
+          <li key={item.id} className={cn(!allExamples && index >= PHONE_EXAMPLES && 'max-sm:hidden')}>
+            {/* the photo (or, without one, the type's face) and its figures; the ad one tap away under them */}
+            <div className="flex flex-col gap-1">
+              {/* the same photo slot as a results card: the ad's photo as published (a tap opens it full size),
+                  and the type's face when there is none or it fails to load */}
+              <div className="overflow-hidden rounded-xl">
+                <Gallery photos={shownPhotos({ photo: item.photo, photos: [] })} className="aspect-square"
+                  fallback={<ListingFace size="tile" type={item.type} className="aspect-square" />} />
+              </div>
+              <span className="text-sm font-bold tabular-nums">{sar(item.price_sar)}</span>
+              <span className="text-xs text-muted-foreground">{[`${numberFormat.format(item.area_sqm)} م²`, item.beds ? counted(item.beds, 'room') : null, item.district_ar].filter(Boolean).join(' · ')}</span>
+              {item.url
+                ? <a href={item.url} target="_blank" rel="noopener noreferrer" className="inline-flex w-fit items-center gap-1 rounded text-xs font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-9"><ExternalLink className="size-3" aria-hidden />شاهد الإعلان<span className="sr-only">، يفتح في نافذة جديدة</span></a>
+                : <span className="text-xs text-muted-foreground">الإعلان غير متاح</span>}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {!allExamples && examples.length > PHONE_EXAMPLES && (
+        <Button variant="ghost" size="sm" className="mt-2 w-full sm:hidden" onClick={() => setAllExamples(true)}>
+          اعرض الكل ({numberFormat.format(examples.length)})
+        </Button>
+      )}
+    </div>
+  )
+}
+
+/** Why there is no price, in the person's terms: the count found against the count needed when the answer has them. */
+function unavailableBody(result: Estimate): string {
+  if (result.reason === 'too_few_comparables' && result.comparables != null && result.needed != null) {
+    return `العروض المشابهة في الحي وما حوله ${numberFormat.format(result.comparables)}، ونحتاج ${numberFormat.format(result.needed)} على الأقل لسعر نثق به. جرّب مساحة أقرب للمعتاد أو نوعاً آخر.`
+  }
+  return REASONS[result.reason ?? ''] ?? 'تعذر حساب سعر نثق به لهذا العقار.'
 }
