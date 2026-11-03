@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { Building2, Calculator, ClipboardList, ExternalLink, Loader2, MapPinned, Pencil, SearchX } from 'lucide-react'
 import { CopyLinkButton } from '@/components/shared/copy-link'
 import { districtMapHref, homesHref, loginHref, readPriceOrigin } from '@/lib/handoff'
+import { askVsRange } from '@/lib/ask-vs-range'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAppStore } from '@/lib/store'
@@ -359,7 +360,16 @@ export function PriceEstimator() {
                 المدى المتوقع: <span className="font-semibold tabular-nums">{numberFormat.format(result.price.low)} – {numberFormat.format(result.price.high)}</span> ريال
               </p>
               {/* the listing these answers came from, at its advertised price, beside the expected one */}
-              {fromListing?.ask != null && <p className="mt-1 text-sm text-muted-foreground">العرض الذي جئت منه معروض بـ <span className="font-semibold text-foreground tabular-nums">{sar(fromListing.ask)}</span>{PERIOD[asked.deal]}</p>}
+              {fromListing?.ask != null && (() => {
+                // the listing's asking price against the range above, from those two figures only
+                const versus = askVsRange(fromListing.ask, result.price)
+                return (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    العرض الذي جئت منه معروض بـ <span className="font-semibold text-foreground tabular-nums">{sar(fromListing.ask)}</span>{PERIOD[asked.deal]}
+                    {versus && <> · <span className={cn('font-semibold', versus.tone === 'inside' ? 'text-foreground' : versus.tone === 'below' ? 'text-primary' : 'text-warning')}>{versus.text}</span></>}
+                  </p>
+                )
+              })()}
               <div className="mt-3 h-2 rounded-full bg-gradient-to-l from-primary/80 via-primary/40 to-primary/10" aria-hidden />
               {/* the figures behind the price, each the shared Stat: a tap says how it was worked out (lib/explanations.ts),
                   a figure the answer lacks reads «غير متاح» */}
@@ -401,7 +411,10 @@ export function PriceEstimator() {
  */
 const PLURAL: Record<string, string> = { apartment: 'الشقق', floor: 'الأدوار', villa: 'الفلل' }
 /** The directory's real-estate offices (the «مكتب عقار» sub-activity of «عقار»), asked by their taxonomy id. */
-const REAL_ESTATE = { sub_id: 're.office', label: 'مكتب عقار' }
+const REAL_ESTATE = { sub_id: 're.office', label: 'مكتب عقار', plural: 'مكاتب العقار', noun: 'مكتب عقار' }
+/** And its valuers («تقييم عقاري»), offered beside the offices for a sale. */
+const VALUERS = { sub_id: 're.valuation', label: 'تقييم عقاري', plural: 'مكاتب التقييم العقاري', noun: 'مكتب تقييم' }
+type Kindred = typeof REAL_ESTATE
 const DEAL_WORD: Record<string, string> = { rent_year: 'للإيجار السنوي', rent_month: 'للإيجار الشهري', sale: 'للبيع' }
 
 /**
@@ -409,7 +422,8 @@ const DEAL_WORD: Record<string, string> = { rent_year: 'للإيجار السن�
  * (type, deal, area, district) and Atlas's expected price, and opens in «الطلبات» for review. Nothing is sent: a quote
  * request is shared by the person after review (docs/atlas-product-foundation.md §1.5), and no contact is shown here.
  */
-function OfficesRequest({ asked, cityName, price, fromListing = null }: { asked: { city: string; district: string; districtName?: string; deal: string; kind: string; area: number }; cityName: string; price?: number; fromListing?: { id: string; ask: number | null } | null }) {
+function OfficesRequest({ asked, cityName, price, fromListing = null, to = REAL_ESTATE }: { asked: { city: string; district: string; districtName?: string; deal: string; kind: string; area: number }; cityName: string; price?: number; fromListing?: { id: string; ask: number | null } | null; to?: Kindred }) {
+  const valuation = to.sub_id === VALUERS.sub_id
   const router = useRouter()
   const { createDraft } = useAppStore()
   const [state, setState] = useState<'idle' | 'loading' | 'login' | 'empty' | 'error'>('idle')
@@ -419,7 +433,7 @@ function OfficesRequest({ asked, cityName, price, fromListing = null }: { asked:
     setState('loading')
     const response = await fetch('/api/market/entities', {
       method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ city: asked.city, district: asked.districtName, sub_id: REAL_ESTATE.sub_id, q: REAL_ESTATE.label, objective: 'purchase', limit: 50, offset: 0 }),
+      body: JSON.stringify({ city: asked.city, district: asked.districtName, sub_id: to.sub_id, q: to.label, objective: 'purchase', limit: 50, offset: 0 }),
     }).catch(() => null)
     const body = await response?.json().catch(() => null) as { rows?: PublicDirectoryEntity[]; guest?: boolean } | null
     // a signed-out visitor sees the sign-in, never a preview turned into a request
@@ -430,19 +444,19 @@ function OfficesRequest({ asked, cityName, price, fromListing = null }: { asked:
     const property = `${typeLabel(asked.kind)} ${DEAL_WORD[asked.deal] ?? ''} في ${name}`.replace(/\s+/g, ' ')
     const id = createDraft({
       type: 'rfq', businessIds: rows.map((row) => row.id), liveBusinesses: rows, cityId: asked.city.toLowerCase(), cityName,
-      query: REAL_ESTATE.label, categoryHint: REAL_ESTATE.label, districtHint: name,
-      title: fromListing ? `طلب عروض مثل عرض ${property}` : `طلب عروض ${property}`,
+      query: to.label, categoryHint: to.label, districtHint: name,
+      title: valuation ? `طلب تقييم ${property}` : fromListing ? `طلب عروض مثل عرض ${property}` : `طلب عروض ${property}`,
       rfq: {
         lineItems: [{ id: makeId('l'), name: property, qty: 1, unit: 'عقار', spec: `${numberFormat.format(asked.area)} م²` }],
         deliveryCity: cityName,
         notes: [
           fromListing?.ask != null ? `عرض مثله معروض الآن بـ ${numberFormat.format(fromListing.ask)} ريال${PERIOD[asked.deal] ?? ''}.` : null,
           price != null ? `السعر المتوقع في أطلس: ${numberFormat.format(price)} ريال${PERIOD[asked.deal] ?? ''}.` : null,
-          'أرسلوا عروضاً مشابهة إن وُجدت.',
+          valuation ? 'أرسلوا عرض سعر لتقييم العقار ومدته.' : 'أرسلوا عروضاً مشابهة إن وُجدت.',
         ].filter(Boolean).join(' '),
       },
     })
-    toast.success('جُهّز طلب العروض', { description: `${numberFormat.format(rows.length)} مكتب عقار في ${name}. راجعه قبل أي مشاركة، لا يُرسل شيء تلقائياً.` })
+    toast.success(valuation ? 'جُهّز طلب التقييم' : 'جُهّز طلب العروض', { description: `${numberFormat.format(rows.length)} ${to.noun} في ${name}. راجعه قبل أي مشاركة، لا يُرسل شيء تلقائياً.` })
     router.push(`/requests/${id}`)
   }
   return (
@@ -450,10 +464,10 @@ function OfficesRequest({ asked, cityName, price, fromListing = null }: { asked:
       <button type="button" onClick={() => void start()} disabled={state === 'loading' || !asked.districtName}
         className="inline-flex items-center gap-2 rounded-2xl border bg-card px-4 py-3 text-start text-sm font-semibold outline-none transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">
         {state === 'loading' ? <Loader2 className="size-5 shrink-0 animate-spin text-primary" aria-hidden /> : <ClipboardList className="size-5 shrink-0 text-primary" aria-hidden />}
-        <span>{fromListing ? 'اطلب عروضاً مثل هذا العرض' : 'اطلب عروضاً مشابهة'} من مكاتب العقار في {name}</span>
+        <span>{valuation ? 'اطلب تقييماً' : fromListing ? 'اطلب عروضاً مثل هذا العرض' : 'اطلب عروضاً مشابهة'} من {to.plural} في {name}</span>
       </button>
       {state === 'login' && <p className="text-sm">لتجهيز الطلب <a href={loginHref(`${window.location.pathname}${window.location.search}`)} className="font-semibold text-primary underline">سجّل الدخول</a>.</p>}
-      {state === 'empty' && <p className="text-sm text-muted-foreground">لا مكاتب عقار في {name} في الدليل.</p>}
+      {state === 'empty' && <p className="text-sm text-muted-foreground">لا {to.plural} في {name} في الدليل.</p>}
       {state === 'error' && <p role="alert" className="flex items-center gap-2 text-sm text-muted-foreground">تعذّر التحميل.<Chip onClick={() => void start()}>أعد المحاولة</Chip></p>}
     </div>
   )
@@ -469,6 +483,8 @@ function NextLinks({ asked, cityName, price, fromListing = null }: { asked: { ci
       <Link href={listings} className={link}><Building2 className="size-5 shrink-0 text-primary" aria-hidden /><span>{PLURAL[asked.kind] ?? 'العروض'} {asked.deal === 'sale' ? 'للبيع' : 'للإيجار'} الآن في {name}</span></Link>
       {map && <Link href={map} className={link}><MapPinned className="size-5 shrink-0 text-primary" aria-hidden /><span>تعرّف على {name} على الخريطة</span></Link>}
       <OfficesRequest asked={asked} cityName={cityName} price={price} fromListing={fromListing} />
+      {/* a sale is also valued: the district's valuers, beside the offices */}
+      {asked.deal === 'sale' && <OfficesRequest asked={asked} cityName={cityName} price={price} fromListing={fromListing} to={VALUERS} />}
     </nav>
   )
 }
