@@ -25,6 +25,8 @@ test('a figure whose table failed is «failed», one no district has is «missin
   // a failed table empties every row: that is a load to retry, not a city without the figure
   assert.equal(metricAvailability('population', [row(null), row(null)], ['population']), 'failed')
   assert.equal(metricAvailability('population', [row(null)], ['demand']), 'missing')
+  // a table still being asked (a first load, a retry) is «loading», whatever its rows hold now
+  assert.equal(metricAvailability('population', [row(null)], ['population'], ['population']), 'loading')
   // no rows yet (still loading) is not «missing»
   assert.equal(metricAvailability('population', [], []), 'ready')
 })

@@ -7,7 +7,7 @@ import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { groupLabel } from '@/lib/real-estate'
 import { RELIABLE_LISTINGS } from './lenses'
-import { sumKnown, sumOf, type DistrictRow } from './city-data'
+import { sumKnown, sumOf, type CityTable, type DistrictRow } from './city-data'
 import type { LensId } from './lenses'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -39,6 +39,13 @@ const show = (value: number | null | undefined, unit = '') => (value == null ? '
 /** One figure; tapping it explains how it was worked out. */
 type FigureSpec = { label: string; short?: string; value: string; note?: string | null; explain: string[]; /** Still being fetched: its shape, not «غير متاح». */ pending?: boolean }
 const MISSING = 'غير متاح'
+/** A figure whose table did not load this time: a retry away, not missing (city-data.ts `failed`). */
+const FAILED = 'تعذّر التحميل'
+/** The table each of the summary's own figures arrives in; the profile's (sex, nationality, ages) are asked here. */
+const FIGURE_TABLES: Partial<Record<FigureKey, CityTable[]>> = {
+  population: ['population'], businesses: ['counts'], perBusiness: ['counts', 'population'], unmet: ['demand'], restaurants: ['restaurants'],
+  menuPrice: ['menuPrices'], villaShare: ['housing'], income: ['income'], growth: ['growth'],
+}
 
 function Figure({ label, short, value, note, explain, pending }: FigureSpec) {
   // the value sits at the tile's foot, so a row's two figures line up even when one label runs to two lines; a long
@@ -47,7 +54,7 @@ function Figure({ label, short, value, note, explain, pending }: FigureSpec) {
     <div className="flex flex-col justify-between gap-0.5 rounded-xl bg-muted/40 px-3 py-2.5">
       <p className="text-sm text-muted-foreground">{short ?? label}</p>
       {pending ? <Skeleton className="mt-1.5 h-6 w-16" aria-label={`جارٍ تحميل ${label}`} /> : (
-        <Explained title={label} lines={explain} className={value === MISSING ? 'mt-0.5 self-start text-base text-muted-foreground' : 'mt-0.5 self-start text-xl font-bold'}>
+        <Explained title={label} lines={explain} className={value === MISSING || value === FAILED ? 'mt-0.5 self-start text-base text-muted-foreground' : 'mt-0.5 self-start text-xl font-bold'}>
           {value}
         </Explained>
       )}
@@ -57,7 +64,7 @@ function Figure({ label, short, value, note, explain, pending }: FigureSpec) {
 }
 
 /** The one summary card: the city when nothing is selected, else the selected districts with every figure once. */
-export function DistrictPanel({ city, cityName, lens, rows, selected, total, onClear }: {
+export function DistrictPanel({ city, cityName, lens, rows, selected, total, onClear, failed = [], pending = [] }: {
   city: string
   cityName: string
   lens: LensId
@@ -65,6 +72,9 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
   selected: DistrictRow[]
   total: number | null
   onClear: () => void
+  /** The city's tables that failed to load, and those being asked again: their figures say so instead of «غير متاح». */
+  failed?: readonly CityTable[]
+  pending?: readonly CityTable[]
 }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   // the profile's figures (sex, nationality, ages) are «غير متاح» only once it has answered or failed, not while asked
@@ -135,7 +145,14 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
   // the group's own decision figures lead (docs/atlas-product-foundation.md §3); the rest keep their order after them
   const lead = LEAD[lens]
   const rank = (key: FigureKey) => { const at = lead.indexOf(key); return at < 0 ? lead.length : at }
-  const ordered = figures.filter((entry): entry is [FigureKey, FigureSpec] => Boolean(entry[1]))
+  // a figure whose table is being asked again keeps its shape; one whose table failed says so, never «غير متاح»
+  const loadState = ([key, spec]: [FigureKey, FigureSpec]): [FigureKey, FigureSpec] => {
+    const from = FIGURE_TABLES[key] ?? []
+    if (from.some((table) => pending.includes(table))) return [key, { ...spec, pending: true }]
+    if (from.some((table) => failed.includes(table))) return [key, { ...spec, value: FAILED, note: null }]
+    return [key, spec]
+  }
+  const ordered = figures.filter((entry): entry is [FigureKey, FigureSpec] => Boolean(entry[1])).map(loadState)
     .map((entry, index) => ({ entry, index })).sort((a, b) => rank(a.entry[0]) - rank(b.entry[0]) || a.index - b.index).map(({ entry }) => entry)
   // the group's lead figures keep their tiles even when missing; any other missing figure is named once on one quiet
   // line, so a district with little data (Jeddah's central markets) reads in a glance instead of a wall of «غير متاح»

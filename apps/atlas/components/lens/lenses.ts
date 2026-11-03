@@ -51,10 +51,11 @@ export const METRIC_TABLE: Record<MetricId, CityTable> = {
 }
 
 /**
- * Whether a figure can colour this city's map: `failed` when its table did not load this time (worth a retry),
+ * Whether a figure can colour this city's map: `loading` while its table is being asked, `failed` when it did not load this time (worth a retry),
  * `missing` when it loaded and no district has it (said «غير متاح»), `ready` otherwise.
  */
-export function metricAvailability(id: MetricId, rows: DistrictRow[], failed: readonly CityTable[]): 'ready' | 'failed' | 'missing' {
+export function metricAvailability(id: MetricId, rows: DistrictRow[], failed: readonly CityTable[], pending: readonly CityTable[] = []): 'ready' | 'loading' | 'failed' | 'missing' {
+  if (pending.includes(METRIC_TABLE[id])) return 'loading'
   if (failed.includes(METRIC_TABLE[id])) return 'failed'
   return rows.length && !rows.some((row) => METRICS[id].value(row) != null) ? 'missing' : 'ready'
 }
