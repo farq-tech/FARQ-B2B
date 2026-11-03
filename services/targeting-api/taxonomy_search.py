@@ -158,6 +158,10 @@ SELL_CUES = tuple(dict.fromkeys(norm(c) for c in SELL_CUES))
 BUY_CUES = tuple(dict.fromkeys(norm(c) for c in BUY_CUES))
 
 
+# a named specialty answers with its own businesses alone once at least this many are found (by tag or by name)
+SPECIALTY_ENOUGH = 3
+
+
 def strip_pfx(t):
     for p in PFX:
         if t.startswith(p) and len(t) - len(p) >= 3:
@@ -411,6 +415,31 @@ class Taxonomy:
                             found |= self.sub_terms.get(v, set()) | self.trade_terms.get(v, set())
         return sorted(found)
 
+    def specialty_name_terms(self, spec_ids):
+        """The words a business uses in its own name for these specialties («حجامة», «طب بديل»), normalised (norm), longest first.
+        A name carrying one names the specialty as clearly as the directory's specialty tag."""
+        terms = set()
+        for sid in spec_ids:
+            r = self.specs.get(sid) or {}
+            for text in (r.get('match_terms') or '').split('|') + [r.get('specialty_ar') or '']:
+                t = norm(text)
+                if len(t) >= 3 and t not in GENERIC and not t.isdigit():
+                    terms.add(t)
+        return sorted(terms, key=len, reverse=True)
+
+    @staticmethod
+    def name_patterns(terms):
+        """One regular expression per term, for a name padded with spaces: each word may carry its article or prefix
+        («الطب البديل» for «طب بديل»). The same patterns run in Python here and in DuckDB (market_analytics)."""
+        pfx = r'(?:وال|بال|لل|ال|و|ب|ل)?'
+        return [r'\s' + pfx + (r'\s' + pfx).join(re.escape(w) for w in t.split()) + r'\s' for t in terms]
+
+    @classmethod
+    def names_term(cls, name, terms):
+        """Whether a business name carries one of the terms as whole words (normalised like the request, norm)."""
+        n = ' ' + norm(name or '') + ' '
+        return any(re.search(p, n) for p in cls.name_patterns(terms))
+
     def _sub_ok(self, sub):
         return self.subs[sub]['commercial'] in (True, 'yes')
 
@@ -596,6 +625,7 @@ class Taxonomy:
             fam_ar = '، '.join(self.families[f]['family_ar'] for f in u['families']) or '، '.join(self.subs[x]['sub_ar'] for x in u['named_subs'])
         asked_specs = u.get('specialties') or []
         asked_subs = {self.specs[x]['sub_id'] for x in asked_specs}
+        spec_words = self.specialty_name_terms(asked_specs) if asked_specs else []
         out, seen = [], set()
         for r in rows:
             (key, name, cat_ar, district, complete, lat, lon, city_en, region_ar, region_en, name_en, phone, phone_kind, wa, email,
@@ -638,6 +668,9 @@ class Taxonomy:
             if asked_specs:
                 have = set(filter(None, (row_specs or '').split('|')))
                 hit = [x for x in asked_specs if x in have]
+                if not hit and sub in asked_subs and (self.names_term(name, spec_words) or self.names_term(name_en, spec_words)):
+                    # the business names the specialty itself («مركز خبراء الحجامة»): as exact as the directory's tag
+                    hit = [next(x for x in asked_specs if self.specs[x]['sub_id'] == sub)]
                 if hit:
                     match_level, weight = 'specialty', weight + 2.0
                     reason = f'يوفّر «{self.specs[hit[0]]["specialty_ar"]}» حسب بياناته؛ السعر والتوفر يحتاجان تأكيد الجهة'
@@ -675,6 +708,10 @@ class Taxonomy:
                 'match_confidence': {'score': int(min(95, 55 + 15 * weight)), 'basis': 'تصنيف النشاط وعلاقة يبيع/يشتري؛ ليس تأكيدًا للتوفر أو نية الشراء', 'method': 'taxonomy_relation_heuristic_not_probability'},
             }))
         out.sort(key=lambda x: (-x[0], x[1]['name_ar'] or ''))
+        if asked_specs and sum(1 for _, r in out if r['match_level'] == 'specialty') >= SPECIALTY_ENOUGH:
+            # accuracy first (owner 2026-11-03): «حجامة» answered every clinic and spa and a pharmacy chain. When the specialty
+            # itself is found often enough, the rest of its parent trades and the loosely related shops are not the answer.
+            out = [x for x in out if x[1]['match_level'] == 'specialty']
         fb = u.get('fallback_targets') or {}
         if fb:
             primary = [r for _, r in out if r['taxonomy_sub'] not in fb]
