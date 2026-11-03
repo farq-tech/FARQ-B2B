@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Explained } from '@/components/shared/explained'
+import { LoadError } from '@/components/shared/load-error'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
@@ -78,6 +79,8 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
   const [mainId, setMainId] = useStudiedMainId(activities)
   const [counts, setCounts] = useState<Map<string, Count> | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  // «أعد المحاولة» asks again for the same activity
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     setShares(null)
@@ -96,7 +99,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
       .then((data) => { if (active) { setCounts(new Map((data.districts ?? []).map((row) => [row.district_ar, row]))); setStatus('idle') } })
       .catch(() => { if (active) setStatus('error') })
     return () => { active = false }
-  }, [city, mode, mainId])
+  }, [city, mode, mainId, attempt])
 
   const both = sex !== 'all' && nationality !== 'all'
   const ranked: Segment = both ? rankBy : sex !== 'all' ? 'sex' : nationality !== 'all' ? 'nationality' : 'none'
@@ -193,7 +196,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
           <ResultRowsSkeleton label="جارٍ الحساب" rows={5} valueSub />
         </>
       )}
-      {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
+      {status === 'error' && <LoadError what="منشآت الأحياء" onRetry={() => setAttempt((n) => n + 1)} />}
       {status !== 'loading' && (
         <div className="rounded-xl bg-muted/40 px-3 py-2.5">
           <p className="text-sm text-muted-foreground">حجم الجمهور</p>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { LoadError } from '@/components/shared/load-error'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
 import { formatDistance, numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
@@ -139,6 +140,12 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
   }, [districts, features])
 
   const labelled = useMemo(() => sites.map((site, index) => ({ ...site, label: String(index + 1), color: COLORS[index], result: results[keyOf(site)] })), [sites, results, keyOf])
+  // sites whose area or figures failed: said once above the table, and asked again together
+  const failed = labelled.filter((site) => site.result?.status === 'error')
+  const retryFailed = () => {
+    for (const site of failed) requested.current.delete(keyOf(site))
+    setSites((current) => [...current])
+  }
 
   useEffect(() => {
     const areas: Area[] = labelled.flatMap((site) => (site.result?.geometry ? [{ id: String(site.id), color: site.color, geometry: site.result.geometry }] : []))
@@ -228,6 +235,10 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
           المنطقة: كل ما تصله السيارة في {numberFormat.format(reach.minutes)} دقائق على الطرق.
         </Explained>
       )}
+      {failed.length > 0 && (
+        <LoadError what="المواقع" title={`تعذر حساب ${failed.length === 1 ? 'الموقع' : 'المواقع'} ${failed.map((site) => site.label).join('، ')}.`}
+          detail={failed[0].result?.message} onRetry={retryFailed} />
+      )}
       {labelled.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-base tabular-nums">
@@ -271,7 +282,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
                     {labelled.map((site) => {
                       const result = site.result
                       if (!result || result.status === 'loading') return <td key={site.id} className="py-2 text-center" aria-busy="true"><Skeleton className="mx-auto h-4 w-10" aria-hidden /><span className="sr-only">جارٍ الحساب</span></td>
-                      if (result.status === 'error') return <td key={site.id} className="py-2 text-center text-sm text-destructive">{result.message}</td>
+                      if (result.status === 'error') return <td key={site.id} className="py-2 text-center text-sm text-muted-foreground">—</td>
                       const value = row.value(result.figures!)
                       return (
                         <td key={site.id} className="py-2 text-center">

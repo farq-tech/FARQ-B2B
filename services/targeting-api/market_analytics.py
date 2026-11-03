@@ -56,6 +56,22 @@ BUYER_BASIS = (
 
 UNCOVERED_MIN_POPULATION = 5000
 
+# A district that is not ordinary homes should not lead a list of where shops are missing for residents. Two facts
+# the data already holds mark it, nothing is estimated: the atlas's own district name says industrial («المدينة
+# الصناعية الجديدة», «المصانع»), or 910ths measures nine in ten residents as men (labour housing: «المدينة الصناعية
+# الجديدة» is 98.6% men). Such districts keep their figures and go after the others in market_gaps.
+GAP_INDUSTRIAL_NAME = ("صناعي", "صناعيه", "صناعية", "مصانع")
+GAP_WORKERS_MALE_PCT = 90.0
+
+
+def gap_caveat(district_ar, male_pct):
+    """«industrial», «workers» or None: why a district's shortfall is not a plain residential one."""
+    if any(token in (district_ar or "") for token in GAP_INDUSTRIAL_NAME):
+        return "industrial"
+    if male_pct is not None and male_pct >= GAP_WORKERS_MALE_PCT:
+        return "workers"
+    return None
+
 
 # a bare activity word is how many independent shops are named, not a brand (keys after letter folding)
 GENERIC_BRAND_KEYS = frozenset({
@@ -763,6 +779,7 @@ class MarketAnalytics:
             present = counts.get(name, 0)
             expected = people / rate
             male, female = row.get("male"), row.get("female")
+            male_pct = round(100 * male / (male + female), 1) if male and female else None
             rows.append({
                 "district_ar": name,
                 "population": round(people),
@@ -770,10 +787,12 @@ class MarketAnalytics:
                 "expected_businesses": round(expected, 1),
                 "shortfall": round(expected - present, 1),
                 "residents_per_business": round(people / present) if present else None,
-                "male_pct": round(100 * male / (male + female), 1) if male and female else None,
+                "male_pct": male_pct,
                 "population_source": row.get("source"),
+                "caveat": gap_caveat(name, male_pct),
             })
-        rows.sort(key=lambda row: (-row["shortfall"], row["district_ar"]))
+        # ordinary residential districts first, each group largest shortfall first
+        rows.sort(key=lambda row: (row["caveat"] is not None, -row["shortfall"], row["district_ar"]))
         return {
             "ok": True,
             "city": city,
