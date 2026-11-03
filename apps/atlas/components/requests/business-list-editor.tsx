@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MessageCircle, X } from 'lucide-react'
+import { MapPinned, MessageCircle, X } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { numberFormat } from '@/lib/insights-api'
@@ -21,9 +21,11 @@ interface BusinessListEditorProps {
   liveBusinesses?: LiveBusinessSnapshot[]
   /** The map view the request came from, where more businesses are picked. */
   mapView?: string
+  /** A draft takes more businesses from the map (`mapView` opens it in «add to this request» mode). */
+  addMore?: boolean
 }
 
-export function BusinessListEditor({ title, cityId, businessIds, editable, onChange, renderMeta, liveBusinesses = [], mapView = '/map' }: BusinessListEditorProps) {
+export function BusinessListEditor({ title, cityId, businessIds, editable, onChange, renderMeta, liveBusinesses = [], mapView = '/map', addMore = false }: BusinessListEditorProps) {
   const businesses = businessIds.map((id) => businessById.get(id)).filter((b): b is Business => Boolean(b))
   const liveById = useMemo(() => new Map(liveBusinesses.map((business) => [business.id, business])), [liveBusinesses])
   const visibleLiveBusinesses = businessIds.flatMap((id) => liveById.get(id) ? [liveById.get(id)!] : [])
@@ -37,6 +39,11 @@ export function BusinessListEditor({ title, cityId, businessIds, editable, onCha
         <h2 id="biz-list-title" className="font-semibold">
           {title} <span className="text-sm font-normal text-muted-foreground tabular-nums">({numberFormat.format(totalCount)})</span>
         </h2>
+        {addMore && totalCount > 0 && (
+          <Link href={mapView} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-1 text-sm font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+            <MapPinned className="size-4" aria-hidden />أضف من الخريطة
+          </Link>
+        )}
       </div>
 
       {totalCount === 0 ? (

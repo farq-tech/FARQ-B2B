@@ -14,7 +14,7 @@ import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
 import { businessName } from '@/lib/business-name'
-import { cityKey, mapHref, safeMapOrigin } from '@/lib/handoff'
+import { addToRequestHref, cityKey, mapHref, safeMapOrigin } from '@/lib/handoff'
 import type { RequestItem } from '@/lib/types'
 import { BusinessListEditor } from './business-list-editor'
 import { CampaignEditor, campaignIssues, eligibility, renderTemplate } from './campaign-editor'
@@ -181,7 +181,8 @@ export function RequestDetailView({ id }: { id: string }) {
           liveBusinesses={request.liveBusinesses}
           editable={editable}
           onChange={changeBusinesses}
-          mapView={mapView}
+          mapView={editable ? addToRequestHref(mapView, request.id) : mapView}
+          addMore={editable}
         />
       )}
 

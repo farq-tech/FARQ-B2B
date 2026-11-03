@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { priceStartHref, ageBucket, cityKey, districtMapHref, homesHref, lastView, loginHref, mapHref, priceHref, readHomesQuery, rememberView, safeMapOrigin, widthBucket, writeHomesQuery } from './handoff.ts'
+import { addToRequestHref, readAddTarget, readListing, priceStartHref, ageBucket, cityKey, districtMapHref, homesHref, lastView, loginHref, mapHref, priceHref, readHomesQuery, rememberView, safeMapOrigin, widthBucket, writeHomesQuery } from './handoff.ts'
 
 const TYPES = [
   { id: 'room', kinds: ['rent'] }, { id: 'apartment', kinds: ['rent', 'sale'] }, { id: 'villa', kinds: ['rent', 'sale'] }, { id: 'land', kinds: ['sale'] },
@@ -83,4 +83,26 @@ test('the last view of a surface is kept for the tab, and a blocked storage open
 test('the price page starts from what the page already knows', () => {
   assert.equal(priceStartHref({ city: 'Riyadh', district: null, deal: 'rent_year', type: 'apartment' }), '/price?type=apartment')
   assert.equal(priceStartHref({ city: 'Jeddah', district: '4', deal: 'sale', type: 'store' }), '/price?city=Jeddah&district=4&deal=sale', 'a type the page does not offer is left to ask')
+})
+
+test('the map adds to a request only for a well-formed id, on the view the request came from', () => {
+  assert.equal(addToRequestHref('/map?lens=marketers&district=4', 'cmp-mw0tuq1zpkja'), '/map?lens=marketers&district=4&add=cmp-mw0tuq1zpkja')
+  assert.equal(addToRequestHref('https://evil.example/map', 'r-1'), '/map?add=r-1')
+  assert.equal(addToRequestHref('/map', '../x'), '/map')
+  assert.equal(readAddTarget('?add=r-1001&lens=shops'), 'r-1001')
+  assert.equal(readAddTarget('?add=<x>'), null)
+})
+
+test('the open listing is in the address, and the navigation does not bring one-time intents back', () => {
+  assert.equal(writeHomesQuery({ city: 'Riyadh', districts: ['9'], listing: '6918576' }), 'district=9&listing=6918576')
+  assert.equal(writeHomesQuery({ listing: 'bad id' }), '')
+  assert.equal(readListing('?listing=6918576'), '6918576')
+  assert.equal(readListing('?listing=a%20b'), null)
+  const store = new Map<string, string>()
+  ;(globalThis as { sessionStorage?: unknown }).sessionStorage = { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => { store.set(key, value) } }
+  rememberView('/homes', '?district=9&listing=6918576')
+  rememberView('/map', '?lens=marketers&add=r-1')
+  assert.equal(lastView('/homes'), '/homes?district=9')
+  assert.equal(lastView('/map'), '/map?lens=marketers')
+  delete (globalThis as { sessionStorage?: unknown }).sessionStorage
 })

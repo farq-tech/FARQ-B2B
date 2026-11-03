@@ -6,6 +6,7 @@ import { makeId } from './format'
 import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType } from './types'
 import { mergeCloudRequests } from './workspace-merge'
 import { safeMapOrigin } from './handoff'
+import { mergeIntoRequest } from './request-add'
 
 const LOCAL_STORAGE_KEY = 'farq-atlas-workspace-v3'
 const LEGACY_SESSION_STORAGE_KEY = 'farq-atlas-workspace-v2'
@@ -224,6 +225,8 @@ interface StoreValue extends State {
   setSelection: (ids: string[]) => void
   createDraft: (input: DraftInput) => string
   updateRequest: (id: string, patch: Partial<RequestItem>) => void
+  /** Adds businesses picked on the map to a draft; how many were new (0 when none, or the request is past its draft). */
+  addToRequest: (id: string, businesses: LiveBusinessSnapshot[]) => number
   markRead: (id: string, unread?: boolean) => void
   updateMessage: (id: string, patch: Partial<InboxMessage>) => void
 }
@@ -310,6 +313,13 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     },
     [],
   )
+  const addToRequest = useCallback((id: string, businesses: LiveBusinessSnapshot[]) => {
+    const current = requestsRef.current.find((request) => request.id === id)
+    const merged = current ? mergeIntoRequest(current, businesses) : null
+    if (!merged || !merged.added) return 0
+    updateRequest(id, merged.patch)
+    return merged.added
+  }, [updateRequest])
   const markRead = useCallback((id: string, unread?: boolean) => dispatch({ type: 'mark-read', id, unread }), [])
   const updateMessage = useCallback(
     (id: string, patch: Partial<InboxMessage>) => dispatch({ type: 'update-message', id, patch }),
@@ -317,8 +327,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo(
-    () => ({ ...state, toggleSelect, setSelection, createDraft, updateRequest, markRead, updateMessage }),
-    [state, toggleSelect, setSelection, createDraft, updateRequest, markRead, updateMessage],
+    () => ({ ...state, toggleSelect, setSelection, createDraft, updateRequest, addToRequest, markRead, updateMessage }),
+    [state, toggleSelect, setSelection, createDraft, updateRequest, addToRequest, markRead, updateMessage],
   )
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }

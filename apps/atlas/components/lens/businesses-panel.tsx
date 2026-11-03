@@ -3,7 +3,10 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ClipboardList, ListPlus, Loader2, LogIn, MapPin, Megaphone, Search, SearchX } from 'lucide-react'
+import { ChevronDown, ClipboardList, ListPlus, Loader2, LogIn, MapPin, Megaphone, PlusCircle, Search, SearchX } from 'lucide-react'
+import { readAddTarget } from '@/lib/handoff'
+import { draftsFor } from '@/lib/request-add'
+import { TYPE_LABEL } from '@/lib/format'
 import { EmptyState, NoResult } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { toast } from 'sonner'
@@ -39,7 +42,13 @@ export function BusinessesPanel({ city, districts, query, onLocate, located }: {
 }) {
   const router = useRouter()
   const cities = useCities()
-  const { createDraft } = useAppStore()
+  const { createDraft, addToRequest, requests } = useAppStore()
+  // the request a pick joins: named by the address when the person came from it («أضف منشآت من الخريطة»), or chosen
+  // from the city's drafts; only a draft can still take businesses
+  const [addId, setAddId] = useState<string | null>(null)
+  useEffect(() => { setAddId(readAddTarget(window.location.search)) }, [])
+  const drafts = draftsFor(requests, city)
+  const target = addId ? drafts.find((request) => request.id === addId) ?? null : null
   const [activity, setActivity] = useState(query ?? '')
   // the activity studied in the other steps, offered as a one-tap start before anything is shown
   const [studied] = useStudiedActivity()
@@ -158,6 +167,16 @@ export function BusinessesPanel({ city, districts, query, onLocate, located }: {
     router.push(`/requests/${id}`)
   }
 
+  function addTo(requestId: string) {
+    const request = requests.find((item) => item.id === requestId)
+    const picks = rows.filter((row) => picked.has(row.id))
+    if (!request || !picks.length) return
+    const added = addToRequest(requestId, picks)
+    toast.success(added ? `أُضيفت ${counted(added, 'business')} إلى «${request.title}»` : 'كلها في الطلب من قبل',
+      { description: added && added < picks.length ? `${counted(picks.length - added, 'business')} في الطلب من قبل. راجعه قبل أي إرسال.` : 'راجعه قبل أي إرسال.' })
+    router.push(`/requests/${requestId}`)
+  }
+
   // sign-in returns to this same view (city, districts and search kept in the address)
   const here = () => typeof window === 'undefined' ? '/map' : `${window.location.pathname}${window.location.search}`
   const where = !districts.length ? 'المدينة' : districts.length === 1 ? districts[0] : counted(districts.length, 'district')
@@ -165,6 +184,14 @@ export function BusinessesPanel({ city, districts, query, onLocate, located }: {
   return (
     <section aria-label="منشآت الحي" className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">منشآت {where}</h2>
+      {/* in «add to this request» mode the panel says where the picks go, from the first look */}
+      {target && (
+        <p role="status" className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">
+          <PlusCircle className="size-4 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1">تضيف إلى «{target.title}»</span>
+          <button type="button" onClick={() => setAddId(null)} className="shrink-0 font-semibold underline-offset-4 hover:underline">طلب جديد بدلاً منه</button>
+        </p>
+      )}
       <form role="search" className="flex gap-2" onSubmit={(event) => { event.preventDefault(); void load() }}>
         <input value={activity} onChange={(event) => setActivity(event.target.value)} aria-label="النشاط" enterKeyHint="search"
           placeholder="كل الأنشطة، أو اكتب نشاطاً" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-base" />
@@ -232,7 +259,7 @@ export function BusinessesPanel({ city, districts, query, onLocate, located }: {
           )}
           <ul className="max-h-80 divide-y overflow-y-auto text-base">
             {shown.map((row) => (
-              <li key={row.id}>
+              <li key={row.id} id={`biz-row-${row.id}`} className="scroll-mt-2">
                 <div className="flex items-center gap-2 py-2">
                   <input type="checkbox" aria-label={`اختيار ${row.name}`} checked={picked.has(row.id)} onChange={() => toggle(row.id)} className="size-4 shrink-0 accent-primary" />
                   <button type="button" onClick={() => setOpenId(openId === row.id ? null : row.id)} aria-expanded={openId === row.id} className="min-w-0 flex-1 text-start">
@@ -252,6 +279,22 @@ export function BusinessesPanel({ city, districts, query, onLocate, located }: {
               </li>
             ))}
           </ul>
+          {/* the picks join a draft already started (the one named by the address first) instead of a new request */}
+          {target ? (
+            <button disabled={!picked.size} onClick={() => addTo(target.id)}
+              className={cn('inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold', picked.size ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'cursor-not-allowed bg-primary/40 text-primary-foreground')}>
+              <PlusCircle className="size-4" aria-hidden /> أضف{picked.size ? ` ${counted(picked.size, 'business')}` : ''} إلى «{target.title}»
+            </button>
+          ) : drafts.length > 0 && (
+            <label className="flex items-center gap-2 text-sm">
+              <span className="shrink-0 font-medium">أضف إلى مسودة</span>
+              <select value="" disabled={!picked.size} onChange={(event) => { if (event.target.value) addTo(event.target.value) }}
+                className="h-10 min-w-0 flex-1 rounded-lg border bg-background px-2 text-sm disabled:opacity-50">
+                <option value="">{picked.size ? 'اختر المسودة' : 'اختر منشأة أولاً'}</option>
+                {drafts.map((request) => <option key={request.id} value={request.id}>{TYPE_LABEL[request.type]}: {request.title}</option>)}
+              </select>
+            </label>
+          )}
           <div className="grid grid-cols-3 gap-1.5">
             {([['rfq', 'طلب تسعير', ClipboardList], ['campaign', 'حملة واتساب', Megaphone], ['list', 'حفظ قائمة', ListPlus]] as const).map(([type, label, Icon]) => (
               <button key={type} disabled={!picked.size} onClick={() => act(type)}

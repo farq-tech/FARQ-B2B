@@ -116,8 +116,8 @@ export function readHomesQuery(search: string, rentDeals: readonly string[], typ
   }
 }
 
-/** Writes «العقار»'s view, leaving out what is at its default so a plain visit keeps a plain address. */
-export function writeHomesQuery(view: Partial<HomesView>): string {
+/** Writes «العقار»'s view, leaving out what is at its default so a plain visit keeps a plain address; `listing` is the open listing. */
+export function writeHomesQuery(view: Partial<HomesView> & { listing?: string | null }): string {
   const query = new URLSearchParams()
   if (view.city && view.city !== DEFAULT_CITY && CITY.test(view.city)) query.set('city', view.city)
   const deal = view.kind === 'sale' ? 'sale' : view.rentDeal ?? HOMES_DEFAULTS.rentDeal
@@ -126,6 +126,7 @@ export function writeHomesQuery(view: Partial<HomesView>): string {
   if (types.length && types.join(',') !== HOMES_DEFAULTS.types.join(',')) query.set('type', types.join(','))
   const districts = (view.districts ?? []).filter((id) => ID.test(id)).slice(0, MAX_DISTRICTS)
   if (districts.length) query.set('district', districts.join(','))
+  if (view.listing && LISTING_ID.test(view.listing)) query.set('listing', view.listing)
   return query.toString()
 }
 
@@ -179,7 +180,41 @@ export const REMEMBERED = ['/map', '/homes'] as const
 
 /** Keeps a surface's address (its query) for this tab, so the main navigation goes back to the same view. */
 export function rememberView(path: string, search: string) {
-  try { globalThis.sessionStorage?.setItem(VIEW_KEY + path, search.startsWith('?') || !search ? search : `?${search}`) } catch { /* private window: the nav opens the default view */ }
+  // a one-time intent (adding to a request, an open listing) is not part of the view the navigation brings back
+  const query = new URLSearchParams(search)
+  for (const key of ONE_TIME) query.delete(key)
+  const text = query.toString()
+  try { globalThis.sessionStorage?.setItem(VIEW_KEY + path, text ? `?${text}` : '') } catch { /* private window: the nav opens the default view */ }
+}
+
+/** Address parameters that belong to one visit: the request a map pick is added to, the listing open on «العقار». */
+const ONE_TIME = ['add', 'listing']
+
+const REQUEST_ID = /^[A-Za-z0-9_-]{1,60}$/
+/**
+ * The map in «add to this request» mode: the view the request came from, with `add=<request id>`, so the businesses
+ * picked there join that request instead of starting a new one.
+ */
+export function addToRequestHref(mapView: string, requestId: string): string {
+  const origin = safeMapOrigin(mapView) ?? '/map'
+  if (!REQUEST_ID.test(requestId)) return origin
+  const [path, search = ''] = origin.split('?')
+  const query = new URLSearchParams(search)
+  query.set('add', requestId)
+  return `${path}?${query}`
+}
+
+/** The request an address asks a map pick to join, when its id is well formed (the store says whether it exists). */
+export function readAddTarget(search: string): string | null {
+  const id = new URLSearchParams(search).get('add')
+  return id && REQUEST_ID.test(id) ? id : null
+}
+
+const LISTING_ID = /^[A-Za-z0-9_:.-]{1,60}$/
+/** The listing open on «العقار», when its id is well formed (the page opens it once its listings say it is there). */
+export function readListing(search: string): string | null {
+  const id = new URLSearchParams(search).get('listing')
+  return id && LISTING_ID.test(id) ? id : null
 }
 
 /** The surface's last view in this tab, as a path with its query; the bare path when nothing was kept. */
