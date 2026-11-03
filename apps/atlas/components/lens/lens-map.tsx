@@ -277,8 +277,10 @@ function PickedStrip({ chosen, onDetails, onClear }: { chosen: DistrictRow[]; on
  * The answer to a click, on the district itself: its name, the open step's figure for it (or the shading figure, or its
  * population) as already loaded, and «التفاصيل» for the full summary in the panel. A missing figure reads «غير متاح».
  */
-function DistrictCard({ name, lines, at, top: ceiling, bottom: floor, onDetails, onClose }: {
+function DistrictCard({ name, lines, at, top: ceiling, bottom: floor, onDetails, onClose, kind = 'district' }: {
   name: string
+  /** A district's card, or a business's (a list's «على الخريطة»): the same window, named for what it shows. */
+  kind?: 'district' | 'business'
   lines: { label: string; value: string }[]
   at: { x: number; y: number; width: number; height: number }
   /** The part of the map in view, top to bottom (pixels): under the phone's floating controls, above its sheet. */
@@ -294,7 +296,7 @@ function DistrictCard({ name, lines, at, top: ceiling, bottom: floor, onDetails,
   const wanted = at.y - 12 - height >= ceiling ? at.y - 12 - height : at.y + 12
   const top = Math.max(ceiling, Math.min(wanted, floor - height))
   return (
-    <section aria-label={`الحي ${name}`} className="absolute z-[7] flex flex-col gap-1.5 rounded-xl border bg-card/95 p-3 text-sm shadow-lg backdrop-blur"
+    <section aria-label={kind === 'district' ? `الحي ${name}` : `المنشأة ${name}`} className="absolute z-[7] flex flex-col gap-1.5 rounded-xl border bg-card/95 p-3 text-sm shadow-lg backdrop-blur"
       style={{ left, width, top }}>
       <div className="flex items-center gap-2">
         <h2 className="min-w-0 flex-1 truncate text-base font-bold">{name}</h2>
@@ -303,7 +305,7 @@ function DistrictCard({ name, lines, at, top: ceiling, bottom: floor, onDetails,
       {lines.map((line) => (
         <p key={line.label} className="text-muted-foreground">{line.label}: <span className="font-semibold text-foreground tabular-nums">{line.value}</span></p>
       ))}
-      <button onClick={onDetails} className="mt-1 self-start rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/60">التفاصيل</button>
+      <button onClick={onDetails} className="mt-1 self-start rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/60">{kind === 'district' ? 'التفاصيل' : 'في القائمة'}</button>
     </section>
   )
 }
@@ -402,7 +404,7 @@ export function LensMap() {
   // the district a step's list is pointing at, outlined on the map so a row and its place are seen together
   const [hovered, setHovered] = useState<string | null>(null)
   // a business a list located on the map: the map flies to it and marks it, until the step, the city or the search changes
-  const [located, setLocated] = useState<{ id: string; lon: number; lat: number } | null>(null)
+  const [located, setLocated] = useState<{ id: string; lon: number; lat: number; name: string; category: string; district: string } | null>(null)
   // the district under the mouse, named beside the pointer with its figure, before any click
   const [pointer] = useState(createPointerStore)
   useEffect(() => { setHovered(null) }, [tool, city])
@@ -568,9 +570,11 @@ export function LensMap() {
   useEffect(() => { if (search) setSheet((current) => (current === 'peek' ? 'half' : current)) }, [search])
   useEffect(() => { setLocated(null) }, [tool, city, search])
   // a business card's «على الخريطة»: on a phone the sheet goes down so the marked place is in view
-  const locate = (row: { id: string; latitude: number | null; longitude: number | null }) => {
+  const locate = (row: { id: string; name: string; category: string; district: string; latitude: number | null; longitude: number | null }) => {
     if (row.latitude == null || row.longitude == null) return
-    setLocated({ id: row.id, lon: row.longitude, lat: row.latitude })
+    // the business's own card takes the map's one card: a district card open beside it closes
+    setCard(null)
+    setLocated({ id: row.id, lon: row.longitude, lat: row.latitude, name: row.name, category: row.category, district: row.district })
     if (!window.matchMedia('(min-width: 64rem)').matches) setSheet('peek')
   }
 
@@ -749,14 +753,32 @@ export function LensMap() {
           style={{ '--peek': `${peekPx}px`, ...(sheet === 'half' ? { '--sheet-lift': `calc(${HALF * 100}% - ${peekPx * (1 - HALF)}px)` } : {}) } as CSSProperties}>
           <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start ?? located} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} streets={overlay.streets} onStreet={overlay.onStreet} focus={located ?? overlay.focus} zoomTo={zoomTo} hover={hovered} onPoint={pointer.set}
             onFailed={setMapFailed} errorClassName="max-lg:top-1/3" cover={sheet === 'half' ? HALF : 0} peek={peekPx}
-            onDistrictClick={(hit) => { mapPick.current = true; setCard(selected.includes(hit.id) ? null : hit) }}
-            pin={cardRow ? card : null} onPin={setCardAt} />
+            onDistrictClick={(hit) => { mapPick.current = true; setLocated(null); setCard(selected.includes(hit.id) ? null : hit) }}
+            pin={cardRow ? card : located} onPin={setCardAt} />
           {overlay.popup}
           {cardRow && cardAt && cardAt.x >= 0 && cardAt.y >= 0 && cardAt.x <= cardAt.width && cardAt.y <= cardAt.height && (
             <DistrictCard name={cardRow.name} lines={cardLines(cardRow)} at={cardAt} onDetails={openDetails} onClose={closeCard}
               {...(window.matchMedia('(min-width: 64rem)').matches
                 ? { top: 8, bottom: cardAt.height - 8 }
                 // the floating search and chips on top; below, what the sheet covers above the map's own end (the peek)
+                : { top: 124, bottom: cardAt.height - 8 - (sheet === 'half' ? Math.max(0, HALF * (cardAt.height + peekPx) - peekPx) : 0) })} />
+          )}
+          {/* the business a list located: its name beside its mark, what it is and where, and the way back to its row */}
+          {!cardRow && located && cardAt && cardAt.x >= 0 && cardAt.y >= 0 && cardAt.x <= cardAt.width && cardAt.y <= cardAt.height && (
+            <DistrictCard kind="business" name={located.name} at={cardAt}
+              lines={[{ label: 'النشاط', value: located.category || 'غير متاح' }, { label: 'الحي', value: located.district || 'غير متاح' }]}
+              onClose={() => setLocated(null)}
+              onDetails={() => {
+                const id = located.id
+                setSheet((current) => (current === 'peek' ? 'half' : current))
+                window.setTimeout(() => {
+                  const row = document.getElementById(`biz-row-${id}`)
+                  row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                  row?.querySelector<HTMLElement>('input, button')?.focus({ preventScroll: true })
+                }, 250)
+              }}
+              {...(window.matchMedia('(min-width: 64rem)').matches
+                ? { top: 8, bottom: cardAt.height - 8 }
                 : { top: 124, bottom: cardAt.height - 8 - (sheet === 'half' ? Math.max(0, HALF * (cardAt.height + peekPx) - peekPx) : 0) })} />
           )}
           <PointerTip store={pointer} describe={describePointed} />
