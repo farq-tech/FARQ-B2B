@@ -402,7 +402,7 @@ def corridor_subs(tx, q, objective=None):
     only keeps a group as one activity, because corridors are built per group. Measured by test_query_eval.py."""
     if objective != 'marketing':
         named, score = tx.subs_in(q)
-        named = [sub for sub in named if sub in tx.subs]
+        named = taxonomy_search.without_served(q, [sub for sub in named if sub in tx.subs])   # «مورد قهوة» is not cafés
         words = taxonomy_search.norm(q).split()
         # «أغراض مواليد», «أطفال»: the group, unless one trade is named precisely (activity_groups.group_named)
         group = tx.group_in(q, named, score)
