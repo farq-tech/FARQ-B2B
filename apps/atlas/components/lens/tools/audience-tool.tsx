@@ -142,7 +142,9 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
     const summary = status === 'loading' ? null
       : audienceSummary({ selected: ids.size, scope: ids.size || rows.length, segment, sizes: list.map((item) => item.size), unit: mode === 'people' ? 'شخص' : 'منشأة', top: scored[0]?.row.name ?? null })
     // «أرني الأعلى» opens the best-matching district, the first of the ranking
-    onOverlay({ colors, summary, lead: status === 'loading' ? null : scored[0]?.row.id ?? null })
+    // a district's own figure, as its row in the ranking shows it; one without a measured figure is left out («غير متاح»)
+    const facts = status === 'loading' ? null : new Map(scored.map((item) => [item.row.id, `${show(item.size)} ${mode === 'people' ? 'شخص' : 'منشأة'} · ${numberFormat.format(item.score)}/100`] as [string, string]))
+    onOverlay({ colors, facts, summary, lead: status === 'loading' ? null : scored[0]?.row.id ?? null })
   }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, status, rows.length])
 
   const [limit, showMore] = useShowMore(10, `${city}|${mode}|${sex}|${nationality}|${minIncome}|${rankBy}|${mainId}`)

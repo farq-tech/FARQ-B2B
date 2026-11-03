@@ -24,6 +24,9 @@ export type Overlay = {
   summary?: string | null
   /** The district the step's answer puts first (as the API ordered it), offered to a first visit as «أرني الأعلى». */
   lead?: string | null
+  /** The step's answer for one district, in one line, by district id: the card a click on the map opens leads with it.
+   * A district the step has no figure for is left out (the card then says «غير متاح»), never given a zero. */
+  facts?: Map<string, string> | null
   /** A card the tool floats over the map, such as the listing a click opened. */
   popup?: ReactNode
 }

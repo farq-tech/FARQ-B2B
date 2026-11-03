@@ -133,7 +133,9 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
         colors.set(id, HEAT[Math.min(4, Math.floor((5 * below) / counts.length))])
       }
       const most = brand.by_district.reduce<Count | null>((top, item) => (!top || item.n > top.n ? item : top), null)
-      onOverlay({ colors, lead: most ? ids.get(most.district_ar) ?? null : null, legend: { from: 'فرع واحد', to: 'فروع أكثر', shades: HEAT }, summary: `${brand.brand}: ${counted(brand.branches, 'branch')} في ${counted(brand.districts, 'district')}` })
+      // a district without a branch of the chain is not in its list: the card says «غير متاح» rather than a zero
+      const facts = new Map(brand.by_district.flatMap((item) => { const id = ids.get(item.district_ar); return id ? [[id, `${counted(item.n, 'branch')} لـ${brand.brand}`] as [string, string]] : [] }))
+      onOverlay({ colors, facts, lead: most ? ids.get(most.district_ar) ?? null : null, legend: { from: 'فرع واحد', to: 'فروع أكثر', shades: HEAT }, summary: `${brand.brand}: ${counted(brand.branches, 'branch')} في ${counted(brand.districts, 'district')}` })
       return
     }
     if (!table.length) { onOverlay({}); return }
@@ -148,8 +150,10 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
       while (below < dense.length && dense[below] < item.perKm2) below++
       colors.set(item.row.id, HEAT[Math.min(4, Math.floor((5 * below) / Math.max(1, dense.length)))])
     }
+    // the same count the district's colour and the list read (a district the service lists no business in is «لا منافس»)
+    const facts = new Map(table.map((item) => [item.row.id, item.competitors ? `${counted(item.competitors, 'business')} من «${studied.label}»` : 'لا منافس'] as [string, string]))
     // «أرني الأعلى» opens the district the summary names
-    onOverlay({ colors, summary, lead: densest?.row.id ?? null, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
+    onOverlay({ colors, facts, summary, lead: densest?.row.id ?? null, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
   }, [table, brand, rows, onOverlay, cityTotal, studied.label])
 
   // the service counted the activity and found none: a city total of 0, or no district and no total

@@ -88,7 +88,14 @@ export function GapsTool({ city, rows, onOverlay, onSelect, selected = [], onHov
     const top = short[0]
     const summary = result.residents_per_business == null ? null
       : top ? `${counted(short.length, 'district')} فيها نقص · الأعلى: ${top.district_ar} \u2066+${numberFormat.format(Math.round(top.shortfall))}\u2069` : 'لا نقص في أي حي'
-    onOverlay({ summary, lead: top ? ids.get(top.district_ar) ?? null : null, colors, legend: { title: `نقص «${label}» في الأحياء`, from: 'نقص قليل', to: 'نقص كبير', shades: SHADES, extra: { color: SURPLUS, label: 'مكتفٍ' } } })
+    // the card on a clicked district reads its row as the list does: «ناقص N» (needed at the city rate − present), or
+    // «مكتفٍ» as the map colours it; a district the answer does not list stays out («غير متاح»)
+    const facts = new Map<string, string>()
+    for (const row of result.districts) {
+      const id = ids.get(row.district_ar)
+      if (id) facts.set(id, isShort(row) ? `ناقص ${numberFormat.format(Math.round(row.expected_businesses) - row.businesses)} ${label}` : 'مكتفٍ')
+    }
+    onOverlay({ summary, facts, lead: top ? ids.get(top.district_ar) ?? null : null, colors, legend: { title: `نقص «${label}» في الأحياء`, from: 'نقص قليل', to: 'نقص كبير', shades: SHADES, extra: { color: SURPLUS, label: 'مكتفٍ' } } })
   }, [result, rows, onOverlay, label])
 
   const study = (text: string) => { if (text) setStudied({ q: text, label: text }) }
