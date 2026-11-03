@@ -9,6 +9,10 @@ import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { groupLabel } from '@/lib/real-estate'
 import { RELIABLE_LISTINGS } from './lenses'
+import { THIN } from './tools/tool-answers'
+
+/** «مأهول في 42% من مساحته»: one district its population grid settles under half of (golden settled_pct). */
+const settledNote = (row: DistrictRow | null | undefined) => (row?.settledPct != null && row.settledPct < THIN.sparse ? `مأهول في ${numberFormat.format(row.settledPct)}% من مساحته` : null)
 import { sumKnown, sumOf, type CityTable, type DistrictRow } from './city-data'
 import type { LensId } from './lenses'
 import { Icon3D } from '@/components/shared/icon-3d'
@@ -127,7 +131,7 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
   const pairedNote = !single && paired.length && paired.length < scope.length ? coverage({ known: paired.length, of: scope.length }) : null
   const asking = Boolean(single) && !profileDone
   const figures: [FigureKey, FigureSpec | false | null][] = [
-    ['population', { label: 'السكان', value: show(people), note: coverage(peopleSum), explain: [...EXPLAIN.population(scope.filter((row) => row.population != null).map((row) => row.populationSource), people), ...coverageLine(peopleSum)] }],
+    ['population', { label: 'السكان', value: show(people), note: coverage(peopleSum) ?? settledNote(single), explain: [...EXPLAIN.population(scope.filter((row) => row.population != null).map((row) => row.populationSource), people), ...coverageLine(peopleSum)] }],
     ['businesses', { label: 'المنشآت', value: show(businesses), explain: EXPLAIN.businesses(scopeKind) }],
     ['perBusiness', lens !== 'distributors' && { label: 'ساكن لكل منشأة', value: show(perBusiness), note: pairedNote,
       explain: single ? EXPLAIN.residentsPerBusiness(people, businesses) : EXPLAIN.residentsPerBusiness(paired.length ? pairedPeople : null, paired.length ? pairedBusinesses : null) }],

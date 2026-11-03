@@ -34,3 +34,11 @@ test('bold markers become bold runs and are not shown', () => {
   assert.deepEqual(boldRuns('الأفضل **الخيار ب** للعائلة'), [['الأفضل ', false], ['الخيار ب', true], [' للعائلة', false]])
   assert.deepEqual(boldRuns('بلا تمييز'), [['بلا تمييز', false]])
 })
+
+test('a listing median in the comparison table carries the ads it rests on', () => {
+  const facts = districtPairs({ population: 1, businesses: 1, residentsPerBusiness: 1, income: null, villaShare: null, underConstruction: null,
+    realEstate: { rent_year_residential: { median: 640, listings: 25 }, sale_residential: { median: 5200, listings: 1 } } } as unknown as Parameters<typeof districtPairs>[0])
+  assert.equal(facts.find((fact) => fact.label === 'وسيط إيجار السكن السنوي للمتر')?.value, '640 ريال من 25 عرضاً')
+  assert.equal(facts.find((fact) => fact.label === 'وسيط سعر بيع السكن للمتر')?.value, '5,200 ريال من عرض واحد')
+  assert.equal(facts.find((fact) => fact.label === 'وسيط سعر الأرض للمتر')?.value, 'غير متاح')
+})

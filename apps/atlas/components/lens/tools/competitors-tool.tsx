@@ -18,7 +18,7 @@ import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { ActivityCompare } from './activity-compare'
 import { areaLine, aroundOf, brandsVerdict, competitorsSummary, competitorsVerdict, densestDistrict, rankCompetition, rankLightAround, THIN, type AroundArea } from './tool-answers'
 import { Examples } from './examples'
-import { neighbourMap } from '@/lib/geo-measure'
+import { distanceKm, neighbourMap, outlineCentre } from '@/lib/geo-measure'
 import type { DistrictFeature } from '@/lib/insights-api'
 import { Verdict } from './verdict'
 import { useMainActivities } from '@/lib/main-activities'
@@ -128,7 +128,11 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   // the districts' neighbours by outline, once per city: the lightest competition counts them (rankLightAround)
   const neighbours = useMemo(() => (features.length ? neighbourMap(features.map((feature) => ({ id: String(feature.properties.id), geometry: feature.geometry }))) : null), [features])
   // sorted once per answer and order, not on every render (a hover or a show-more re-renders the whole tool)
-  const ranked = useMemo<Row[]>(() => (order === 'light' ? rankLightAround(table, neighbours) : rankCompetition(table, order)), [table, order, neighbours])
+  // each district's centre, so a neighbour far across a long edge counts less than one next door
+  const centres = useMemo(() => new Map(features.map((feature) => [String(feature.properties.id), outlineCentre(feature.geometry)])), [features])
+  const ranked = useMemo<Row[]>(() => (order === 'light'
+    ? rankLightAround(table, neighbours, (a, b) => { const p = centres.get(a); const q = centres.get(b); return p && q ? distanceKm(p, q) : null })
+    : rankCompetition(table, order)), [table, order, neighbours, centres])
 
   useEffect(() => {
     if (brand) {
