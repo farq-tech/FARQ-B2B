@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { LoadError } from '@/components/shared/load-error'
@@ -14,7 +14,8 @@ import { PALETTE, readableOn } from '@/lib/palette'
 import { areaKm2, containsPoint, districtAt } from '@/lib/geo-measure'
 import { useStickyState, useStudiedActivity } from '@/lib/sticky-state'
 import { SiteCard, type SiteCardData, type SiteCardState } from './site-card'
-import { placeSite } from './tool-answers'
+import { attractionScores, placeSite, sitesVerdict } from './tool-answers'
+import { Verdict } from './verdict'
 import { useSlow } from './use-answer'
 import { Choice, StillWorking } from './choice'
 import type { DistrictRow } from '../city-data'
@@ -83,7 +84,11 @@ async function areaFor(point: Point, reach: Reach): Promise<Geometry> {
  * each, by distance or by drive time on the real road network. Every figure is the same golden count as the rest of
  * Atlas, only the boundary differs.
  */
-export function AroundTool({ city, onOverlay, districts, features }: { city: string; onOverlay: (overlay: Overlay) => void; districts: DistrictRow[]; features: DistrictFeature[] }) {
+export function AroundTool({ city, onOverlay, districts, features, next }: {
+  city: string; onOverlay: (overlay: Overlay) => void; districts: DistrictRow[]; features: DistrictFeature[]
+  /** The step after the verdict (shops for rent near the best site, a request), given by the map shell. */
+  next?: ReactNode
+}) {
   const [activity] = useStudiedActivity()
   // each site keeps its slot (its number and colour) while it is on the map; see placeSite
   const [sites, setSites] = useState<(Point & { id: number; slot: number })[]>([])
@@ -92,7 +97,9 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
   const nextId = useRef(1)
   const requested = useRef(new Set<string>())
   const mounted = useRef(true)
-  useEffect(() => () => { mounted.current = false }, [])
+  // set again on every mount: a remount (React's development double mount, or the panel shown again) left it false,
+  // and every site's figures were dropped as if the tool had gone, a table of skeletons for ever
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
 
   // a new site takes the lowest free number; a fourth tap replaces the oldest site, in its number and colour
   const pick = useCallback((point: Point) => {
@@ -190,7 +197,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
   // purchasing power (income where published, else villa share, of the حي the pin sits in), and lightness of
   // competition (fewest establishments per km²). Each factor is scaled to the best site, and the score is their mean.
   // A site missing any factor is «غير متاح», and the score needs two complete sites, since it is a comparison.
-  const { scoreById, topScore, byIncome } = useMemo(() => {
+  const { scoreById, topScore, byIncome, verdict } = useMemo(() => {
     const byIncome = districts.some((row) => row.income != null)
     const districtById = new Map(districts.map((row) => [row.id, row]))
     const spendingOf = (point: Point): number | null => {
@@ -210,21 +217,15 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
           density: figures.businesses != null && area > 0 ? figures.businesses / area : null,
         }
       })
-    const complete = factored.filter((item) => item.audience != null && item.spending != null && item.density != null)
-    const scoreById = new Map<number, number>()
-    if (complete.length >= 2) {
-      const maxAudience = Math.max(...complete.map((item) => item.audience!))
-      const maxSpending = Math.max(...complete.map((item) => item.spending!))
-      const minDensity = Math.min(...complete.map((item) => item.density!))
-      for (const item of complete) {
-        const audience = maxAudience > 0 ? (100 * item.audience!) / maxAudience : 0
-        const spending = maxSpending > 0 ? (100 * item.spending!) / maxSpending : 0
-        const uncrowded = item.density! > 0 ? (100 * minDensity) / item.density! : 100
-        scoreById.set(item.id, Math.round((audience + spending + uncrowded) / 3))
-      }
-    }
+    const scoreById = attractionScores(factored)
     const scores = [...scoreById.values()]
-    return { scoreById, topScore: scores.length ? Math.max(...scores) : null, byIncome }
+    // the answer in one line: the best site and the factors it leads or trails on, or that two are level; it waits for
+    // every site, so it never names a winner while another site is still being counted
+    // (a failed site is said above the table with its retry, so no verdict stands on the sites that worked)
+    const settled = labelled.every((site) => site.result?.status === 'ready')
+    const label = new Map(labelled.map((site) => [site.id, site.label]))
+    const verdict = settled ? sitesVerdict(factored.map((item) => ({ ...item, label: label.get(item.id) ?? '', population: item.audience })), scoreById, byIncome) : null
+    return { scoreById, topScore: scores.length ? Math.max(...scores) : null, byIncome, verdict }
   }, [labelled, districts, features])
 
   return (
@@ -249,6 +250,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
         <LoadError what="المواقع" title={`تعذر حساب ${failed.length === 1 ? 'الموقع' : 'المواقع'} ${failed.map((site) => site.label).join('، ')}.`}
           detail={failed[0].result?.message} onRetry={retryFailed} />
       )}
+      <Verdict verdict={verdict} next={verdict && scoreById.size ? next : undefined} />
       {labelled.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-base tabular-nums">

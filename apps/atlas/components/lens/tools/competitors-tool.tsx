@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
 import { NoResult, NotAvailable } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
@@ -18,7 +18,8 @@ import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { ActivityCompare } from './activity-compare'
-import { competitorsSummary, densestDistrict, rankCompetition } from './tool-answers'
+import { brandsVerdict, competitorsSummary, competitorsVerdict, densestDistrict, rankCompetition } from './tool-answers'
+import { Verdict } from './verdict'
 import { useMainActivities } from '@/lib/main-activities'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
@@ -49,7 +50,7 @@ const NONE = PALETTE.sage   // no competitor of this activity in the district
  * «المنافسون»: for one activity, how many businesses already serve each district, per km² and per resident. The map
  * shows where competition is dense; a district picked from the list opens its competitors by name.
  */
-export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, onAllBranches, onHover }: {
+export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, onAllBranches, onHover, next }: {
   city: string
   rows: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
@@ -60,12 +61,15 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   onAllBranches: (brand: string) => void
   /** The district a row points at (pointer or keyboard), outlined on the map; null when it leaves. */
   onHover?: (id: string | null) => void
+  /** The step after the answer (a request, a site comparison), under the verdict; given by the map shell. */
+  next?: ReactNode
 }) {
   const activities = useMainActivities(city)
   // the map opens painted with the activity studied in any step; any other activity replaces it
   const [studied, setStudied] = useStudiedActivity()
   const [query, setQuery] = useState(studied.q ?? '')
-  const [order, setOrder] = useStickyState<'dense' | 'light'>('competitors.order', 'dense')
+  // a shop owner looks for where competition is light first; the choice is kept once made
+  const [order, setOrder] = useStickyState<'dense' | 'light'>('competitors.order', 'light')
   const [view, setView] = useStickyState<'districts' | 'brands'>('competitors.view', 'districts')
   const [brand, setBrand] = useState<Brand | null>(null)
 
@@ -135,8 +139,9 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     }
     if (!table.length) { onOverlay({}); return }
     // the city's count as the service gives it, and the district where the activity is densest per km²
-    const densest = densestDistrict(table)
-    const summary = competitorsSummary(cityTotal, studied.label, densest)
+    // the district the verdict names for the chosen order: the densest, or the lightest populated one
+    const top = order === 'light' ? rankCompetition(table, 'light')[0] ?? null : densestDistrict(table)
+    const summary = competitorsSummary(cityTotal, studied.label, top, order)
     const dense = table.flatMap((item) => (item.competitors > 0 && item.perKm2 != null ? [item.perKm2] : [])).sort((a, b) => a - b)
     const colors = new Map<string, string>()
     for (const item of table) {
@@ -148,8 +153,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     // the same count the district's colour and the list read (a district the service lists no business in is «لا منافس»)
     const facts = new Map(table.map((item) => [item.row.id, item.competitors ? `${counted(item.competitors, 'business')} من «${studied.label}»` : 'لا منافس'] as [string, string]))
     // «أرني الأعلى» opens the district the summary names
-    onOverlay({ colors, facts, summary, lead: densest?.row.id ?? null, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
-  }, [table, brand, rows, onOverlay, cityTotal, studied.label])
+    onOverlay({ colors, facts, summary, lead: top?.row.id ?? null, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
+  }, [table, brand, rows, onOverlay, cityTotal, studied.label, order])
 
   // the service counted the activity and found none: a city total of 0, or no district and no total
   const noneFound = counts != null && (cityTotal === 0 || (cityTotal == null && counts.length === 0))
@@ -157,7 +162,9 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   const hover = (id: string | undefined) => (on: boolean) => onHover?.(on && id ? id : null)
   // sorted once per answer and order, not on every render (a hover or a show-more re-renders the whole tool)
   const ranked = useMemo(() => rankCompetition(table, order), [table, order])
-  const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}|${order}`)
+  // a shortlist first: the verdict names the top district, the rest are one tap away
+  const [limit, showMore] = useShowMore(10, `${city}|${studied.q ?? studied.main_id}|${order}`)
+  const verdict = useMemo(() => competitorsVerdict(ranked, order, studied.label, cityTotal, located), [ranked, order, studied.label, cityTotal, located])
   // the two lists whose length is the service's: districts no chain reaches, and one chain's districts
   const [uncoveredLimit, showMoreUncovered] = useShowMore(15, `${city}|${studied.q ?? studied.main_id}`)
   const [branchLimit, showMoreBranches] = useShowMore(20, `${city}|${brand?.brand ?? ''}`)
@@ -214,7 +221,9 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
             options={[{ id: 'districts', label: 'الأحياء' }, { id: 'brands', label: 'السلاسل' }]} />
           {view === 'districts' && (
             <>
-            <Choice label="ترتيب الأحياء" value={order} onChange={setOrder} options={[{ id: 'dense', label: 'الأكثر تنافساً' }, { id: 'light', label: 'الأقل تنافساً' }]} />
+            {/* the question first (where is it lightest, or densest), then its answer, then the districts behind it */}
+            <Choice label="ترتيب الأحياء" value={order} onChange={setOrder} options={[{ id: 'light', label: 'أين المنافسة أخف؟' }, { id: 'dense', label: 'أين أشدها؟' }]} />
+            <Verdict verdict={verdict} next={next} />
             <ol className="divide-y text-base lg:max-h-[45vh] lg:overflow-y-auto">
               {ranked.slice(0, limit).map((item) => (
                 <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={hover(item.row.id)} title={item.row.name}
@@ -231,6 +240,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
           {view === 'brands' && !brands && <NotAvailable what="السلاسل" where={`«${studied.label}»`} body="الأحياء وعدد المنافسين فيها متاحة من «الأحياء»." />}
           {view === 'brands' && brands && !brand && (
             <>
+              <Verdict verdict={brandsVerdict(brands)} />
               <Explained title="السلاسل" lines={EXPLAIN.brands(brands.total, brands.in_chains)} className="text-base">
                 <span>
                   <strong>{counted(brands.chains, 'chain')}</strong> {brands.chains === 1 ? 'تملك' : 'تملك معاً'} {numberFormat.format(brands.in_chains)} من {numberFormat.format(brands.total)} منشأة
