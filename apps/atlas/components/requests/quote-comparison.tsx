@@ -2,11 +2,11 @@
 
 import { Check, Timer, Trophy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { businessById } from '@/lib/mock-data'
+import { businessName } from '@/lib/business-name'
 import { formatSar } from '@/lib/format'
 import { counted, numberFormat } from '@/lib/insights-api'
 import { quoteHighlights, quoteTotal as total } from '@/lib/quote-highlights'
-import type { InboxMessage } from '@/lib/types'
+import type { InboxMessage, RequestItem } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 interface QuoteComparisonProps {
@@ -14,9 +14,11 @@ interface QuoteComparisonProps {
   acceptedId?: string
   canDecide: boolean
   onAccept: (messageId: string) => void
+  /** The request the quotes answer: its saved businesses name each supplier as the map did. */
+  request?: Pick<RequestItem, 'liveBusinesses'>
 }
 
-export function QuoteComparison({ quotes, acceptedId, canDecide, onAccept }: QuoteComparisonProps) {
+export function QuoteComparison({ quotes, acceptedId, canDecide, onAccept, request }: QuoteComparisonProps) {
   if (!quotes.length) return null
   const sorted = [...quotes].sort((a, b) => total(a) - total(b))
   // highlights from the suppliers' own figures only (lib/quote-highlights.ts): none with a single quote, ties shared
@@ -32,13 +34,13 @@ export function QuoteComparison({ quotes, acceptedId, canDecide, onAccept }: Quo
       </div>
       <ul className="grid gap-3 md:grid-cols-2">
         {sorted.map((m) => {
-          const b = businessById.get(m.businessId)
+          const name = businessName(m.businessId, request)
           const accepted = acceptedId === m.id
           return (
             <li key={m.id} className={cn('flex flex-col gap-3 rounded-xl border p-3.5', accepted ? 'border-primary bg-accent/40' : 'bg-background/50')}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{b?.name ?? 'غير متاح'}</p>
+                  <p className="truncate font-medium">{name}</p>
                   <p className="text-xs text-muted-foreground">
                     التوريد {m.quote?.deliveryDays != null ? `خلال ${counted(m.quote.deliveryDays, 'day')}` : 'غير متاح'} · صلاحية {m.quote?.validity}
                   </p>
@@ -59,7 +61,7 @@ export function QuoteComparison({ quotes, acceptedId, canDecide, onAccept }: Quo
                 </div>
               </div>
               <table className="w-full text-sm">
-                <caption className="sr-only">بنود عرض {b?.name}</caption>
+                <caption className="sr-only">بنود عرض {name}</caption>
                 <thead className="text-xs text-muted-foreground">
                   <tr>
                     <th scope="col" className="pb-1 text-start font-normal">البند</th>

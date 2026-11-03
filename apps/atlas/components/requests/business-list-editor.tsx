@@ -19,9 +19,11 @@ interface BusinessListEditorProps {
   onChange: (ids: string[]) => void
   renderMeta?: (b: Business) => ReactNode
   liveBusinesses?: LiveBusinessSnapshot[]
+  /** The map view the request came from, where more businesses are picked. */
+  mapView?: string
 }
 
-export function BusinessListEditor({ title, cityId, businessIds, editable, onChange, renderMeta, liveBusinesses = [] }: BusinessListEditorProps) {
+export function BusinessListEditor({ title, cityId, businessIds, editable, onChange, renderMeta, liveBusinesses = [], mapView = '/map' }: BusinessListEditorProps) {
   const businesses = businessIds.map((id) => businessById.get(id)).filter((b): b is Business => Boolean(b))
   const liveById = useMemo(() => new Map(liveBusinesses.map((business) => [business.id, business])), [liveBusinesses])
   const visibleLiveBusinesses = businessIds.flatMap((id) => liveById.get(id) ? [liveById.get(id)!] : [])
@@ -38,7 +40,7 @@ export function BusinessListEditor({ title, cityId, businessIds, editable, onCha
       </div>
 
       {totalCount === 0 ? (
-        <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">لا توجد منشآت. <Link href="/map" className="font-semibold text-primary underline">اخترها من الخريطة</Link>.</p>
+        <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">لا توجد منشآت. <Link href={mapView} className="font-semibold text-primary underline">اخترها من الخريطة</Link>.</p>
       ) : (
         <ul className="flex flex-col divide-y">
           {businesses.map((b) => (

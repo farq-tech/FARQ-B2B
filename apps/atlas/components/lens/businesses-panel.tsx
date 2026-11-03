@@ -16,6 +16,7 @@ import { useStudiedActivity } from '@/lib/sticky-state'
 import { Icon3D } from '@/components/shared/icon-3d'
 import type { RequestType } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { loginHref } from '@/lib/handoff'
 
 type Status = 'idle' | 'loading' | 'ready' | 'login' | 'error' | 'needs-scope'
 const PAGE = 200
@@ -113,6 +114,8 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
       categoryHint: activity.trim() || undefined,
       districtHint: districts.length === 1 ? districts[0] : undefined,
       liveBusinesses: rows.filter((row) => picked.has(row.id)),
+      // the map view the businesses were picked in: the request leads back to it
+      origin: `${window.location.pathname}${window.location.search}`,
     })
     toast.success('جُهّزت المسودة', { description: `${numberFormat.format(ids.length)} منشأة، راجعها قبل أي إرسال.` })
     router.push(`/requests/${id}`)
@@ -149,7 +152,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
         </>
       )}
       {status === 'needs-scope' && <p role="status" className="text-base text-muted-foreground">اكتب نشاطاً لتبحث في المدينة كلها، أو حدّد حياً على الخريطة لترى كل منشآته.</p>}
-      {status === 'login' && <p className="text-base">لعرض المنشآت وإنشاء طلب <Link href="/login?next=/map" className="font-semibold text-primary underline">سجّل الدخول</Link>.</p>}
+      {status === 'login' && <p className="text-base">لعرض المنشآت وإنشاء طلب <Link href={loginHref(`${window.location.pathname}${window.location.search}`)} className="font-semibold text-primary underline">سجّل الدخول</Link>.</p>}
       {status === 'error' && <LoadError what="المنشآت" detail={message === 'تعذر تحميل المنشآت.' ? undefined : message} onRetry={() => void load()} />}
       {status === 'ready' && rows.length === 0 && (
         <NoResult title={`لا منشآت ${activity.trim() ? `«${activity.trim()}» ` : ''}في ${where}`} body={activity.trim() ? 'جرّب اسماً آخر للنشاط، أو كل الأنشطة.' : 'جرّب حياً آخر.'} />

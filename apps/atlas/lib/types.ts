@@ -179,6 +179,8 @@ export interface RequestItem {
   rfq?: RfqDetails
   campaign?: CampaignDetails
   reviewedAt?: string
+  /** The map view the request was made from (a `/map?…` address), so the request leads back to it. */
+  origin?: string
   /** Inbox message id of the accepted quote. */
   acceptedQuoteId?: string
 }

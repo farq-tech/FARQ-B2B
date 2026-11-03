@@ -9,7 +9,7 @@ import { Chip, ChipCount } from '@/components/ui/chip'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, type KeyboardEvent } from 'react'
-import { businessById } from '@/lib/mock-data'
+import { businessName } from '@/lib/business-name'
 import { formatDateTime } from '@/lib/format'
 import { useAppStore } from '@/lib/store'
 import type { InboxMessage } from '@/lib/types'
@@ -34,7 +34,7 @@ export function InboxView() {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
-  const { inbox, markRead } = useAppStore()
+  const { inbox, requests, markRead } = useAppStore()
 
   const filterParam = params.get('f')
   const filter: InboxFilter = FILTERS.some((f) => f.id === filterParam) ? (filterParam as InboxFilter) : 'all'
@@ -156,7 +156,7 @@ export function InboxView() {
           ) : (
             <ul onKeyDown={moveFocus} aria-describedby="inbox-keys" className="flex flex-col overflow-hidden rounded-2xl border bg-card">
               {visible.map((m) => {
-                const b = businessById.get(m.businessId)
+                const name = businessName(m.businessId, requests.find((r) => r.id === m.requestId))
                 const active = m.id === selected?.id
                 const Icon = m.source === 'rfq' ? FileText : Megaphone
                 return (
@@ -182,7 +182,7 @@ export function InboxView() {
                       </span>
                       <span className="flex min-w-0 flex-1 flex-col gap-1">
                         <span className="flex items-center gap-2">
-                          <span className={cn('min-w-0 flex-1 truncate text-sm', m.unread ? 'font-bold' : 'font-medium')}>{b?.name ?? 'غير متاح'}</span>
+                          <span className={cn('min-w-0 flex-1 truncate text-sm', m.unread ? 'font-bold' : 'font-medium')}>{name}</span>
                           <time className="shrink-0 text-xs text-muted-foreground" dateTime={m.receivedAt}>
                             {formatDateTime(m.receivedAt)}
                           </time>

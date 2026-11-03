@@ -5,6 +5,7 @@ import { CATEGORIES, DEFAULT_VARIABLES, businessById } from './mock-data'
 import { makeId } from './format'
 import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType } from './types'
 import { mergeCloudRequests } from './workspace-merge'
+import { safeMapOrigin } from './handoff'
 
 const LOCAL_STORAGE_KEY = 'farq-atlas-workspace-v3'
 const LEGACY_SESSION_STORAGE_KEY = 'farq-atlas-workspace-v2'
@@ -75,6 +76,8 @@ export interface DraftInput {
   categoryHint?: string
   districtHint?: string
   liveBusinesses?: LiveBusinessSnapshot[]
+  /** The map view the businesses were picked in (lib/handoff.ts safeMapOrigin checks it). */
+  origin?: string
 }
 
 function buildDraft(input: DraftInput): RequestItem {
@@ -99,6 +102,7 @@ function buildDraft(input: DraftInput): RequestItem {
     liveBusinesses: input.liveBusinesses?.filter((business) => ids.includes(business.id)),
     goal: input.goal ?? undefined,
     query: input.query,
+    origin: safeMapOrigin(input.origin) ?? undefined,
   }
   if (input.type === 'rfq') {
     return {

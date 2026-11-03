@@ -23,11 +23,6 @@ export const formatDateTime = (iso: string) => dateTimeFmt.format(new Date(iso))
 export const formatNumber = (n: number) => numFmt.format(n)
 export const formatSar = (n: number) => `${numFmt.format(n)} ريال`
 
-export function formatPhone(p: string | null) {
-  if (!p) return 'غير متاح'
-  return `${p.slice(0, 4)} ${p.slice(4, 6)} ${p.slice(6, 9)} ${p.slice(9)}`
-}
-
 export const STATUS_LABEL: Record<RequestStatus, string> = {
   draft: 'مسودات',
   needs_decision: 'تحتاج قرارك',
