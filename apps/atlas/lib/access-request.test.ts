@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ACCESS_CATEGORIES, accessRequestBody, normalizeContact, safeNext, validateAccessRequest } from './access-request.ts'
+import { ACCESS_CATEGORIES, accessRequestBody, categoryFromNext, normalizeContact, safeNext, validateAccessRequest } from './access-request.ts'
 import { LENS_GOALS } from '../components/lens/lenses.ts'
 
 const good = { name: 'سارة', company: 'مطاعم الواحة', contact: '0551234567', city: 'Riyadh', category: 'shops', purpose: '' }
@@ -33,4 +33,13 @@ test('the body is cleaned and its return address stays inside Atlas', () => {
   assert.equal(body.next, '/map?lens=shops')
   assert.equal(safeNext('//evil.example'), null)
   assert.equal(safeNext('https://evil.example'), null)
+})
+
+test('the category is preselected from the map group the person came from', () => {
+  assert.equal(categoryFromNext('/map?city=Riyadh&lens=distributors&tool=territories'), 'distributors')
+  assert.equal(categoryFromNext('/map?goal=find-supplier'), 'supplier')
+  assert.equal(categoryFromNext('/map?lens=toString'), '', 'only a real group')
+  assert.equal(categoryFromNext('/map'), '')
+  assert.equal(categoryFromNext('//evil.example/?lens=shops'), '')
+  assert.equal(categoryFromNext(null), '')
 })
