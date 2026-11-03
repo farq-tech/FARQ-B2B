@@ -224,8 +224,12 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
       lines: parts.filter((part) => part?.line).map((part) => part.line as GeoJSON.LineString),
       onPick: picking ? pickStart : null,
       summary,
+      // the split's own state for the peeking sheet; its slow line is said in the step itself (StillWorking below)
+      ...(!groups && split.status !== 'idle' && split.status !== 'ready' ? { state: split.status === 'loading' ? 'loading' as const : 'error' as const, retry: split.retry } : {}),
     })
-  }, [groups, rows, rep, customers, plan, day, start, parts, picking, pickStart, onOverlay, summary, weight])
+    // split.retry is stable; its status is what the overlay says
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups, rows, rep, customers, plan, day, start, parts, picking, pickStart, onOverlay, summary, weight, split.status])
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">

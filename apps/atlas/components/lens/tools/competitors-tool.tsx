@@ -11,10 +11,10 @@ import { EXPLAIN } from '@/lib/explanations'
 import { counted, ltr, nounAfter, numberFormat, percent, postMarket } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
-import type { Overlay } from './overlay'
+import { waiting, type Overlay } from './overlay'
 import { OCHRE_STEPS, PALETTE } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
-import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/sticky-state'
+import { stickyHas, useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/sticky-state'
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { ActivityCompare } from './activity-compare'
@@ -67,7 +67,10 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   const activities = useMainActivities(city)
   // the map opens painted with the activity studied in any step; any other activity replaces it
   const [studied, setStudied] = useStudiedActivity()
-  const [query, setQuery] = useState(studied.q ?? '')
+  // nothing is counted until the customer names an activity (here, in another step, or by a link): the default
+  // nobody picked is never computed, and never named in the list or the map's key
+  const chosen = stickyHas('activity')
+  const [query, setQuery] = useState(chosen ? studied.q ?? '' : '')
   // a shop owner looks for where competition is light first; the choice is kept once made
   const [order, setOrder] = useStickyState<'dense' | 'light'>('competitors.order', 'light')
   const [view, setView] = useStickyState<'districts' | 'brands'>('competitors.view', 'districts')
@@ -76,7 +79,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   // the activity's districts and chains, keyed by its q or main_id: a new activity drops the last one's answer at once,
   // so the map clears instead of shading districts for a different query
   const studiedKey = `${city}|${studied.q ?? ''}|${studied.main_id ?? ''}`
-  const answer = useAnswer(studiedKey, () => {
+  const answer = useAnswer(chosen ? studiedKey : null, () => {
     const activity = { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
     return Promise.all([
       postMarket<{ districts?: Count[]; total?: number; located?: number; understood?: Understanding }>('district-counts', activity),
@@ -100,10 +103,10 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   const status = answer.status === 'loading' ? 'loading' : answer.status === 'error' ? 'error' : 'idle'
   useEffect(() => {
     setBrand(null)
-    onActivity(studied.q ?? studied.label)
+    onActivity(chosen ? studied.q ?? studied.label : null)
     // once per activity asked, not per object
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [studiedKey, onActivity])
+  }, [studiedKey, chosen, onActivity])
 
   // one chain's spread across the city, keyed by the chain's name
   const profileAnswer = useAnswer(brand ? `${city}|${brand.brand}` : null, () => postMarket<Profile>('brand-profile', { city, keys: brand!.keys }))
@@ -137,7 +140,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
       onOverlay({ colors, facts, lead: most ? ids.get(most.district_ar) ?? null : null, legend: { from: 'فرع واحد', to: 'فروع أكثر', shades: HEAT }, summary: `${brand.brand}: ${counted(brand.branches, 'branch')} في ${counted(brand.districts, 'district')}` })
       return
     }
-    if (!table.length) { onOverlay({}); return }
+    if (!table.length) { onOverlay(waiting(answer)); return }
     // the city's count as the service gives it, and the district where the activity is densest per km²
     // the district the verdict names for the chosen order: the densest, or the lightest populated one
     const top = order === 'light' ? rankCompetition(table, 'light')[0] ?? null : densestDistrict(table)
@@ -154,7 +157,9 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     const facts = new Map(table.map((item) => [item.row.id, item.competitors ? `${counted(item.competitors, 'business')} من «${studied.label}»` : 'لا منافس'] as [string, string]))
     // «أرني الأعلى» opens the district the summary names
     onOverlay({ colors, facts, summary, lead: top?.row.id ?? null, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
-  }, [table, brand, rows, onOverlay, cityTotal, studied.label, order])
+    // answer.retry is stable; status and slow are what the no-answer overlay says
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table, brand, rows, onOverlay, cityTotal, studied.label, order, answer.status, answer.slow])
 
   // the service counted the activity and found none: a city total of 0, or no district and no total
   const noneFound = counts != null && (cityTotal === 0 || (cityTotal == null && counts.length === 0))
@@ -190,10 +195,11 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
         onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); study({ main_id: item.main_id, label: item.main_ar }) } }} />
       <div role="group" aria-label="أمثلة" className="flex flex-wrap gap-2">
           {EXAMPLES.map((example) => (
-            <button key={example} onClick={() => { setQuery(example); study({ q: example, label: example }) }} aria-pressed={studied.q === example}
-              className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', studied.q === example ? 'border-primary bg-primary/10 font-semibold text-primary' : 'hover:border-primary hover:text-primary')}><Icon3D activity={example} />{example}</button>
+            <button key={example} onClick={() => { setQuery(example); study({ q: example, label: example }) }} aria-pressed={chosen && studied.q === example}
+              className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', chosen && studied.q === example ? 'border-primary bg-primary/10 font-semibold text-primary' : 'hover:border-primary hover:text-primary')}><Icon3D activity={example} />{example}</button>
           ))}
         </div>
+      {!chosen && <p className="text-base text-muted-foreground">اختر نشاطك لترى منافسيك في كل حي.</p>}
       {status === 'error' && <LoadError what={`منشآت «${studied.label}»`} onRetry={answer.retry} />}
       {status === 'loading' && (
         <>
@@ -202,7 +208,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
           <ResultRowsSkeleton label="جارٍ الحساب" rows={6} sub valueSub />
         </>
       )}
-      {status !== 'loading' && studied.q && <Understood value={understood} />}
+      {status !== 'loading' && chosen && studied.q && <Understood value={understood} />}
       {/* asked, and the city has none of it: said once, with what to try, instead of a list of empty districts */}
       {studied && counts && status !== 'loading' && noneFound && (
         <NoResult title={`لا منشأة «${studied.label}» في المدينة`} body="جرّب اسماً آخر للنشاط، أو اختر نشاطاً رئيسياً من القائمة." />

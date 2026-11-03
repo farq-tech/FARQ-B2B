@@ -11,7 +11,7 @@ import { counted, ltr, numberFormat, postMarket } from '@/lib/insights-api'
 import { type DistrictShare, type Nationality, type Sex } from '@/lib/audience'
 import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
-import type { Overlay } from './overlay'
+import { waiting, type Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
@@ -138,8 +138,12 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
     const facts = pending ? null : new Map(scored.map((item) => [item.row.id, `${show(item.size)} ${mode === 'people' ? 'شخص' : 'منشأة'} · ${numberFormat.format(item.score)}/100`] as [string, string]))
     // the key the map corner draws: the same five shades by score, and the grey of a district the filters leave empty
     const legend = scored.length ? { from: 'تطابق أقل', to: 'تطابق أكثر', shades: SHADES, extra: { color: PALETTE.pebble, label: 'لا جمهور بهذه الفلاتر' } } : null
-    onOverlay({ colors, facts, summary, legend, lead: pending ? null : scored[0]?.row.id ?? null })
-  }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, pending, rows.length, cityCount])
+    // while the figures it waits for are asked, the request's own state (working, slow, failed) goes with the overlay
+    const asked = mode === 'businesses' ? countsAnswer : sharesAnswer
+    onOverlay({ ...(pending ? waiting(asked) : {}), colors, facts, summary, legend, lead: pending ? null : scored[0]?.row.id ?? null })
+    // the answers' retries are stable; their status and slow are what the waiting overlay says
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, pending, rows.length, cityCount, countsAnswer.status, countsAnswer.slow, sharesAnswer.status, sharesAnswer.slow])
 
   const [limit, showMore] = useShowMore(10, `${city}|${mode}|${sex}|${nationality}|${minIncome}|${rankBy}|${mainId}`)
   const inScope = (list: Scored[]) => (selected.length ? list.filter((item) => selected.some((row) => row.id === item.row.id)) : list)

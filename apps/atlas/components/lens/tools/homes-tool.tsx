@@ -17,7 +17,7 @@ import type { DistrictRow } from '../city-data'
 import { ListingCard, NoPhoto } from '../listing-card'
 import { ListingCompare } from '../listing-compare'
 import type { MyPoint } from '../listing-surroundings'
-import type { Overlay } from './overlay'
+import { waiting, type Overlay } from './overlay'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { useStickyState } from '@/lib/sticky-state'
 import { useAnswer } from './use-answer'
@@ -154,6 +154,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover, ne
       color: toneColor[versusDistrict(listing)?.tone ?? 'none'],
     }))
     onOverlay({
+      ...(result.status !== 'ready' ? waiting(search) : {}),
       listings: dots,
       onListing: (id) => { const listing = byId.get(id); if (listing) setActive(listing) },
       focus,
@@ -167,7 +168,9 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover, ne
       lead: result.status === 'ready' ? shown[0]?.district_id ?? null : null,
       onPick: picking ? (point) => { setMyPoint(point); savePoint(point); setPicking(false); setNearest(true) } : null,
     })
-  }, [result.listings, result.status, shown, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density, summary, facts])
+    // search.retry is stable; slow is what the waiting overlay says
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result.listings, result.status, shown, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density, summary, facts, search.slow])
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
