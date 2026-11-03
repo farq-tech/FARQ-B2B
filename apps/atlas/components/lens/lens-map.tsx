@@ -357,8 +357,9 @@ function SavedListCard({ onOpen }: { onOpen: (href: string) => void }) {
  * A group's listings, cheapest first when they share one deal and period; a yearly and a monthly rent are never put in
  * one price order (nothing is converted between periods), so a mixed group keeps its own order.
  */
+const mixedPeriods = (listings: Listing[]) => new Set(listings.map((listing) => listing.deal)).size > 1
 function cheapestFirst(listings: Listing[]): Listing[] {
-  if (new Set(listings.map((listing) => listing.deal)).size > 1) return listings
+  if (mixedPeriods(listings)) return listings
   return [...listings].sort((a, b) => (a.price_sar ?? Infinity) - (b.price_sar ?? Infinity))
 }
 
@@ -1185,7 +1186,7 @@ export function LensMap() {
           )}
           {/* the rentals step: a group of price pins names its cheapest, each opening its card in the step */}
           {!cardRow && !located && !group && !overlay.popup && listingGroup && cardAt && cardAt.x >= 0 && cardAt.y >= 0 && cardAt.x <= cardAt.width && cardAt.y <= cardAt.height && (
-            <GroupCard count={listingGroup.count} noun="listing" at={cardAt}
+            <GroupCard count={listingGroup.count} noun="listing" at={cardAt} note={mixedPeriods(listingGroup.ids.flatMap((id) => { const listing = stepListings.find((item) => item.id === id); return listing ? [listing] : [] })) ? 'إيجار سنوي وشهري معاً: مرتبة كما وردت، لا بالسعر' : null}
               items={cheapestFirst(listingGroup.ids.flatMap((id) => { const listing = stepListings.find((item) => item.id === id); return listing ? [listing] : [] })).slice(0, 5)
                 .map((listing) => ({ id: listing.id, title: priceLine(listing), sub: [typeLabel(listing.type), listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.district_ar].filter(Boolean).join(' · ') }))}
               onOpen={(id) => { setListingGroup(null); overlay.onListing?.(id) }} onClose={() => setListingGroup(null)} onExpand={() => { listingGroup.expand(); setListingGroup(null) }}

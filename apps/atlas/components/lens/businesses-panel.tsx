@@ -181,40 +181,63 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
       // a site's reach pages on past one answer (the box it is asked by can hold more than PAGE), up to AREA_PAGES
       let capped = false
       const nextPages: { district: string | null; offset: number }[] = []
-      for (const district of scopes) {
-        let offset = 0
-        for (let page = 0; page < (area ? AREA_PAGES : 1); page++) {
-          const response = await fetch('/api/market/entities', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset, ...(typed ? { q: typed, objective: 'purchase' } : {}), ...(main ? { main_id: main } : {}), ...(reach ? { bounds: reach } : {}) }),
-          })
-          const body = await response.json().catch(() => null) as { rows?: PublicDirectoryEntity[]; total?: number; error?: string; guest?: boolean; hasMore?: boolean; nextOffset?: number | null } | null
-          if (stale()) return
-          if (response.status === 401) { setStatus('login'); return }
-          if (!response.ok || !body) throw new Error(body?.error || 'تعذر تحميل المنشآت.')
-          if (body.guest) {
-            guest = true
-            setPreview((current) => (count ? current : []).concat(((body.rows ?? []) as unknown as GuestPreviewRow[])).slice(0, GUEST_PREVIEW))
-            count += typeof body.total === 'number' ? body.total : 0
-            break
-          }
-          if (!area) {
-            found.push(...(body.rows ?? []))
-            count += typeof body.total === 'number' ? body.total : (body.rows ?? []).length
-            if (body.hasMore === true) nextPages.push({ district, offset: typeof body.nextOffset === 'number' && body.nextOffset > offset ? body.nextOffset : offset + PAGE })
-            break
-          }
-          // a site's reach is a shape, not a box: what the box brought back is kept only inside the shape
+      type Page = { rows?: PublicDirectoryEntity[]; total?: number; error?: string; guest?: boolean; hasMore?: boolean; nextOffset?: number | null }
+      const ask = async (district: string | null, offset: number) => {
+        const response = await fetch('/api/market/entities', {
+          method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset, ...(typed ? { q: typed, objective: 'purchase' } : {}), ...(main ? { main_id: main } : {}), ...(reach ? { bounds: reach } : {}) }),
+        })
+        return { response, body: await response.json().catch(() => null) as Page | null }
+      }
+      // a site's reach: its first page says how many its box holds, then the rest is read two pages at a time (up to
+      // AREA_PAGES), each kept only inside the shape; the page after the last read says whether the list is cut
+      if (area) {
+        const first = await ask(null, 0)
+        if (stale()) return
+        if (first.response.status === 401) { setStatus('login'); return }
+        if (!first.response.ok || !first.body) throw new Error(first.body?.error || 'تعذر تحميل المنشآت.')
+        const keep = (body: Page) => {
           const inside = (body.rows ?? []).filter((row) => row.latitude != null && row.longitude != null && containsPoint(area.geometry, { lon: row.longitude, lat: row.latitude }))
           found.push(...inside)
           count += inside.length
-          const more = body.hasMore === true || (body.rows ?? []).length >= PAGE
-          if (!more) break
-          if (page === AREA_PAGES - 1) { capped = true; break }
-          offset = typeof body.nextOffset === 'number' && body.nextOffset > offset ? body.nextOffset : offset + PAGE
+          return body.hasMore === true || (body.rows ?? []).length >= PAGE
         }
+        if (first.body.guest) {
+          guest = true
+          setPreview(((first.body.rows ?? []) as unknown as GuestPreviewRow[]).slice(0, GUEST_PREVIEW))
+          count = typeof first.body.total === 'number' ? first.body.total : 0
+        } else if (keep(first.body)) {
+          const total = typeof first.body.total === 'number' ? first.body.total : null
+          const offsets: number[] = []
+          for (let offset = PAGE; offset < AREA_PAGES * PAGE && (total == null || offset < total); offset += PAGE) offsets.push(offset)
+          let more = true
+          for (let at = 0; at < offsets.length && more; at += 2) {
+            const pages = await Promise.all(offsets.slice(at, at + 2).map((offset) => ask(null, offset)))
+            if (stale()) return
+            for (const page of pages) {
+              if (!page.response.ok || !page.body) throw new Error(page.body?.error || 'تعذر تحميل المنشآت.')
+              more = keep(page.body)
+              if (!more) break
+            }
+          }
+          capped = more && offsets.length === AREA_PAGES - 1
+        }
+      }
+      // a district (or the whole city): its first PAGE now, the next ones with «اعرض المزيد»
+      for (const district of area ? [] : scopes) {
+        const { response, body } = await ask(district, 0)
+        if (stale()) return
+        if (response.status === 401) { setStatus('login'); return }
+        if (!response.ok || !body) throw new Error(body?.error || 'تعذر تحميل المنشآت.')
+        if (body.guest) {
+          guest = true
+          setPreview((current) => (count ? current : []).concat(((body.rows ?? []) as unknown as GuestPreviewRow[])).slice(0, GUEST_PREVIEW))
+          count += typeof body.total === 'number' ? body.total : 0
+          continue
+        }
+        found.push(...(body.rows ?? []))
+        count += typeof body.total === 'number' ? body.total : (body.rows ?? []).length
+        if (body.hasMore === true) nextPages.push({ district, offset: typeof body.nextOffset === 'number' && body.nextOffset > 0 ? body.nextOffset : PAGE })
       }
       setAreaCapped(capped)
       if (stale()) return
