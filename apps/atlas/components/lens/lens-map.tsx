@@ -194,14 +194,18 @@ function ScrollRow({ label, role = 'group', active, className, style, onKeyDown,
  * The step of a journey as a numbered tab, on one line in a row that scrolls sideways (phone and desktop alike) and
  * keeps the open step in view. A ✓ marks a step that has given an answer in this visit.
  */
-function StepTab({ index, label, active, done, onClick }: { index: number; label: string; active: boolean; done: boolean; onClick: () => void }) {
+const tabId = (tool: ToolId) => `map-step-${tool}`
+/** The sheet's scrolling body, the panel of the open step tab. */
+const STEP_PANEL = 'map-step-panel'
+
+function StepTab({ tool, index, label, active, done, onClick }: { tool: ToolId; index: number; label: string; active: boolean; done: boolean; onClick: () => void }) {
   return (
-    <button role="tab" aria-selected={active} tabIndex={active ? 0 : -1} onClick={onClick}
+    <button role="tab" id={tabId(tool)} aria-controls={STEP_PANEL} aria-selected={active} tabIndex={active ? 0 : -1} onClick={onClick}
       className={cn('flex shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
         active ? 'border-primary bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground')}>
       <span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full text-sm font-bold', active ? 'bg-primary text-primary-foreground' : 'bg-muted')}>{numberFormat.format(index + 1)}</span>
       {label}
-      {done && <Check className="size-4 shrink-0 text-primary" strokeWidth={3} aria-label="فيها نتيجة" />}
+      {done && <><Check className="size-4 shrink-0 text-primary" strokeWidth={3} aria-hidden /><span className="sr-only">، فيها نتيجة</span></>}
     </button>
   )
 }
@@ -368,6 +372,15 @@ export function LensMap() {
   // a pick made by a click on the map answers in its card, so the phone's sheet stays down and the map in view
   const mapPick = useRef(false)
   const data = useCityData(city)
+  // a control that removes itself (closing the search, clearing the pick, «التالي») hands focus to this element once
+  // the page has re-rendered, instead of dropping it on the page's body
+  const focusAfter = useRef<string | null>(null)
+  useEffect(() => {
+    const id = focusAfter.current
+    if (!id) return
+    focusAfter.current = null
+    document.getElementById(id)?.focus({ preventScroll: true })
+  })
   // the steps that gave an answer in this visit (a ✓ on their tab): a tool's answer is the one-line summary or the
   // sites it posts with its overlay, read against the step that is open when it posts
   const [done, setDone] = useState<ToolId[]>([])
@@ -541,8 +554,30 @@ export function LensMap() {
     if (!toolColors && metric !== 'population') return [{ label: METRICS[metric].label, value: metricText(row) }, population]
     return [population]
   }
+  // the map itself, where focus goes back when the card it opened closes (the card's button is gone)
+  const focusMap = () => document.querySelector<HTMLElement>('.mapboxgl-canvas')?.focus({ preventScroll: true })
+  const closeCard = () => { setCard(null); focusMap() }
+  // Escape closes the card, unless something above it (a popover, the sheet's handle, a field) took the key first
+  const cardOpen = cardRow != null
+  useEffect(() => {
+    if (!cardOpen) return
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      if ((event.target as Element | null)?.closest?.('input, textarea, select, [role="dialog"]')) return
+      closeCard()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // closeCard only sets state and moves focus; it is rebuilt each render and needs no dependency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardOpen])
   const openDetails = () => {
-    setSheet((current) => (current === 'full' ? current : 'half'))
+    // the summary in the panel now answers: the card goes, so it no longer covers its own district, and on a phone the
+    // district is framed in what the half sheet leaves of the map
+    const id = card?.id
+    setCard(null)
+    if (id && !window.matchMedia('(min-width: 64rem)').matches && sheet !== 'full') flyTo(id)
+    else setSheet((current) => (current === 'full' ? current : 'half'))
     // after the sheet has risen, so the summary is scrolled to where it ends up
     window.setTimeout(() => document.getElementById('picked-summary')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250)
   }
@@ -561,9 +596,16 @@ export function LensMap() {
       </>
     )
   }
+  // over a phone's half sheet the map keeps a strip of itself: the key shrinks to its title and «طبقات» there
+  const keyCompact = sheet === 'half'
   const legendTitle = overlay.legend?.title ?? (toolColors ? `ألوان الخريطة: ${step?.label ?? ''}` : step?.label ?? '')
   // the peeking sheet's one line is cut at its end: the picked district leads, the step (also on its tab) follows
   const sheetTitle = search ? `بحث: ${search.q}` : chosen.length ? `${chosen.map((row) => row.name).join('، ')} · ${step?.label}` : `${active.label} · ${step?.label ?? ''}`
+  // a pick on the map is silent to a screen reader (the canvas has no districts to read): the pick and its two golden
+  // figures are said in a polite live line instead
+  const pickedSay = chosen.length === 1
+    ? `اخترت ${chosen[0].name}. السكان ${format(chosen[0].population)}، المنشآت ${format(chosen[0].businesses)}.`
+    : chosen.length > 1 ? `${counted(chosen.length, 'district')} مختارة: ${chosen.map((row) => row.name).join('، ')}.` : ''
   const showBusinesses = !search && selected.length > 0 && lens !== 'property' && ['businesses', 'gaps', 'district', 'competitors'].includes(tool)
 
   return (
@@ -595,24 +637,28 @@ export function LensMap() {
       </header>
 
       <div className="relative min-h-0 flex-1 lg:flex lg:flex-row">
-        <div className="absolute inset-x-0 top-0 bottom-[var(--peek)] lg:relative lg:inset-auto lg:flex-1" style={{ '--peek': PEEK } as CSSProperties}>
+        {/* --lift: how far a phone's half sheet reaches over the map (it covers HALF of the map and peek together, the map
+            already ends at the peek): the key and the buttons at the map's bottom ride above it instead of under it */}
+        <div className="absolute inset-x-0 top-0 bottom-[var(--peek)] max-lg:[--lift:var(--sheet-lift,0px)] lg:relative lg:inset-auto lg:flex-1"
+          style={{ '--peek': PEEK, ...(sheet === 'half' ? { '--sheet-lift': `calc(${HALF * 100}% - ${PEEK_PX * (1 - HALF)}px)` } : {}) } as CSSProperties}>
           <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} streets={overlay.streets} onStreet={overlay.onStreet} focus={overlay.focus} zoomTo={zoomTo} hover={hovered} onPoint={pointer.set}
             onFailed={setMapFailed} errorClassName="max-lg:top-1/3" cover={sheet === 'half' ? HALF : 0}
             onDistrictClick={(hit) => { mapPick.current = true; setCard(selected.includes(hit.id) ? null : hit) }}
             pin={cardRow ? card : null} onPin={setCardAt} />
           {overlay.popup}
           {cardRow && cardAt && cardAt.x >= 0 && cardAt.y >= 0 && cardAt.x <= cardAt.width && cardAt.y <= cardAt.height && (
-            <DistrictCard name={cardRow.name} lines={cardLines(cardRow)} at={cardAt} onDetails={openDetails} onClose={() => setCard(null)}
+            <DistrictCard name={cardRow.name} lines={cardLines(cardRow)} at={cardAt} onDetails={openDetails} onClose={closeCard}
               {...(window.matchMedia('(min-width: 64rem)').matches
                 ? { top: 8, bottom: cardAt.height - 8 }
                 // the floating search and chips on top; below, what the sheet covers above the map's own end (the peek)
                 : { top: 124, bottom: cardAt.height - 8 - (sheet === 'half' ? Math.max(0, HALF * (cardAt.height + PEEK_PX) - PEEK_PX) : 0) })} />
           )}
           <PointerTip store={pointer} describe={describePointed} />
+          <p aria-live="polite" className="sr-only">{pickedSay}</p>
           <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed || noDistricts} goalSlot={goalSlot} onAsk={raiseSheet}
             onShowMe={leadId ? () => pickFromList(leadId) : null} />
           {/* the view is in the address, so its link reopens this work (above the «؟» on a phone, beside it from lg) */}
-          <CopyLinkButton className="absolute end-3 bottom-[6.5rem] z-10 lg:end-16 lg:top-3 lg:bottom-auto" />
+          <CopyLinkButton className="absolute end-3 bottom-[calc(6.5rem+var(--lift,0px))] z-10 transition-[bottom,color] duration-300 motion-reduce:transition-none lg:end-16 lg:top-3 lg:bottom-auto" />
           {noDistricts && (
             <div role="status" className="absolute inset-x-4 top-1/3 z-[15] mx-auto flex max-w-sm flex-col items-start gap-2 rounded-xl border bg-card/95 p-4 shadow-md backdrop-blur lg:top-1/4">
               <p className="flex items-center gap-2 font-bold"><MapPinOff className="size-5 text-muted-foreground" aria-hidden />حدود أحياء {cityName}: غير متاحة بعد</p>
@@ -623,10 +669,16 @@ export function LensMap() {
           {/* on a phone the controls float over the map: the search, then one row of city, district and who; the map's
               colours are picked in its key («طبقات») */}
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 p-3 lg:hidden">
-            <form role="search" aria-label="ابحث عن مورد أو نشاط" onSubmit={(event) => { event.preventDefault(); submit() }}
+            {/* a search sent puts the phone's keyboard away, so the results rising in the sheet are not hidden under it */}
+            <form role="search" aria-label="ابحث عن مورد أو نشاط" onSubmit={(event) => { event.preventDefault(); if (draft.trim()) phoneSearch.current?.blur(); submit() }}
               className="pointer-events-auto flex items-center gap-2 rounded-full border bg-card/95 p-1.5 ps-4 shadow-md backdrop-blur">
               <input ref={phoneSearch} value={draft} onChange={(event) => setDraft(event.target.value)} aria-label="ابحث عن مورد أو نشاط"
                 placeholder="ابحث عن مورد أو نشاط" className="h-10 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground" />
+              {/* one tap empties the field and closes its results, back to the steps */}
+              {(draft || search) && (
+                <button type="button" aria-label="امسح البحث" onClick={() => { setDraft(''); setSearch(null); phoneSearch.current?.focus() }}
+                  className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"><X className="size-4" aria-hidden /></button>
+              )}
               <button type="submit" aria-label="ابحث" className="grid size-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60"><Search className="size-4" aria-hidden /></button>
             </form>
             <ScrollRow label="المدينة والحي والفئة" className="pointer-events-auto -mx-3 gap-2 px-3 pb-1">
@@ -637,7 +689,7 @@ export function LensMap() {
           </div>
           {/* the colour key, titled with what it colours: clear of the map's attribution (bottom corner) and of the
               «؟» button, above the phone's peeking sheet and the screen's safe area */}
-          <div className="pointer-events-none absolute start-3 bottom-[calc(2.25rem+env(safe-area-inset-bottom))] z-[5] flex max-w-[calc(100%-5rem)] flex-col items-start gap-1.5">
+          <div className="pointer-events-none absolute start-3 bottom-[calc(2.25rem+env(safe-area-inset-bottom)+var(--lift,0px))] z-[5] flex transition-[bottom] duration-300 motion-reduce:transition-none max-w-[calc(100%-5rem)] flex-col items-start gap-1.5">
             <div className="pointer-events-auto flex flex-col gap-1.5 rounded-xl border bg-card/95 px-3 py-2.5 shadow-sm backdrop-blur">
               {data.status === 'loading' ? (
                 // the key's shape while the city's districts load; the map stays in view
@@ -669,7 +721,7 @@ export function LensMap() {
                       <p className="text-sm text-muted-foreground">غير متاح في {cityName}{fallbackMetric ? '' : '، ولا مقياس آخر لهذه الفئة بعد'}</p>
                       {fallbackMetric && <Chip onClick={() => setMetric(fallbackMetric)}>لوّن الخريطة بـ«{METRICS[fallbackMetric].label}»</Chip>}
                     </div>
-                  ) : <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="flex items-center gap-1.5 text-sm no-underline">
+                  ) : <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className={cn('flex items-center gap-1.5 text-sm no-underline', keyCompact && 'max-lg:hidden')}>
                     <span className="text-muted-foreground">أقل</span>
                     <span className="flex gap-0.5" aria-hidden>{SHADES.map((shade) => <span key={shade} className="h-4 w-7 rounded-sm" style={{ background: shade }} />)}</span>
                     <span className="text-muted-foreground">أعلى</span>
@@ -677,7 +729,7 @@ export function LensMap() {
                   {/* districts without the figure are drawn unshaded: the key names that, so a blank district (Jeddah's
                       central markets under «السكان») reads as «غير متاح», not as the lowest value */}
                   {!metricMissing && !metricFailed && unshaded > 0 && (
-                    <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <span className={cn('flex items-center gap-1.5 text-sm text-muted-foreground', keyCompact && 'max-lg:hidden')}>
                       <span className="h-4 w-7 rounded-sm border border-dashed border-muted-foreground/50" aria-hidden />
                       بلا لون: غير متاح ({counted(unshaded, 'district')})
                     </span>
@@ -689,11 +741,12 @@ export function LensMap() {
           </div>
         </div>
         <MapSheet snap={sheet} onSnap={setSheet} title={sheetTitle} summary={!search && !chosen.length ? peekLine : null} resetKey={search ? `search|${search.nonce}` : `${lens}|${tool}`}
+          panel={!search && data.status !== 'error' ? { id: STEP_PANEL, labelledBy: tabId(tool) } : null}
           header={!search && data.status !== 'error' ? (
             // the steps stay above the scrolling body at every stop of the sheet, and on one line from lg too
             <ScrollRow role="tablist" label={`خطوات ${active.label}`} active={tool} onKeyDown={tabKeys} className="-mx-3 gap-1.5 px-3 pb-1">
               {active.steps.map((item, index) => (
-                <StepTab key={item.tool} index={index} label={item.label} active={tool === item.tool} done={done.includes(item.tool)} onClick={() => setTool(item.tool)} />
+                <StepTab key={item.tool} tool={item.tool} index={index} label={item.label} active={tool === item.tool} done={done.includes(item.tool)} onClick={() => setTool(item.tool)} />
               ))}
             </ScrollRow>
           ) : null}>
@@ -703,7 +756,7 @@ export function LensMap() {
             <>
               {search && (
                 <div className="flex flex-col gap-2">
-                  <Chip onClick={() => setSearch(null)} className="self-start"><X className="size-4" aria-hidden />إغلاق البحث والعودة للخطوات</Chip>
+                  <Chip onClick={() => { focusAfter.current = tabId(tool); setSearch(null) }} className="self-start"><X className="size-4" aria-hidden />إغلاق البحث والعودة للخطوات</Chip>
                   <BusinessesPanel key={search.nonce} city={city} districts={chosen.map((row) => row.name)} query={search.q} />
                 </div>
               )}
@@ -720,7 +773,7 @@ export function LensMap() {
                   )}
                   {/* a tap answers first: the picked district leads, then the step's tool, then the full summary */}
                   {chosen.length > 0 && !['district', 'growth', 'compare', 'around', 'homes'].includes(tool) && (
-                    <PickedStrip chosen={chosen} onClear={() => setSelected([])}
+                    <PickedStrip chosen={chosen} onClear={() => { focusAfter.current = tabId(tool); setSelected([]) }}
                       onDetails={() => document.getElementById('picked-summary')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />
                   )}
                   {tool === 'gaps' && <GapsTool city={city} cityName={cityName} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} selected={selected} onHover={setHovered} />}
@@ -747,7 +800,7 @@ export function LensMap() {
                   {data.status !== 'loading' && (tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full={lens === 'analysts' || tool === 'growth'} onRetry={metricFailed ? data.reload : null} />}
                   {/* once the step has answered, the journey goes on: the next step opens with the same activity and districts */}
                   {next && done.includes(tool) && (
-                    <button onClick={() => setTool(next.tool)}
+                    <button onClick={() => { focusAfter.current = tabId(next.tool); setTool(next.tool) }}
                       className="flex shrink-0 items-center gap-3 rounded-2xl border border-primary/40 bg-primary/5 p-3 text-start outline-none hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring/60">
                       <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">{numberFormat.format(active.steps.indexOf(next) + 1)}</span>
                       <span className="flex min-w-0 flex-1 flex-col">
