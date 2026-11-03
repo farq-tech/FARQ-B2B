@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft, Check } from 'lucide-react'
+import { ArrowLeft, Check, TriangleAlert } from 'lucide-react'
 import { CopyLinkButton } from '@/components/shared/copy-link'
 import { Chip } from '@/components/ui/chip'
 import { numberFormat } from '@/lib/insights-api'
@@ -80,7 +80,7 @@ function SitesSideBySide({ compared }: { compared: SitesCompared }) {
  * recomputed here), a ✓ where it answered, and a tap to open a step not done yet. What the customer carries into the
  * decision is on one card; the link reopens the same view inside the platform (no export).
  */
-export function JourneySummary({ lens, cityName, tool, done, answers, picked, activity, decision, onAct, onOpen }: {
+export function JourneySummary({ lens, cityName, tool, done, answers, partial = {}, picked, activity, decision, onAct, onOpen }: {
   lens: Lens
   cityName: string
   /** The open step: its row is not a button. */
@@ -88,6 +88,8 @@ export function JourneySummary({ lens, cityName, tool, done, answers, picked, ac
   done: readonly ToolId[]
   /** The one-line answer each step posted (its peek line), by tool. */
   answers: Partial<Record<ToolId, string>>
+  /** What an answered step's answer is missing (journey-logic.ts partialNote), by tool: marked partial, not a plain ✓. */
+  partial?: Partial<Record<ToolId, string | null>>
   /** The picked districts' names, said once at the top. */
   picked: string[]
   /** The studied activity, when the customer chose one (never the default nobody picked). */
@@ -137,6 +139,9 @@ export function JourneySummary({ lens, cityName, tool, done, answers, picked, ac
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="text-sm font-semibold">{step.tool === tool ? step.label : <><span className="sr-only">افتح الخطوة: </span>{step.label}</>}</span>
                 <span className={cn('text-sm', ok ? 'text-foreground' : 'text-muted-foreground')}>{line}</span>
+                {ok && partial[step.tool] && (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground"><TriangleAlert className="size-3.5 shrink-0 text-destructive" aria-hidden />{partial[step.tool]}</span>
+                )}
               </span>
               {step.tool !== tool && <ArrowLeft className="mt-1 size-4 shrink-0 text-primary" aria-hidden />}
             </>

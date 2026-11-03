@@ -36,6 +36,9 @@ export type Overlay = {
    * step's `retry`. The map says it where the step's line goes (the phone's peeking sheet) and, when slow, why and
    * what to do; a step that is waiting for the customer posts none. */
   state?: 'loading' | 'error' | null
+  /** What the step's answer is missing, in words («السلاسل»), when part of its request failed: the journey's summary
+   * marks the answer partial instead of a plain ✓. */
+  partial?: string | null
   /** «قارن المواقع»: the sites side by side (their districts, scores and factors as the step measured them), so the
    * shop owner's closing card can show them without measuring again. */
   comparison?: { sites: SiteComparison[]; reach: string; byIncome: boolean } | null

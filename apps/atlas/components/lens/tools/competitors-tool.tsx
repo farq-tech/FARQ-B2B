@@ -169,10 +169,11 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     // the same count the district's colour and the list read (a district the service lists no business in is «لا منافس»)
     const facts = new Map(table.map((item) => [item.row.id, item.competitors ? `${counted(item.competitors, 'business')} من «${studied.label}»` : 'لا منافس'] as [string, string]))
     // «أرني الأعلى» opens the district the summary names
-    onOverlay({ colors, facts, summary, lead: top?.row.id ?? null, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
+    // the chains are a second reading of the same businesses: an answer without them is said partial in the journey
+    onOverlay({ colors, facts, summary, lead: top?.row.id ?? null, partial: brands == null ? 'السلاسل' : null, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
     // answer.retry is stable; status and slow are what the no-answer overlay says
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table, brand, rows, onOverlay, cityTotal, studied.label, order, answer.status, answer.slow, ranked])
+  }, [table, brand, rows, onOverlay, cityTotal, studied.label, order, answer.status, answer.slow, ranked, brands])
 
   // the service counted the activity and found none: a city total of 0, or no district and no total
   const noneFound = counts != null && (cityTotal === 0 || (cityTotal == null && counts.length === 0))

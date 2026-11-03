@@ -28,6 +28,11 @@ const CITIES = {
     { id: 'j2', ar: 'حي السوق', lon: 39.19, lat: 21.54, population: null, n: 6000, built: [5, 5], villa: 2 },
     { id: 'j3', ar: 'حي الجبل', lon: 39.22, lat: 21.54, population: 210000, n: 12000, built: [60, 90], villa: 30 },
   ],
+  // Abha: a city as most cities are today, with no district population at all
+  Abha: [
+    { id: 'a1', ar: 'حي الربوة', lon: 42.49, lat: 18.21, population: null, n: 3000, built: [10, 12] },
+    { id: 'a2', ar: 'حي المنهل', lon: 42.52, lat: 18.21, population: null, n: 2000, built: [3, 4] },
+  ],
 }
 const SNAPSHOT = '2026-11-03T05:15:00+00:00'
 const VERSION = { 'x-data-version': SNAPSHOT }
@@ -36,7 +41,7 @@ const cityOf = (url, body) => {
   return CITIES[named] ? named : 'Riyadh'
 }
 const GET = {
-  '/api/market/cities': () => [{ en: 'Riyadh', ar: 'الرياض', districts: 3, n: 34000 }, { en: 'Jeddah', ar: 'جدة', districts: 3, n: 26000 }],
+  '/api/market/cities': () => [{ en: 'Riyadh', ar: 'الرياض', districts: 3, n: 34000 }, { en: 'Jeddah', ar: 'جدة', districts: 3, n: 26000 }, { en: 'Abha', ar: 'أبها', districts: 2, n: 5000 }],
   '/api/market/districts': (D) => ({ type: 'FeatureCollection', features: D.map((d) => ({ type: 'Feature', properties: { id: d.id, ar: d.ar }, geometry: square(d.lon, d.lat) })) }),
   '/api/market/population-districts': (D) => ({ districts: D.map((d) => ({ district_id: d.id, district_ar: d.ar, population: d.population, source: d.population == null ? null : 'census' })) }),
 }
@@ -50,6 +55,8 @@ const POST = {
   'market-gaps': (D) => {
     const people = D.filter((d) => d.population != null).sort((a, b) => b.population - a.population)
     const short = [100, 1, -80]
+    // no district with people: the service has no city rate to measure a shortfall against
+    if (!people.length) return { residents_per_business: null, districts: [] }
     return { residents_per_business: 700, districts: people.map((d, index) => ({ district_ar: d.ar, businesses: 200, expected_businesses: 200 + short[index], shortfall: short[index], population: d.population })) }
   },
   'real-estate-listings': (D) => ({
@@ -155,6 +162,7 @@ try {
     await shoot(page, 'shops-desktop')
     check(homes.includes('خلاصة رحلتك') && homes.includes('أين تفتح «صيدلية»') && /أجذب موقع: الموقع \d/.test(homes), 'the shop owner\'s journey closes on its decision, the best site first')
     check(homes.includes('الجاذبية') && homes.includes('السكان في') && homes.includes('منشآت لكل كم²'), 'the candidate sites are side by side in the closing card')
+    check(homes.includes('نتيجة جزئية: تعذّر تحميل «السلاسل»'), 'a partial answer (the competitors without their chains) is marked in the summary, not a plain ✓')
     check(new URL(page.url()).searchParams.get('sites')?.split(';').length === 2, 'the compared sites are in the address')
     await panel(page).getByRole('button', { name: 'احفظ المقارنة' }).click(); await settle(page, 800)
     const saved = panel(page).locator('section[aria-label="المقارنات المحفوظة"] li button', { hasText: 'الموقع' }).first()
@@ -177,7 +185,7 @@ try {
   }
   // marketer, phone: the peek says the step, step 2 starts from step 1's top district, the close opens the businesses
   {
-    const { context, page } = await open(browser, { phone: true })
+    const { context, page, asked } = await open(browser, { phone: true })
     await page.goto(`${BASE}/map?goal=target`); await settle(page, 3500)
     const peek = await page.locator('[aria-label^="اللوحة"]').first().innerText()
     check(/حجم الجمهور|اختر جمهورك|جارٍ حساب/.test(peek), 'phone: the peeking sheet says the step\'s answer or what to do')
@@ -188,18 +196,20 @@ try {
     const card = await page.locator('#journey-summary').boundingBox().catch(() => null)
     check(card != null && card.y >= 0 && card.y < 844, 'phone: a tap on the decision opens the closing card')
     check((await text(page)).includes('ابدأ من حي الثالث'), 'the businesses step starts from the top audience district')
+    const listAsked = () => asked.filter((item) => item.path === '/api/market/entities').length
     const close = panel(page).getByRole('button', { name: /جهّز حملة لمنشآت/ })
     check(await close.count() > 0, 'the marketer\'s journey closes on «جهّز حملة»')
     await shoot(page, 'marketers-phone')
     if (await close.count()) { await close.first().click(); await settle(page, 2000) }
     check((await text(page)).includes('منشآت حي الثالث'), 'the decision opens the businesses list of the district, where the campaign is made after review')
+    check(listAsked() > 0, 'the campaign decision opens the list already searched (no extra tap on «كل الأنشطة»)')
     const wide = await page.evaluate(() => document.documentElement.scrollWidth)
     check(wide <= 390, 'phone: no sideways scroll')
     await context.close()
   }
   // Jeddah, desktop: no published income (the site score stands on villa share) and a district without population
   {
-    const { context, page } = await open(browser, { phone: false })
+    const { context, page, asked } = await open(browser, { phone: false })
     await page.goto(`${BASE}/map?city=Jeddah&goal=expand`); await settle(page, 3500)
     await panel(page).getByRole('button', { name: 'صيدلية' }).first().click(); await settle(page, 2500)
     check((await text(page)).includes('حي الجبل'), 'Jeddah: the gaps answer names its most populous district')
@@ -215,7 +225,7 @@ try {
   }
   // Jeddah, phone: the same journey at 390px, to its decision, with no sideways scroll
   {
-    const { context, page } = await open(browser, { phone: true })
+    const { context, page, asked } = await open(browser, { phone: true })
     await page.goto(`${BASE}/map?city=Jeddah&goal=expand`); await settle(page, 3500)
     await raise(page)
     await panel(page).getByRole('button', { name: 'صيدلية' }).first().click(); await settle(page, 2500)
@@ -236,8 +246,12 @@ try {
   // distributor, desktop: the growth step answers with its ranking first and the journey closes without a forced tap
   // (the tour's hints wait while the map cannot open, as here without a map token: they are checked on real data)
   {
-    const { context, page } = await open(browser, { phone: false })
+    const { context, page, asked } = await open(browser, { phone: false })
     await page.goto(`${BASE}/map?lens=distributors`); await settle(page, 3500)
+    const splits = () => asked.filter((item) => item.path === '/api/market/territories').length
+    check(splits() === 0 && (await text(page)).includes('اختر نشاط عملائك فتُقسَّم'), 'distributors are asked for their customers\' activity before the city is split')
+    await panel(page).getByRole('button', { name: 'قسّم على كل المنشآت' }).click(); await settle(page, 1500)
+    check(splits() === 1, '«قسّم على كل المنشآت» splits on purpose, once')
     await tab(page, 'أين يُبنى'); await settle(page, 2500)
     const growth = await text(page)
     check(growth.indexOf('الأعلى في مبانٍ جديدة') >= 0 && growth.indexOf('الأعلى في مبانٍ جديدة') < growth.indexOf('مطاعم التوصيل'), '«أين يُبنى الآن؟» leads with its ranking, the city\'s general figures after it')
@@ -246,7 +260,7 @@ try {
   }
   // analyst, desktop: the one-tap pair is right under «اختر حيين», and no empty saved list stands in the way
   {
-    const { context, page } = await open(browser, { phone: false })
+    const { context, page, asked } = await open(browser, { phone: false })
     await page.goto(`${BASE}/map?lens=analysts&tool=compare`); await settle(page, 3500)
     const compare = await text(page)
     check(compare.includes('أو قارن مباشرة') && !compare.includes('لا مقارنة محفوظة بعد'), 'compare: the one-tap pair, and no empty saved list')
@@ -255,7 +269,7 @@ try {
   }
   // shop owner, phone: the peeking sheet's ask is a button that raises the sheet to the step's chips
   {
-    const { context, page } = await open(browser, { phone: true })
+    const { context, page, asked } = await open(browser, { phone: true })
     await page.goto(`${BASE}/map?goal=expand`); await settle(page, 3000)
     const ask = page.locator('aside[aria-label="لوحة الخريطة"] button', { hasText: 'اختر نشاطك' }).first()
     check(await ask.count() > 0, 'phone: the step\'s ask on the peeking sheet is a button')
@@ -263,9 +277,23 @@ try {
     check(await page.locator('[aria-label^="اللوحة نصف"]').count() > 0 && await panel(page).getByRole('button', { name: 'صيدلية' }).first().isVisible(), 'phone: tapping it raises the sheet to the activity chips')
     await context.close()
   }
+  // Abha, desktop: a city with no district population: gaps say why there is no shortfall, figures read «غير متاح»
+  {
+    const { context, page, asked } = await open(browser, { phone: false })
+    await page.goto(`${BASE}/map?city=Abha&goal=expand`); await settle(page, 3500)
+    await panel(page).getByRole('button', { name: 'صيدلية' }).first().click(); await settle(page, 2500)
+    const gaps = await text(page)
+    check(!/ناقص \d/.test(gaps) && /غير متاح|لا يُحسب|غير متاحين/.test(gaps), 'Abha: no shortfall is invented where no district has people')
+    await page.goto(`${BASE}/map?city=Abha&lens=analysts&district=a1`); await settle(page, 3500)
+    const district = await text(page)
+    check(district.includes('حي الربوة') && district.includes('غير متاح') && !/السكان\s*0\b/.test(district), 'Abha: a district\'s population reads «غير متاح», never 0')
+    await page.goto(`${BASE}/map?city=Abha&lens=marketers`); await settle(page, 3500)
+    check(/غير متاح/.test(await text(page)), 'Abha: the audience size reads «غير متاح» where no people are measured')
+    await context.close()
+  }
   // a failing step, phone: the peek says it failed and offers the retry
   {
-    const { context, page } = await open(browser, { phone: true, gaps: 'fail' })
+    const { context, page, asked } = await open(browser, { phone: true, gaps: 'fail' })
     await page.goto(`${BASE}/map?goal=expand&activity=${encodeURIComponent('مخبز')}`); await settle(page, 5000)
     const top = await page.locator('aside[aria-label="لوحة الخريطة"]').innerText()
     if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/journey-failed-phone.png` })
@@ -274,7 +302,7 @@ try {
   }
   // property seeker, desktop: the district step starts from the best listing's district, the close links on
   {
-    const { context, page } = await open(browser, { phone: false })
+    const { context, page, asked } = await open(browser, { phone: false })
     await page.goto(`${BASE}/map?goal=property`); await settle(page, 3500)
     await panel(page).getByRole('button', { name: 'فيلا' }).first().click(); await settle(page, 1200)
     await panel(page).locator('select[aria-label="الميزانية"]').selectOption('50000'); await settle(page, 1500)

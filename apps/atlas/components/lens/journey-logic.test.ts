@@ -4,7 +4,7 @@ import { decisionMomentProps } from '../../lib/commercial-metrics.ts'
 import { homesHref, readHomesMax } from '../../lib/handoff.ts'
 import { matchMain } from '../../lib/sticky-state.ts'
 import type { DistrictRow } from './city-data.ts'
-import { STEP_WAIT, decisionFor, pickedLine, stepLine } from './journey-logic.ts'
+import { STEP_WAIT, decisionFor, partialNote, pickedLine, stepLine } from './journey-logic.ts'
 import { readMapOptions, writeMapOptions } from './map-query.ts'
 import { LENSES, TOOL_INPUTS, journeyStart, lensById } from './lenses.ts'
 
@@ -139,4 +139,10 @@ test('«العقار» opens on the budget a link carries, and only a sensible o
   for (const bad of ['?max=-5', '?max=abc', '?max=0', '?max=99999999999', '']) assert.equal(readHomesMax(bad), null, bad)
   assert.equal(homesHref({ districts: ['2'], max: 50000 }), '/homes?district=2&max=50000')
   assert.equal(homesHref({ districts: ['2'], max: 0 }), '/homes?district=2')
+})
+
+test('a partial answer names what it is missing; a whole one says nothing', () => {
+  assert.equal(partialNote([], null), null)
+  assert.equal(partialNote(['البحث بلا نتيجة'], null), 'نتيجة جزئية: تعذّر تحميل «البحث بلا نتيجة»')
+  assert.equal(partialNote(['الدخل'], 'السلاسل'), 'نتيجة جزئية: تعذّر تحميل «الدخل» و«السلاسل»')
 })

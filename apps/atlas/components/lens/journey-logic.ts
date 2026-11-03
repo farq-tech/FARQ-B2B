@@ -69,6 +69,15 @@ export function pickedLine(tool: ToolId, picked: readonly DistrictRow[]): string
   return null
 }
 
+/**
+ * What one step's answer is missing, said once in the journey's summary: the city tables it rests on that failed to
+ * load, and the part of its own request that failed. Null when nothing is missing (the plain ✓).
+ */
+export function partialNote(failedTables: readonly string[], ownPart: string | null | undefined): string | null {
+  const missing = [...failedTables, ...(ownPart ? [ownPart] : [])]
+  return missing.length ? `نتيجة جزئية: تعذّر تحميل ${missing.map((name) => `«${name}»`).join(' و')}` : null
+}
+
 /** One action of the decision card: open the picked districts' businesses (where a quote, a campaign or a list is made
  * from the picks, components/lens/businesses-panel.tsx), open a step on districts, or follow a link to another page. */
 export type DecisionAction =

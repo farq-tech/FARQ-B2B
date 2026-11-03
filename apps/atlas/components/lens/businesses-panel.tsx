@@ -80,7 +80,8 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
   onPoint?: (id: string | null) => void
   /** What the map shows now (west, south, east, north): with «حدّث القائمة عند تحريك الخريطة» the list keeps only those. */
   bounds?: [number, number, number, number] | null
-  /** The activity the step before already studied: the list opens on it at once for a picked district, typed in the field. */
+  /** The activity the step before already studied: the list opens on it at once for a picked district, typed in the field.
+   * `*` opens it on every activity («كل الأنشطة»), for a decision made on the district rather than one activity. */
   prefill?: string | null
   /** A site's reach (its catchment as the site comparison drew it): the list holds only the businesses inside it. */
   area?: { label: string; geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon } | null
@@ -157,8 +158,9 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
     if (!prefill || !districts.length || query || (kept && kept.scope === scope)) return
     if (once.current.prefill === `${key}|${city}|${prefill}`) return
     once.current.prefill = `${key}|${city}|${prefill}`
-    setActivity(prefill)
-    void load(prefill)
+    const text = prefill === '*' ? '' : prefill
+    setActivity(text)
+    void load(text)
   }, [key, city, prefill]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load(text: string = activity) {
