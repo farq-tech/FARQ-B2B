@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
+import { SignInLink } from '@/components/shared/sign-in-link'
 import { Baby, Lock, MapPin, Store, Users } from 'lucide-react'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -77,7 +77,7 @@ export function SiteCard({ label, color, reach, activity, state, onRetry }: { la
       {/* not a failure: the card names competitors, so it opens for a signed-in account; the shared empty shape with its one step */}
       {state?.status === 'denied' && (
         <EmptyState compact icon={Lock} className="m-4" title={state.signIn ? 'بطاقة الموقع لمن سجّل الدخول' : 'بطاقة الموقع غير متاحة لحسابك'} body={state.message}
-          action={state.signIn ? <Link href="/login?next=%2Fmap%3Ftool%3Daround" className="text-sm font-semibold text-primary underline">تسجيل الدخول</Link> : undefined} />
+          action={state.signIn ? <SignInLink className="text-sm font-semibold text-primary underline">تسجيل الدخول</SignInLink> : undefined} />
       )}
       {state?.status === 'error' && <LoadError what="بطاقة الموقع" detail={state.message} onRetry={onRetry} className="m-4" />}
       {state?.status === 'ready' && <Body data={state.data} activity={activity} />}

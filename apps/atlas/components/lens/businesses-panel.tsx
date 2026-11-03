@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import { SignInLink } from '@/components/shared/sign-in-link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ClipboardList, ListPlus, Loader2, Megaphone, Search, SearchX } from 'lucide-react'
@@ -149,7 +149,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
         </>
       )}
       {status === 'needs-scope' && <p role="status" className="text-base text-muted-foreground">اكتب نشاطاً لتبحث في المدينة كلها، أو حدّد حياً على الخريطة لترى كل منشآته.</p>}
-      {status === 'login' && <p className="text-base">لعرض المنشآت وإنشاء طلب <Link href="/login?next=/map" className="font-semibold text-primary underline">سجّل الدخول</Link>.</p>}
+      {status === 'login' && <p className="text-base">لعرض المنشآت وإنشاء طلب <SignInLink className="font-semibold text-primary underline">سجّل الدخول</SignInLink>.</p>}
       {status === 'error' && <LoadError what="المنشآت" detail={message === 'تعذر تحميل المنشآت.' ? undefined : message} onRetry={() => void load()} />}
       {status === 'ready' && rows.length === 0 && (
         <NoResult title={`لا منشآت ${activity.trim() ? `«${activity.trim()}» ` : ''}في ${where}`} body={activity.trim() ? 'جرّب اسماً آخر للنشاط، أو كل الأنشطة.' : 'جرّب حياً آخر.'} />

@@ -7,6 +7,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { numberFormat } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import { SignInLink } from '@/components/shared/sign-in-link'
 import { WhatsNew } from '@/components/shared/whats-new'
 import { buttonVariants } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -127,10 +128,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : sessionChecked ? (
-            <Link href={`/login?next=${encodeURIComponent(pathname)}`} className={buttonVariants({ variant: 'outline', size: 'sm', className: 'font-semibold' })}>
+            // back to the page as it is, with its whole address (the map's journey lives there), after signing in
+            <SignInLink className={buttonVariants({ variant: 'outline', size: 'sm', className: 'font-semibold' })}>
               <LogIn aria-hidden />
               دخول
-            </Link>
+            </SignInLink>
           ) : null}
         </div>
       </header>

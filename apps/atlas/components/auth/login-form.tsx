@@ -56,7 +56,10 @@ export function LoginForm() {
     router.refresh()
   }
 
-  const invalid = error ? { 'aria-invalid': true, 'aria-describedby': 'atlas-login-error' } : {}
+  const next = safeNext(search.get('next'))
+  // a return address with more than the bare page (the map's city, group, step or districts) is a journey to resume
+  const resumes = next.includes('?')
+  const invalid = error ?{ 'aria-invalid': true, 'aria-describedby': 'atlas-login-error' } : {}
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-4 p-5">
@@ -64,7 +67,8 @@ export function LoginForm() {
         {/* the mark on its own line, then the heading: side by side they wrapped into «أطلس أطلس» on a narrow card */}
         <div className="mb-7 flex flex-col items-center gap-3 text-center">
           <span className="flex items-center gap-1.5" aria-hidden><img src="/brand/farq-b2b-light.svg" alt="" className="h-8 w-auto" /><span className="text-lg font-bold text-foreground">أطلس</span></span>
-          <div><h1 className="text-xl font-bold">تسجيل الدخول</h1><p className="mt-1 text-sm text-muted-foreground">إلى فرق أطلس، لعرض الجهات وبياناتها التجارية.</p></div>
+          {/* a sign-in asked for in the middle of a journey says it returns there, so signing in does not read as starting over */}
+          <div><h1 className="text-xl font-bold">تسجيل الدخول</h1><p className="mt-1 text-sm text-muted-foreground">{resumes ? 'بعد الدخول تعود إلى ما كنت تعمل عليه كما تركته.' : 'إلى فرق أطلس، لعرض الجهات وبياناتها التجارية.'}</p></div>
         </div>
         {error ? <p id="atlas-login-error" role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}
         <label className="mb-1.5 block text-sm font-medium" htmlFor="atlas-email">البريد الإلكتروني</label>
@@ -85,6 +89,11 @@ export function LoginForm() {
           {pending ? 'جارٍ الدخول…' : 'دخول'}
         </Button>
       </form>
+      {/* a first visitor without an account is not stuck here: the map and its figures open without signing in */}
+      <p className="max-w-sm text-center text-sm text-muted-foreground">
+        لا تملك حساباً؟ الخريطة وأرقام الأحياء تعمل بلا دخول، والدخول لأسماء المنشآت والطلبات.{' '}
+        <Link href={resumes ? next : '/map'} className="inline-flex min-h-11 items-center font-semibold text-primary underline-offset-4 hover:underline">{resumes ? 'ارجع إلى حيث كنت' : 'افتح الخريطة'}</Link>
+      </p>
       <Link href="/" className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground">
         <ArrowRight className="size-4" aria-hidden />العودة إلى الرئيسية
       </Link>

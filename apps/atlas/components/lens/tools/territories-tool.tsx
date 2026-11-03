@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
+import { SignInLink } from '@/components/shared/sign-in-link'
 import { NoResult } from '@/components/shared/empty-state'
 import { Explained } from '@/components/shared/explained'
 import { LoadError } from '@/components/shared/load-error'
@@ -267,7 +267,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
           {!customers && !customerError && stops.slow && <div className="mt-2"><StillWorking>منطقة واسعة فيها منشآت كثيرة.</StillWorking></div>}
           {customerError && (
             <LoadError what="منشآت المنطقة" detail={customerError.text} onRetry={stops.retry}
-              action={customerError.login ? <Link href="/login?next=%2Fmap%3Ftool%3Dterritories" className="text-sm font-semibold text-primary underline">تسجيل الدخول</Link> : undefined} />
+              action={customerError.login ? <SignInLink className="text-sm font-semibold text-primary underline">تسجيل الدخول</SignInLink> : undefined} />
           )}
           {customers && customers.length === 0 && (
             <NoResult title={`لا منشأة ${mainId ? 'من هذا النشاط ' : ''}في منطقة المندوب ${numberFormat.format(rep + 1)}`}
