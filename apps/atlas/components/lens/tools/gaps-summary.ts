@@ -4,10 +4,12 @@
  * not as a signed figure: a «+» beside a Latin number inside an Arabic line can drift to the wrong side of it.
  * The formatters come in so the line is tested with the real ones (lib/insights-api.ts counted and numberFormat).
  */
-export type GapRow = { district_ar: string; shortfall: number }
+// shortfall is null when the population model does not hold (the count is not population-driven here); such a
+// district is never «short», it is simply listed by its real count
+export type GapRow = { district_ar: string; shortfall: number | null }
 
 /** Short by at least one whole business («ناقص 1» or more), the one rule the list, the map and the peek line share. */
-export const isShortRow = (row: GapRow) => Math.round(row.shortfall) > 0
+export const isShortRow = (row: GapRow) => Math.round(row.shortfall ?? 0) > 0
 
 export function gapsSummary(
   result: { residents_per_business: number | null; districts: GapRow[] } | null,
@@ -20,7 +22,7 @@ export function gapsSummary(
   const top = short[0]
   if (!top) return 'لا نقص في أي حي'
   // the top district leads: on a phone the line is cut at its end, and the count of districts matters least
-  return `الأعلى: ${top.district_ar} بنقص ${counted(Math.round(top.shortfall), 'business')} · ${counted(short.length, 'district')} ${short.length === 1 ? 'فيه' : 'فيها'} نقص`
+  return `الأعلى: ${top.district_ar} بنقص ${counted(Math.round(top.shortfall ?? 0), 'business')} · ${counted(short.length, 'district')} ${short.length === 1 ? 'فيه' : 'فيها'} نقص`
 }
 
 /**
@@ -36,7 +38,7 @@ export function gapsHoverLine(
   numberFormat: { format: (value: number) => string },
 ): string {
   if (!row) return population == null ? 'لا يُحسب: السكان غير متاح' : `لا يُحسب: أقل من ${numberFormat.format(minPopulation)} ساكن`
-  const short = Math.round(row.shortfall)
+  const short = Math.round(row.shortfall ?? 0)
   if (short >= 1) return `بنقص ${counted(short, 'business')}`
   return row.businesses == null ? 'مكتفٍ' : `مكتفٍ: فيه ${counted(row.businesses, 'business')}`
 }

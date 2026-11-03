@@ -138,14 +138,28 @@ export const EXPLAIN = {
   },
   topAge: ['الفئة العمرية الأكبر عدداً.', 'توزيع الأعمار نمط المنطقة كلها مضبوطاً على عدد سكان الحي، وليس قياساً لكل حي.'],
   activities: ['عدد منشآت كل نشاط رئيسي في الحي من دليل فرق.', 'المنشأة قد تُحسب في أكثر من نشاط.'],
-  gap(population: number, expected: number, present: number, rate: number): string[] {
+  gap(population: number, expected: number, present: number, rate: number, fit?: number | null, coveredDistricts?: number | null): string[] {
     const need = Math.round(expected)
     return [
       `معدل المدينة لهذا النشاط: منشأة لكل ${n(rate)} ساكن، وهو سكان الأحياء التي فيها النشاط مقسوماً على عدد منشآته فيها.`,
       `«يحتاج» = سكان الحي ÷ ${n(rate)}:`,
       `${n(population)} ÷ ${n(rate)} = ${n(need)}`,
       `الموجود في دليل فرق ${n(present)}، فالناقص ${n(need - present)}.`,
+      // the measured strength of the population→count relationship, so the «يحتاج» number is auditable
+      ...(fit != null && coveredDistricts != null
+        ? [`قيس على ${n(coveredDistricts)} حي يحمل سكاناً ومنشآت، وارتباط العدد بالسكان فيها r = ${numberFormat.format(fit)}.`]
+        : []),
       'الدليل لا يضم كل المنشآت الفعلية، فالنقص يدل على مكان البحث لا على طلب مؤكد.',
+    ]
+  },
+  // the activity's count does not track population in this city, so no «يحتاج» and no shortfall are shown
+  gapNotPopulation(fit?: number | null, coveredDistricts?: number | null): string[] {
+    return [
+      'عدد منشآت هذا النشاط في هذه المدينة لا يتبع عدد سكان الأحياء، كما هي حال تجارة الجملة والمناطق الصناعية ومنشآت الأعمال والوجهات.',
+      ...(fit != null && coveredDistricts != null
+        ? [`قيس على ${n(coveredDistricts)} حي يحمل سكاناً ومنشآت: ارتباط العدد بالسكان فيها r = ${numberFormat.format(fit)}، وهو ضعيف أو غير موجب، فلا يصلح لتقدير النقص.`]
+        : []),
+      'فلا يُقدَّر «يحتاج» ولا نقص بمعدل السكان؛ تُعرض الأحياء بأعدادها الفعلية في الدليل فقط.',
     ]
   },
   aroundPeople: ['مجموع سكان المباني السكنية داخل المنطقة.', 'سكان كل حي موزعون على مبانيه بحسب عدد الوحدات السكنية في كل مبنى.'],

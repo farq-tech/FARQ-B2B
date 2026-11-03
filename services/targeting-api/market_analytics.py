@@ -86,6 +86,53 @@ def gap_caveat(district_ar, male_pct):
     return None
 
 
+# Whether an activity's district counts are driven by population here is decided only from the counts and
+# population the gap view already holds (no new data source). The gap number — expected businesses at the
+# city rate, and the shortfall under it — is published only when the population model holds, i.e. all of:
+#   * enough covered districts carry both a population figure and directory businesses,
+#   * more population means more businesses there (regression slope > 0),
+#   * the counts actually move with population (Pearson r ≥ GAP_MODEL_MIN_R),
+#   * and population itself varies between those districts (positive variance).
+# Wholesale, industrial, B2B and destination activities fail this test; for them a shortfall at the city
+# rate is a fabricated number, so the view shows «غير متاح» and the districts' real counts only.
+# The two thresholds are calibratable constants, not theory: raise GAP_MODEL_MIN_R to demand a tighter fit,
+# GAP_MODEL_MIN_DISTRICTS to demand more covered districts before any rate is trusted. 0.3 and 8 are a
+# deliberately permissive floor — they reject the clearly non-residential activities (flat or negative
+# relationship, or too few districts to tell) without discarding a noisy but real residential signal.
+GAP_MODEL_MIN_DISTRICTS = 8
+GAP_MODEL_MIN_R = 0.3
+
+
+def population_fit(populations, counts):
+    """Pearson r and the slope of business count on population, with the population variance, over the
+    districts that carry both figures. Returns (r, slope, variance); r and slope are None when either
+    series is flat (no variation to correlate). Pure arithmetic over the two lists, no new data."""
+    n = len(populations)
+    if n < 2:
+        return None, None, 0.0
+    mean_pop = sum(populations) / n
+    mean_count = sum(counts) / n
+    sxx = sum((p - mean_pop) ** 2 for p in populations)
+    syy = sum((c - mean_count) ** 2 for c in counts)
+    sxy = sum((p - mean_pop) * (c - mean_count) for p, c in zip(populations, counts))
+    variance = sxx / n
+    if sxx == 0 or syy == 0:
+        return None, None, variance
+    r = sxy / math.sqrt(sxx * syy)
+    slope = sxy / sxx
+    return r, slope, variance
+
+
+def market_gaps_basis(fit, covered_districts):
+    """The gap basis line, with the measured fit appended so the number is auditable: the Pearson correlation
+    between a district's population and its business count (signed, so a non-positive relationship is visible)
+    and over how many districts it was measured."""
+    if fit is None or not covered_districts:
+        return MARKET_GAPS_BASIS
+    return (MARKET_GAPS_BASIS +
+            f" ارتباط عدد المنشآت بالسكان r = {fit} على {covered_districts} حي يحمل الرقمين.")
+
+
 # a bare activity word is how many independent shops are named, not a brand (keys after letter folding)
 GENERIC_BRAND_KEYS = frozenset({
     "صيدليه", "pharmacy", "مطعم", "restaurant", "مقهي", "كافيه", "cafe", "coffee", "بقاله", "grocery", "سوبرماركت",
@@ -784,6 +831,17 @@ class MarketAnalytics:
             return {"ok": True, "city": city, "residents_per_business": None, "districts": [], "understood": counted["understood"], "basis": MARKET_GAPS_BASIS,
                     "message": "لا توجد منشآت مطابقة في أحياء معروفة السكان لحساب معدل المدينة."}
         rate = city_population / city_businesses
+        # Does this activity's count actually track population here? Measured over the covered districts (both a
+        # population figure and directory businesses) from the numbers already in hand. When it does not —
+        # wholesale, industrial, B2B, destinations — the city rate is meaningless and a shortfall under it would
+        # be an invented number, so no expected count and no shortfall are emitted.
+        fit_r, slope, pop_variance = population_fit([known[name]["population"] for name in covered],
+                                                    [counts[name] for name in covered])
+        covered_districts = len(covered)
+        model_fits = bool(covered_districts >= GAP_MODEL_MIN_DISTRICTS and fit_r is not None
+                          and fit_r >= GAP_MODEL_MIN_R and slope is not None and slope > 0 and pop_variance > 0)
+        # the signed Pearson r, so a flat or negative (non-population) relationship stays visible in the number
+        fit = round(fit_r, 2) if fit_r is not None else None
         rows = []
         for name, row in known.items():
             people = row["population"]
@@ -797,24 +855,33 @@ class MarketAnalytics:
                 "district_ar": name,
                 "population": round(people),
                 "businesses": present,
-                "expected_businesses": round(expected, 1),
-                "shortfall": round(expected - present, 1),
+                "expected_businesses": round(expected, 1) if model_fits else None,
+                "shortfall": round(expected - present, 1) if model_fits else None,
                 "residents_per_business": round(people / present) if present else None,
                 "male_pct": male_pct,
                 "population_method": population_method(row.get("source")),
                 "caveat": gap_caveat(name, male_pct),
             })
-        # ordinary residential districts first, each group largest shortfall first
-        rows.sort(key=lambda row: (row["caveat"] is not None, -row["shortfall"], row["district_ar"]))
-        return {
+        base = {
             "ok": True,
             "city": city,
-            "residents_per_business": round(rate),
+            "population_model_fits": model_fits,
+            "fit": fit,
+            "covered_districts": covered_districts,
             "districts_with_population": len(known),
-            "districts": rows[:limit],
             "understood": counted["understood"],
-            "basis": MARKET_GAPS_BASIS,
+            "basis": market_gaps_basis(fit, covered_districts),
         }
+        if not model_fits:
+            # the count is not driven by population here: no city rate, no expected, no shortfall. The districts
+            # are listed by their real directory counts only, the most-served first.
+            rows.sort(key=lambda row: (-row["businesses"], row["district_ar"]))
+            return {**base, "residents_per_business": None, "districts": rows[:limit],
+                    "message": "هذا النشاط لا يتبع عدد السكان في هذه المدينة، فلا يمكن تقدير النقص؛ "
+                               "تُعرض الأحياء بأعدادها الفعلية فقط."}
+        # ordinary residential districts first, each group largest shortfall first
+        rows.sort(key=lambda row: (row["caveat"] is not None, -row["shortfall"], row["district_ar"]))
+        return {**base, "residents_per_business": round(rate), "districts": rows[:limit]}
 
     def district_insights(self, body):
         """Aggregate confidently classified activities for selected districts.
