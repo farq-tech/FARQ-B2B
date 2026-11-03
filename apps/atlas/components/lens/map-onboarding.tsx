@@ -103,7 +103,7 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, 
   const restart = () => { trackOnboardingStep('restarted'); setState('goal') }
   const help = (
     <button onClick={restart} aria-label="جولة سريعة في الخريطة"
-      className="absolute end-3 bottom-14 z-10 grid size-10 place-items-center rounded-full border bg-card/95 text-muted-foreground shadow-sm backdrop-blur transition-colors outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/60 lg:top-3 lg:bottom-auto">
+      className="absolute end-3 bottom-[calc(3.5rem+var(--lift,0px))] z-10 grid size-10 place-items-center rounded-full border bg-card/95 text-muted-foreground shadow-sm backdrop-blur transition-[bottom,color] duration-300 outline-none motion-reduce:transition-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/60 lg:top-3 lg:bottom-auto">
       <CircleHelp className="size-5" aria-hidden />
     </button>
   )
