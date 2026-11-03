@@ -41,7 +41,7 @@ RUNTIME_DIR = os.environ.get('FARQ_TARGETING_RUNTIME_DIR', os.path.join(HERE, 'd
 AUX_DATA_DIR = os.environ.get('FARQ_TARGETING_AUX_DATA_DIR', DATA_DIR)
 # The mounted snapshot is served through a canonical copy (one spelling per city and district, see
 # canonical_data.py) written to scratch space; the mounted volume itself is never modified.
-import canonical_data, district_reference, golden, input_upload, price_estimate, tempfile, district_metrics
+import canonical_data, district_reference, golden, input_upload, price_estimate, tempfile, district_metrics, access_requests
 CANONICAL = canonical_data.prepare(DATA_DIR, os.environ.get('FARQ_TARGETING_CANONICAL_DIR') or os.path.join(tempfile.gettempdir(), 'farq-targeting-canonical'))
 DATA = CANONICAL['targets.parquet']
 CLUSTERS = CANONICAL['trade_clusters.parquet']
@@ -1019,6 +1019,12 @@ class H(BaseHTTPRequestHandler):
         except http.cookies.CookieError: return False
         sid = jar['ft_session'].value if 'ft_session' in jar else ''
         return bool(sid) and session_ok(sid)
+    def _console_session(self):
+        """A browser signed in to this console with its password (not the service token Atlas holds)."""
+        try: jar = http.cookies.SimpleCookie(self.headers.get('Cookie') or '')
+        except http.cookies.CookieError: return False
+        sid = jar['ft_session'].value if 'ft_session' in jar else ''
+        return bool(sid) and session_ok(sid)
     def _client_ip(self):
         return (self.headers.get('X-Forwarded-For') or self.client_address[0]).split(',')[0].strip()
     def _json(self, obj, code=200):
@@ -1105,6 +1111,11 @@ class H(BaseHTTPRequestHandler):
             self._json(cities())
         elif self.path.startswith('/template-status'):
             st = template_status('farq_outreach_ar'); st['holder'] = load_holder(); self._json(st)
+        elif route.path == '/access-requests':
+            # the owner's list of «اطلب حساباً» requests (access_requests.py): the console login only, never the service token
+            if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
+            b = access_requests.render_html(access_requests.read_all(RUNTIME_DIR)).encode()
+            self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Cache-Control', 'no-store'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
         elif self.path == '/log':
             rows = []
             if os.path.exists(LOG):
@@ -1167,6 +1178,13 @@ class H(BaseHTTPRequestHandler):
             except Exception as error:
                 log_map_api_failure('map-context', error)
                 self._json({'error':'UNAVAILABLE'},503)
+        elif self.path == '/access-requests':
+            # «اطلب حساباً» from Atlas: stored for the owner's review, nothing is sent and no account is created
+            try: known = {row['en'] for row in cities()}
+            except Exception: known = None
+            status, answer = access_requests.submit(RUNTIME_DIR, body, known)
+            LOGGER.info('access_request status=%s', status)
+            self._json(answer, status)
         elif self.path == '/trial-search':
             try:
                 result=TRIAL_DIRECTORY.search(body.get('q'), body.get('city'), body.get('objective', 'purchase'),min(200,max(1,int(body.get('limit',30)))),int(body.get('offset',0)));result.pop('_map_rows',None);self._json(result)

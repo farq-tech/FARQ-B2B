@@ -9,6 +9,7 @@ import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { REMEMBERED, lastView, loginHref } from '@/lib/handoff'
 import { SignInLink } from '@/components/shared/sign-in-link'
+import { announceSessionChange } from '@/lib/use-signed-in'
 import { WhatsNew } from '@/components/shared/whats-new'
 import { buttonVariants } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -53,7 +54,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   // The shell stays mounted across client navigation, so the session is read again on the way out of
   // the landing and login pages: signing in there and landing on /map shows the account straight away.
-  const ownHeader = pathname === '/' || pathname === '/login'
+  const ownHeader = pathname === '/' || pathname === '/login' || pathname === '/request-access'
   useEffect(() => {
     if (ownHeader) return
     let active = true
@@ -75,7 +76,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   // the header says «signed out» only once the server has cleared the session; a failed request leaves it as it was
   const signOut = async () => {
     const response = await fetch('/api/session/logout', { method: 'POST' }).catch(() => null)
-    if (response?.ok) setUser(null)
+    if (response?.ok) { setUser(null); announceSessionChange() }
   }
 
   const needsDecision = requests.filter((r) => r.status === 'needs_decision').length
@@ -136,7 +137,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </DropdownMenu>
           ) : sessionChecked ? (
             // back to the page as it is, with its whole address (the map's journey lives there), after signing in
-            <SignInLink className={buttonVariants({ variant: 'outline', size: 'sm', className: 'font-semibold' })}>
+            <SignInLink requestAccess={false} className={buttonVariants({ variant: 'outline', size: 'sm', className: 'font-semibold' })}>
               <LogIn aria-hidden />
               دخول
             </SignInLink>

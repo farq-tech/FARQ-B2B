@@ -9,6 +9,7 @@ import { counted, numberFormat } from '@/lib/insights-api'
 import { FEATURES, LISTING_TYPES, shownPhotos, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { loginHref, priceHref } from '@/lib/handoff'
+import { requestAccessHref } from '@/lib/access-request'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
 import { Lightbox } from '@/components/shared/lightbox'
 import { MapWindow } from '@/components/shared/map-window'
@@ -114,7 +115,7 @@ function ListingPhone({ id }: { id: string }) {
         <Phone className="size-4" aria-hidden /> {state.loading ? 'يجلب الرقم…' : 'اعرض رقم المعلن'}
       </button>
       {state.phone === null && <p className="text-sm text-muted-foreground">رقم المعلن غير متاح لهذا العرض.</p>}
-      {state.error && <p role="alert" className="text-sm text-warning">{state.error}{/سجّل/.test(state.error) && <> <a href={loginHref(`${window.location.pathname}${window.location.search}`)} className="underline">دخول</a></>}</p>}
+      {state.error && <p role="alert" className="text-sm text-warning">{state.error}{/سجّل/.test(state.error) && <> <a href={loginHref(`${window.location.pathname}${window.location.search}`)} className="underline">دخول</a> أو <a href={requestAccessHref(`${window.location.pathname}${window.location.search}`)} className="underline">اطلب حساباً</a></>}</p>}
     </div>
   )
 }
