@@ -9,7 +9,7 @@ import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
-import type { Overlay } from './overlay'
+import { waiting, type Overlay } from './overlay'
 import { gapsHoverLine, gapsSummary, hiddenCaveatsLine, isShortRow } from './gaps-summary'
 import { PALETTE } from '@/lib/palette'
 import { cn } from '@/lib/utils'
@@ -79,7 +79,8 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
   // directory count, and the summary says why no «ناقص» appears.
   const notPopulationDriven = result?.population_model_fits === false
   useEffect(() => {
-    if (!result) { onOverlay({}); return }
+    // no answer yet: the request's own state (working, slow, failed), so the map says it instead of the step's ask
+    if (!result) { onOverlay(waiting(answer)); return }
     if (notPopulationDriven) {
       const ids = new Map(rows.map((row) => [row.name, row.id]))
       const answered = new Map(result.districts.map((row) => [row.district_ar, row]))
@@ -119,7 +120,9 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
       if (id) facts.set(id, isShort(row) ? `ناقص ${numberFormat.format(Math.round(row.expected_businesses ?? 0) - row.businesses)} ${label}` : 'مكتفٍ')
     }
     onOverlay({ summary, hover, facts, lead: top ? ids.get(top.district_ar) ?? null : null, colors, legend: { title: `نقص «${label}» في الأحياء`, from: 'نقص قليل', to: 'نقص كبير', shades: SHADES, extra: { color: SURPLUS, label: 'مكتفٍ' } } })
-  }, [result, rows, onOverlay, label, noPeople, notPopulationDriven])
+    // answer.retry is stable; status and slow are what the no-answer overlay says
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, rows, onOverlay, label, noPeople, notPopulationDriven, answer.status, answer.slow])
 
   const study = (text: string) => { if (text) setStudied({ q: text, label: text }) }
 

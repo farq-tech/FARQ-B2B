@@ -12,7 +12,7 @@ import { circlePolygon, type Area, type Site } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
 import { PALETTE, readableOn } from '@/lib/palette'
 import { areaKm2, containsPoint, districtAt } from '@/lib/geo-measure'
-import { useStickyState, useStudiedActivity } from '@/lib/sticky-state'
+import { stickyHas, useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/sticky-state'
 import { SiteCard, type SiteCardData, type SiteCardState } from './site-card'
 import { placeSite } from './tool-answers'
 import { useSlow } from './use-answer'
@@ -84,7 +84,11 @@ async function areaFor(point: Point, reach: Reach): Promise<Geometry> {
  * Atlas, only the boundary differs.
  */
 export function AroundTool({ city, onOverlay, districts, features }: { city: string; onOverlay: (overlay: Overlay) => void; districts: DistrictRow[]; features: DistrictFeature[] }) {
-  const [activity] = useStudiedActivity()
+  const [studied] = useStudiedActivity()
+  // the site card counts competitors of the activity the customer chose; with none chosen it counts every business,
+  // and says so, instead of the default nobody picked
+  const chosen = stickyHas('activity')
+  const activity = useMemo<StudiedActivity>(() => (chosen ? studied : { label: 'كل المنشآت' }), [chosen, studied])
   // each site keeps its slot (its number and colour) while it is on the map; see placeSite
   const [sites, setSites] = useState<(Point & { id: number; slot: number })[]>([])
   const [reach, setReach] = useStickyState<Reach>('around.reach', REACHES[1])
@@ -165,8 +169,16 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
   useEffect(() => {
     const areas: Area[] = labelled.flatMap((site) => (site.result?.geometry ? [{ id: String(site.id), color: site.color, geometry: site.result.geometry }] : []))
     const markers: Site[] = labelled.map((site) => ({ id: String(site.id), label: site.label, color: site.color, lon: site.lon, lat: site.lat }))
-    onOverlay({ onPick: pick, areas, sites: markers })
-  }, [labelled, pick, onOverlay])
+    // the step's own line: the site with the most people inside its reach, from the figures as returned
+    const counts = labelled.flatMap((site) => (site.result?.status === 'ready' && site.result.figures?.population != null ? [{ label: site.label, people: site.result.figures.population }] : []))
+    const best = counts.sort((a, b) => b.people - a.people)[0]
+    const people = best?.people ?? null
+    const summary = best && people != null
+      ? (labelled.length === 1 ? `الموقع ${best.label}: ${numberFormat.format(people)} ساكن في ${reachLabel(reach)}` : `الأكثر سكاناً: الموقع ${best.label}، ${numberFormat.format(people)} ساكن في ${reachLabel(reach)}`)
+      : null
+    const busy = labelled.some((site) => !site.result || site.result.status === 'loading')
+    onOverlay({ onPick: pick, areas, sites: markers, summary, ...(busy && !summary ? { state: 'loading' as const, slow } : {}) })
+  }, [labelled, pick, onOverlay, reach, slow])
 
   const rows: { label: string; value: (f: Within) => number | null; explain: string[]; higherIsBetter?: boolean }[] = [
     { label: 'السكان', value: (f) => f.population, explain: EXPLAIN.aroundPeople, higherIsBetter: true },
