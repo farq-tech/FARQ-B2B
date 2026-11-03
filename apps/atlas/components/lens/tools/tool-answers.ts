@@ -281,7 +281,7 @@ export function competitorsVerdict<T extends CompetitorRow & { row: { name: stri
   const areaLine = area == null ? []
     : area.competitors === 0 ? [`لا منافس فيه ولا في الأحياء المجاورة (${n(area.districts - 1)})، وفيها ${n(Math.round(area.residents))} ساكن.`]
       : area.weighted
-        ? [`هو وجواره (${counted(area.districts, 'district')}): ${n(Math.round(area.ratio ?? area.residents / area.competitors))} ساكن لكل منافس، والجار الأبعد يُحسب أقل. فيها ${n(Math.round(area.residents))} ساكن و${counted(area.competitors, 'business')}.`]
+        ? [`هو وجواره (${counted(area.districts, 'district')}): ${n(Math.round(area.residents / area.competitors))} ساكن لكل منافس (${n(Math.round(area.residents))} ساكن، ${counted(area.competitors, 'business')})، والترتيب يحسب الجار الأقرب أكثر.`]
         : [`هو وجواره (${counted(area.districts, 'district')}): ${n(Math.round(area.residents / area.competitors))} ساكن لكل منافس (${n(Math.round(area.residents))} ساكن، ${counted(area.competitors, 'business')}).`]
   return {
     lead: `أخف منافسة على «${label}»${area ? ' مع جواره' : ''}: ${top.row.name}`,
@@ -665,7 +665,7 @@ export function rankLightAround<T extends CompetitorRow & { row: { id: string; p
 /** A light-order row's line: «مع جواره: 2,310 ساكن لكل منافس», or that its whole area has none. */
 export function areaLine(area: AroundArea | null): string | null {
   if (!area) return null
-  const line = area.competitors === 0 ? 'لا منافس فيه ولا في جواره' : `مع جواره: ${n(Math.round(area.ratio ?? area.residents / area.competitors))} ساكن لكل منافس`
+  const line = area.competitors === 0 ? 'لا منافس فيه ولا في جواره' : `مع جواره: ${n(Math.round(area.residents / area.competitors))} ساكن لكل منافس`
   return area.small ? `${line}، منطقة قليلة السكان` : line
 }
 
@@ -674,13 +674,17 @@ export function areaLine(area: AroundArea | null): string | null {
  * the surplus next door (missing − the neighbours' businesses over their own need), so a gap a crowded neighbour
  * already serves no longer leads. The rest keep the service's order; flagged districts stay last.
  */
-export function rankGapsAround<R extends GapVerdictRow>(short: R[], aroundOfRow: (row: R) => Around | null, consider = 10): (R & { around: Around | null; net?: number })[] {
+export function rankGapsAround<R extends GapVerdictRow>(short: R[], aroundOfRow: (row: R) => Around | null, consider = 10,
+  /** The part of the neighbours' surplus that serves this district: a neighbour's surplus is shared among its own
+   * neighbours (Riyadh's طويق, 37 over its need, borders six districts), never subtracted whole from each. Without
+   * it, the whole surplus. */
+  shareOf?: (row: R) => number): (R & { around: Around | null; net?: number })[] {
   const lead = short.slice(0, consider).filter((row) => !row.caveat)
   const rest = short.filter((row) => !lead.includes(row))
   const scored = lead.map((row, index) => {
     const around = aroundOfRow(row)
     const missing = Math.round(row.expected_businesses ?? 0) - row.businesses
-    return { ...row, around, net: missing - (around?.total ?? 0), index }
+    return { ...row, around, net: missing - Math.round(shareOf ? shareOf(row) : around?.total ?? 0), index }
   })
   scored.sort((a, b) => b.net - a.net || a.index - b.index)
   return [...scored.map(({ index: _index, ...row }) => row as R & { around: Around | null; net: number }), ...rest.map((row) => ({ ...row, around: null }))]

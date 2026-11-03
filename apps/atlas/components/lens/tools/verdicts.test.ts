@@ -322,6 +322,9 @@ test('the lightest competition counts the neighbours: none inside but a crowded 
   const verdict = competitorsVerdict(ranked, 'light', 'صيدلية', 1000, 1000)!
   assert.equal(verdict.lead, 'أخف منافسة على «صيدلية» مع جواره: جاره')
   assert.equal(verdict.why[0], 'هو وجواره (حيّان): 11,667 ساكن لكل منافس (35,000 ساكن، 3 منشآت).')
+  // weighted by nearness: the order changes, the figure said is the plain one
+  const near = rankLightAround(table, neighbours, () => 6)
+  assert.match(competitorsVerdict(near, 'light', 'صيدلية', 1000, 1000)!.why[0], /11,667 ساكن لكل منافس \(35,000 ساكن، 3 منشآت\)، والترتيب يحسب الجار الأقرب أكثر\.$/)
 })
 
 test('a district settled over under half of its area is said, with the share', () => {
@@ -380,6 +383,9 @@ test('the gaps top reorders by the gap net of the surplus next door, and the pee
     'ظهرة لبن': { districts: 6, total: 73, top: { name: 'طويق', n: 37 } }, 'الملك عبدالعزيز': { districts: 4, total: 0, top: null },
   }
   const ranked = rankGapsAround(short, (r) => surplus[r.district_ar] ?? null)
+  // shared: ظهرة لبن's neighbours each border six districts, so a sixth of their surplus serves it (73 ÷ 6 ≈ 12)
+  const shared = rankGapsAround(short, (r) => surplus[r.district_ar] ?? null, 10, (r) => (surplus[r.district_ar]?.total ?? 0) / 6)
+  assert.deepEqual(shared.map((r) => [r.district_ar, r.net ?? null]), [['ظهرة لبن', 84], ['الملك عبدالعزيز', 68], ['المصانع', null]])
   assert.deepEqual(ranked.map((r) => [r.district_ar, r.net ?? null]), [['الملك عبدالعزيز', 68], ['ظهرة لبن', 23], ['المصانع', null]])
   const verdict = gapsVerdict(ranked, 'صيدلية', 716, 'measured', ranked[0].around, true)!
   assert.equal(verdict.lead, 'أكبر نقص في «صيدلية» مع حساب الجوار: الملك عبدالعزيز، ينقصه 68 منشأة')

@@ -94,12 +94,20 @@ export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSel
     const byName = new Map(result.districts.map((row) => [row.district_ar, row]))
     const nameOf = new Map(rows.map((row) => [row.id, row.name]))
     const idOf = new Map(rows.map((row) => [row.name, row.id]))
+    const surplusOf = (other: string) => {
+      const near = byName.get(nameOf.get(other) ?? '')
+      return near && near.expected_businesses != null ? { name: near.district_ar, n: near.businesses - Math.round(near.expected_businesses) } : null
+    }
     return rankGapsAround(result.districts.filter((row) => isShort(row)), (row) => {
       const id = idOf.get(row.district_ar)
-      return id ? aroundOf(id, neighbours, (other) => {
-        const near = byName.get(nameOf.get(other) ?? '')
-        return near && near.expected_businesses != null ? { name: near.district_ar, n: near.businesses - Math.round(near.expected_businesses) } : null
-      }) : null
+      return id ? aroundOf(id, neighbours, surplusOf) : null
+    }, 10, (row) => {
+      // each neighbour's surplus shared among its own neighbours, so one crowded district is not subtracted six times
+      const id = idOf.get(row.district_ar)
+      return [...(id ? neighbours?.get(id) ?? [] : [])].reduce((sum, other) => {
+        const surplus = surplusOf(other)?.n ?? 0
+        return sum + (surplus > 0 ? surplus / Math.max(1, neighbours?.get(other)?.size ?? 1) : 0)
+      }, 0)
     })
   }, [result, rows, neighbours])
   useEffect(() => {
