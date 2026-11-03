@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import Link from 'next/link'
+import { Building2, Calculator, ClipboardList, Megaphone, Users } from 'lucide-react'
 import { ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
 import { CopyLinkButton } from '@/components/shared/copy-link'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -23,7 +25,7 @@ import { MapOnboarding } from './map-onboarding'
 import { SavedComparisons } from './saved-comparisons'
 import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { cleanQuery, readMapOptions, readMapQuery, writeMapOptions, writeMapQuery } from './map-query'
-import { backIfReturning, historyGate, pushedState, rememberView } from '@/lib/handoff'
+import { backIfReturning, historyGate, homesHref, priceStartHref, pushedState, rememberView } from '@/lib/handoff'
 import { HALF, MapSheet, PEEK_PX, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, journeyStart, lensById, metricAvailability, neededTables, nextStep, stepTables, type LensId, type MetricId, type ToolId } from './lenses'
 import { CompareStart, JourneySummary, StartFrom } from './journey'
@@ -321,6 +323,13 @@ function DistrictCard({ name, lines, at, top: ceiling, bottom: floor, onDetails,
 }
 
 type Pointed = { id: string; x: number; y: number; width: number; height: number }
+/** One action under a tool's verdict: a link to another page, or a step on this map. One look for both. */
+function NextAction({ href, onClick, icon: Icon, children }: { href?: string; onClick?: () => void; icon: typeof ArrowLeft; children: ReactNode }) {
+  const look = 'inline-flex min-h-9 items-center gap-1.5 rounded-full border border-primary/40 bg-card px-3 py-1 text-sm font-semibold text-primary outline-none transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:min-h-11'
+  const body = <><Icon className="size-4 shrink-0" aria-hidden />{children}</>
+  return href ? <Link href={href} className={look}>{body}</Link> : <button type="button" onClick={onClick} className={look}>{body}</button>
+}
+
 type PointerStore = { get: () => Pointed | null; set: (next: Pointed | null) => void; subscribe: (listener: () => void) => () => void }
 
 /**
@@ -875,6 +884,34 @@ export function LensMap() {
   const pickedSay = chosen.length === 1
     ? `اخترت ${chosen[0].name}. السكان ${format(chosen[0].population)}، المنشآت ${format(chosen[0].businesses)}.`
     : chosen.length > 1 ? `${counted(chosen.length, 'district')} مختارة: ${chosen.map((row) => row.name).join('، ')}.` : ''
+  // the step after each answer, under its verdict (the tools' `next` slot): what the answer names first (its `lead`
+  // district) carried into the request, the business list, the listings or the price, nothing typed again
+  const leadOf = overlay.lead ? data.rows.find((row) => row.id === overlay.lead) ?? null : null
+  // after a pick from an answer, the business list it opens is brought into view
+  const toBusinesses = () => window.setTimeout(() => document.querySelector('section[aria-label="منشآت الحي"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300)
+  const nextFor = (id: ToolId): ReactNode => {
+    if (id === 'gaps' && leadOf) return <>
+      <NextAction icon={ClipboardList} onClick={() => { pickFromList(leadOf.id); toBusinesses() }}>طلب تسعير أو حملة في {leadOf.name}</NextAction>
+      <NextAction icon={Building2} href={homesHref({ city, districts: [leadOf.id], types: ['store'] })}>محلات للإيجار في {leadOf.name}</NextAction>
+    </>
+    if (id === 'competitors' && leadOf) return (
+      <NextAction icon={Users} onClick={() => { setSelected([leadOf.id]); setSearch({ q: rival ?? studied.label, nonce: Date.now() }) }}>منشآت «{rival ?? studied.label}» في {leadOf.name}</NextAction>
+    )
+    if (id === 'audience' && (chosen.length || leadOf)) {
+      const scope = chosen.length ? chosen : [leadOf!]
+      return <NextAction icon={Megaphone} onClick={() => { if (!chosen.length) setSelected([leadOf!.id]); setTool('businesses'); toBusinesses() }}>
+        جهّز حملة في {scope.length === 1 ? scope[0].name : counted(scope.length, 'district')}
+      </NextAction>
+    }
+    if (id === 'homes' && leadOf) return (
+      <NextAction icon={Calculator} href={priceStartHref({ city, district: leadOf.id })}>سعّر عقاراً في {leadOf.name}</NextAction>
+    )
+    if (id === 'around' && overlay.sites?.length) return <>
+      <NextAction icon={ArrowLeft} onClick={() => [...document.querySelectorAll('article h3')].find((title) => title.textContent?.startsWith('بطاقة الموقع'))?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>بطاقة الموقع</NextAction>
+      {lensById(lens).steps.some((item) => item.tool === 'homes') && <NextAction icon={Building2} onClick={() => setTool('homes')}>محلات للإيجار حول المواقع</NextAction>}
+    </>
+    return null
+  }
   const showBusinesses = !search && selected.length > 0 && lens !== 'property' && ['businesses', 'gaps', 'district', 'competitors'].includes(tool)
   // «ابدأ من»: a step that takes a district, opened with none picked, starts from the district an earlier step put first
   const startLeads: Partial<Record<ToolId, string>> = {}
@@ -1088,14 +1125,14 @@ export function LensMap() {
                     {tool !== 'businesses' && (
                       <motion.div key={tool} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         transition={{ duration: reduce ? 0 : DURATION.fast, ease: EASE }}>
-                        {tool === 'gaps' && <GapsTool city={city} cityName={cityName} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} selected={selected} onHover={setHovered} />}
-                        {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggleFromList} onHover={setHovered} />}
+                        {tool === 'gaps' && <GapsTool city={city} cityName={cityName} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} selected={selected} onHover={setHovered} next={nextFor('gaps')} />}
+                        {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggleFromList} onHover={setHovered} next={nextFor('audience')} />}
                         {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} onOverlay={onOverlay} onHover={setHovered} onSelect={pickFromList} onActivity={setRival}
-                          onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} />}
+                          onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} next={nextFor('competitors')} />}
                         {tool === 'corridors' && <CorridorsTool city={city} rows={data.rows} onOverlay={onOverlay} />}
-                        {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} />}
+                        {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} next={nextFor('around')} />}
                         {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
-                        {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} />}
+                        {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} next={nextFor('homes')} />}
                         {tool === 'compare' && <CompareTool rows={data.rows} selected={chosen} />}
                         {/* the comparison kept by name inside Atlas, and every saved one a tap away (foundation §3.4) */}
                         {tool === 'compare' && <SavedComparisons city={city} cityName={cityName} districts={chosen.map((row) => row.name)}
