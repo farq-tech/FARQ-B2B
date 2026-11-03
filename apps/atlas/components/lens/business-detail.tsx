@@ -5,7 +5,7 @@ import { ltr, numberFormat } from '@/lib/insights-api'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { openNow, statusLabel, todayHours } from '@/lib/business-status'
 
-const sar = (value: number) => `${numberFormat.format(Math.round(value))} ر.س`
+const sar = (value: number) => `${numberFormat.format(Math.round(value))} ريال`
 
 // the directory's free text sometimes carries Arabic-Indic or Persian digits («٩ ص - ١١ م»); Atlas shows 0-9 everywhere
 const INDIC = /[٠-٩۰-۹]/g

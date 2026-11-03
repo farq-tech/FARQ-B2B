@@ -124,9 +124,9 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
     ['male', single && { label: 'الذكور', value: share(male), explain: EXPLAIN.sex, pending: asking }],
     ['female', single && { label: 'الإناث', value: share(female), explain: EXPLAIN.sex, pending: asking }],
     ['saudi', single && { label: 'السعوديون', value: profile?.saudi_pct == null ? MISSING : `${Math.round(profile.saudi_pct)}%`, explain: EXPLAIN.saudi, pending: asking }],
-    ['menuPrice', single && { label: 'سعر الصنف المعتاد', value: show(single.menuPrice, ' ر.س'), explain: EXPLAIN.menuPrice(single.menuPricePlaces) }],
+    ['menuPrice', single && { label: 'سعر الصنف المعتاد', value: show(single.menuPrice, ' ريال'), explain: EXPLAIN.menuPrice(single.menuPricePlaces) }],
     ['villaShare', single && lens !== 'distributors' && { label: 'حصة الفلل من المساكن', value: single.villaShare == null ? MISSING : `${Math.round(single.villaShare)}%`, explain: EXPLAIN.villaShare }],
-    ['income', single && lens !== 'distributors' && { label: 'متوسط الدخل', value: show(single.income, ' ر.س'), explain: EXPLAIN.income }],
+    ['income', single && lens !== 'distributors' && { label: 'متوسط الدخل', value: show(single.income, ' ريال'), explain: EXPLAIN.income }],
     ['growth', single && lens !== 'marketers' && { label: 'مبانٍ جديدة وتحت الإنشاء',
       value: single.underConstruction != null && single.newBuildings != null ? show(single.underConstruction + single.newBuildings) : MISSING,
       explain: EXPLAIN.growth(single.underConstruction, single.newBuildings) }],
@@ -198,7 +198,7 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
       {!pricesFirst && unmetBlock}
       {single && (
         <div className="mt-4">
-          <Figure label="سعر متر البيع في الصفقات المسجلة" value={show(single.deals.residential?.median ?? null, ' ر.س')} explain={EXPLAIN.registeredDeals(single.deals.residential?.deals)} />
+          <Figure label="سعر متر البيع في الصفقات المسجلة" value={show(single.deals.residential?.median ?? null, ' ريال')} explain={EXPLAIN.registeredDeals(single.deals.residential?.deals)} />
         </div>
       )}
       {single && Object.keys(single.realEstate).length > 0 && (
@@ -211,13 +211,13 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
                 <span className="flex justify-between gap-2">
                   <span>{groupLabel(group)}</span>
                   <Explained title={groupLabel(group)} lines={EXPLAIN.realEstate(figure!.listings, group)} className="shrink-0 font-semibold">
-                    {show(figure!.median, ' ر.س')}{figure!.listings < RELIABLE_LISTINGS && <span className="ms-1 text-sm font-normal text-warning">عينة صغيرة</span>}
+                    {show(figure!.median, ' ريال')}{figure!.listings < RELIABLE_LISTINGS && <span className="ms-1 text-sm font-normal text-warning">عينة صغيرة</span>}
                   </Explained>
                 </span>
                 {/* the same figure split by the building's age, where enough ads state it */}
                 {figure!.byAge && (
                   <Explained title={`${groupLabel(group)} حسب عمر العقار`} lines={EXPLAIN.realEstateByAge(figure!.byAge.new?.listings, figure!.byAge.older?.listings)} className="self-end text-sm text-muted-foreground">
-                    جديد (سنتان أو أقل): {figure!.byAge.new ? show(figure!.byAge.new.median, ' ر.س') : 'غير متاح'} · أقدم: {figure!.byAge.older ? show(figure!.byAge.older.median, ' ر.س') : 'غير متاح'}
+                    جديد (سنتان أو أقل): {figure!.byAge.new ? show(figure!.byAge.new.median, ' ريال') : 'غير متاح'} · أقدم: {figure!.byAge.older ? show(figure!.byAge.older.median, ' ريال') : 'غير متاح'}
                   </Explained>
                 )}
               </li>

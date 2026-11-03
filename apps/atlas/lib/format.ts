@@ -21,7 +21,7 @@ const numFmt = new Intl.NumberFormat('en-US')
 export const formatDate = (iso: string) => dateFmt.format(new Date(iso))
 export const formatDateTime = (iso: string) => dateTimeFmt.format(new Date(iso))
 export const formatNumber = (n: number) => numFmt.format(n)
-export const formatSar = (n: number) => `${numFmt.format(n)} ر.س`
+export const formatSar = (n: number) => `${numFmt.format(n)} ريال`
 
 export function formatPhone(p: string | null) {
   if (!p) return 'غير متاح'
