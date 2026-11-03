@@ -27,12 +27,14 @@ const NAME: Record<SheetSnap, string> = { peek: 'مصغّرة', half: 'نصف ا
  * pushes the steps away, and a collapsed sheet shows no half-scrolled body. From lg up it is the same panel as a fixed
  * column beside the map, and the snap does nothing.
  */
-export function MapSheet({ snap, onSnap, title, summary, header, resetKey, panel, onPeek, children }: {
+export function MapSheet({ snap, onSnap, title, summary, summaryAction, header, resetKey, panel, onPeek, children }: {
   snap: SheetSnap
   onSnap: (next: SheetSnap) => void
   title: ReactNode
   /** The step's answer in one line under the title, so a peeking sheet already says what the map shows. */
   summary?: ReactNode
+  /** One control for that line (a failed step's retry), on a phone only: from lg the step's own notice has it. */
+  summaryAction?: ReactNode
   /** What stays in view above the scrolling body at every stop, such as the journey's steps. */
   header?: ReactNode
   /** The body returns to its top when this changes (another step opened). */
@@ -135,6 +137,8 @@ export function MapSheet({ snap, onSnap, title, summary, header, resetKey, panel
           <span className="w-full truncate text-center text-sm font-semibold">{title}</span>
           {summary && <span className="w-full truncate text-center text-sm text-muted-foreground tabular-nums">{summary}</span>}
         </div>
+        {/* the line's one action (a failed step's «أعد المحاولة»), outside the handle so it is a control of its own */}
+        {summaryAction && <div className="-mt-1 flex justify-center pb-1.5 lg:hidden">{summaryAction}</div>}
         {header && <div className="px-3 lg:pt-3">{header}</div>}
       </div>
       {/* collapsed, the body has no room and is hidden (and out of the tab order) rather than half-scrolled into view */}

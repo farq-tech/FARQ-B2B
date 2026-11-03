@@ -49,8 +49,10 @@ const MAX_DISTRICTS = 5
  * activity, picked and turned into a request — a quote request, a WhatsApp campaign or a saved list. The request
  * opens in «الطلبات» for review; nothing is sent from here (docs/atlas-product-foundation.md §5).
  */
-export function BusinessesPanel({ city, districts, query, onLocate, located }: {
+export function BusinessesPanel({ city, districts, query, onLocate, located, onAnswer }: {
   city: string
+  /** Told the list's answer in one line once it has one (its count), so the journey's step can say it. */
+  onAnswer?: (line: string) => void
   districts: string[]
   query?: string
   /** Frames the map on one business and marks it (the map's own panel); absent where there is no map beside it. */
@@ -159,6 +161,12 @@ export function BusinessesPanel({ city, districts, query, onLocate, located }: {
       setStatus('error')
     }
   }
+
+  // the list's answer in one line for the journey (the step's ✓ line and its closing card): the service's count, as shown
+  const answeredLine = (status === 'ready' || status === 'guest') && total != null
+    ? `${counted(total, 'business')}${activity.trim() ? ` «${activity.trim()}»` : ''} في ${!districts.length ? 'المدينة' : districts.length === 1 ? districts[0] : counted(districts.length, 'district')}`
+    : null
+  useEffect(() => { if (answeredLine) onAnswer?.(answeredLine) }, [answeredLine, onAnswer])
 
   const shown = rows
   const allPicked = shown.length > 0 && shown.every((row) => picked.has(row.id))

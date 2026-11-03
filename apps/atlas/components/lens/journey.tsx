@@ -5,6 +5,8 @@ import { CopyLinkButton } from '@/components/shared/copy-link'
 import { Chip } from '@/components/ui/chip'
 import { numberFormat } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
+import Link from 'next/link'
+import type { Decision, DecisionAction } from './journey-logic'
 import type { JourneyStep, Lens, ToolId } from './lenses'
 
 /**
@@ -38,7 +40,7 @@ export function CompareStart({ names, why, onPick }: { names: [string, string]; 
  * recomputed here), a ✓ where it answered, and a tap to open a step not done yet. What the customer carries into the
  * decision is on one card; the link reopens the same view inside the platform (no export).
  */
-export function JourneySummary({ lens, cityName, tool, done, answers, picked, activity, onOpen }: {
+export function JourneySummary({ lens, cityName, tool, done, answers, picked, activity, decision, onAct, onOpen }: {
   lens: Lens
   cityName: string
   /** The open step: its row is not a button. */
@@ -50,6 +52,10 @@ export function JourneySummary({ lens, cityName, tool, done, answers, picked, ac
   picked: string[]
   /** The studied activity, when the customer chose one (never the default nobody picked). */
   activity: string | null
+  /** What the journey points to and what to do with it (journey-logic.ts decisionFor); no pick, no decision block. */
+  decision?: Decision | null
+  /** Runs a non-link action of the decision (open the businesses, open a step on a district). */
+  onAct?: (action: DecisionAction) => void
   onOpen: (tool: ToolId) => void
 }) {
   const answered = lens.steps.filter((step) => done.includes(step.tool)).length
@@ -62,6 +68,22 @@ export function JourneySummary({ lens, cityName, tool, done, answers, picked, ac
           {answered === lens.steps.length ? 'أكملت الخطوات كلها' : `أكملت ${numberFormat.format(answered)} من ${numberFormat.format(lens.steps.length)} خطوات`}{context ? ` · ${context}` : ''}
         </p>
       </div>
+      {/* the decision first: what the steps pointed to, and its actions (each through the flow that already exists:
+          the businesses list makes the quote request or the campaign after review; the other pages take a link) */}
+      {decision?.pick && (
+        <div className="flex flex-col gap-2 rounded-xl bg-primary/5 p-3">
+          <p className="text-sm text-muted-foreground">{decision.title}</p>
+          <p className="text-base font-bold">{decision.pick}</p>
+          {decision.actions.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {decision.actions.map((action) => action.kind === 'link'
+                ? <Link key={action.label} href={action.href} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-primary/50 bg-card px-3 text-sm font-semibold text-primary hover:bg-primary/10">{action.label}<ArrowLeft className="size-4" aria-hidden /></Link>
+                : <Chip key={action.label} onClick={() => onAct?.(action)} className="h-auto min-h-9 border-primary/50 py-1.5 text-start font-semibold whitespace-normal text-primary">{action.label}</Chip>)}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">أطلس يجمع الأرقام ولا يقرر عنك. لا يُرسل شيء قبل مراجعتك.</p>
+        </div>
+      )}
       <ol className="flex flex-col gap-1.5">
         {lens.steps.map((step, index) => {
           const ok = done.includes(step.tool)

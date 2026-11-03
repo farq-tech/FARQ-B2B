@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
-import { ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, Hourglass, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
 import { CopyLinkButton } from '@/components/shared/copy-link'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
@@ -25,6 +25,8 @@ import { historyGate, rememberView } from '@/lib/handoff'
 import { HALF, MapSheet, PEEK_PX, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, journeyStart, lensById, metricAvailability, neededTables, nextStep, stepTables, type LensId, type MetricId, type ToolId } from './lenses'
 import { CompareStart, JourneySummary, StartFrom } from './journey'
+import { STEP_WAIT, decisionFor, pickedLine, stepLine, type DecisionAction } from './journey-logic'
+import { StillWorking } from './tools/choice'
 import { AroundTool } from './tools/around-tool'
 import { AudienceTool } from './tools/audience-tool'
 import { CompareTool } from './tools/compare-tool'
@@ -401,6 +403,9 @@ const TABLE_LABEL: Record<CityTable, string> = {
   deals: 'الصفقات المسجلة', restaurants: 'مطاعم التوصيل', menuPrices: 'أسعار الأصناف', demand: 'البحث بلا نتيجة',
 }
 
+/** Where the businesses list sits in the panel, scrolled to when the decision card opens it. */
+const JOURNEY_BUSINESSES = 'journey-businesses'
+
 /** The steps whose first district is a place to go on to (a gap, a matching audience, the best listing's district), not one to avoid. */
 const LEADS_TO_START: readonly ToolId[] = ['gaps', 'audience', 'homes']
 
@@ -510,6 +515,9 @@ export function LensMap() {
     }
   }, [tool, trailKey, markDone, remember])
   const trailNow = trail.key === trailKey ? trail : null
+  // the decision card opened the picked districts' businesses; another step, group or city closes them
+  const [decisionBusinesses, setDecisionBusinesses] = useState(false)
+  useEffect(() => { setDecisionBusinesses(false) }, [tool, lens, city])
   const active = lensById(lens)
 
   // a ✓ answered for the city it was given in: another city starts its journey unanswered
@@ -719,7 +727,16 @@ export function LensMap() {
   const cityName = cities.find((item) => item.en === city)?.ar || city
   const step = active.steps.find((item) => item.tool === tool)
   // a step whose answer is the picked districts' summary is done once a district is picked on it
-  useEffect(() => { if (selected.length && TOOL_INPUTS[tool].pickAnswers) markDone(tool) }, [selected.length, tool, markDone])
+  // and posts its own answer line from the picked rows (the businesses step posts its count from its list instead)
+  const pickedKey = selected.join('|')
+  const pickedAnswer = TOOL_INPUTS[tool].pickAnswers ? pickedLine(tool, chosen) : null
+  useEffect(() => {
+    if (!pickedKey || !TOOL_INPUTS[tool].pickAnswers) return
+    markDone(tool)
+    if (tool !== 'businesses') remember(trailKey, tool, pickedAnswer, null)
+  }, [pickedKey, tool, markDone, remember, trailKey, pickedAnswer])
+  // the businesses list's own line (its count in the picked districts), kept as that step's answer
+  const onBusinessesAnswer = useCallback((line: string | null) => { if (line) remember(trailKey, 'businesses', line, null) }, [remember, trailKey])
   // «التالي»: the next step of the journey, named with what it carries over (the studied activity, the picked district)
   const next = nextStep(active, tool)
   // the activity is carried by name only once the customer chose it (a pick, a link): the default nobody picked is
@@ -781,7 +798,19 @@ export function LensMap() {
     : null
   // a step still waiting for the customer says what to do on it; only the steps whose answer is the ranking itself
   // («الأحياء والترتيب», «أين يُبنى الآن؟») lead with the top district of the shading figure
-  const peekLine = overlay.summary ?? (tool === 'district' || tool === 'growth' ? rankLine ?? step?.ask ?? null : step?.ask ?? rankLine)
+  // the step's own line: its answer, else that it is working, slow or failed (with a retry), else what to do on it
+  const line = stepLine({ tool, step: step ?? null, summary: overlay.summary ?? pickedAnswer, state: overlay.state, slow: overlay.slow, rankLine })
+  const retry = overlay.state === 'error' ? overlay.retry ?? null : null
+  const peekLine = line ? (
+    <span className={cn('inline-flex items-center gap-1.5', line.tone === 'error' && 'text-destructive')}>
+      {(line.tone === 'loading' || line.tone === 'slow') && <Hourglass className="size-3.5 shrink-0 animate-pulse text-primary" aria-hidden />}
+      <span className="truncate">{line.text}</span>
+    </span>
+  ) : null
+  const peekAction = retry && !search && !chosen.length ? <Chip onClick={retry}>أعد المحاولة</Chip> : null
+  // a slow step says why it takes long and what to do meanwhile, once, above its tool (territories and the site
+  // comparison say it in their own words already)
+  const slowWait = overlay.state === 'loading' && overlay.slow && tool !== 'territories' && tool !== 'around' ? STEP_WAIT[tool] : null
   // the card stays while its district is picked and the map takes clicks as districts
   const cardRow = card && selected.includes(card.id) && !overlay.onPick ? data.rows.find((row) => row.id === card.id) ?? null : null
   const cardLines = (row: DistrictRow): { label: string; value: string }[] => {
@@ -851,6 +880,22 @@ export function LensMap() {
   for (const id of LEADS_TO_START) if (trailNow?.leads[id]) startLeads[id] = trailNow.leads[id]
   const start = !search && !selected.length && tool !== 'compare' ? journeyStart(active, tool, startLeads, (id) => rowById.has(id)) : null
   const startRow = start ? rowById.get(start.id) ?? null : null
+  // the card the journey closes on: what its steps pointed to, and what to do with it through the existing flows
+  const decision = !next ? decisionFor({ lens, city, rows: data.rows, picked: chosen, leads: trailNow?.leads ?? {}, activity: chosenActivity, done }) : null
+  const act = (action: DecisionAction) => {
+    if (action.kind === 'link') return
+    if (action.kind === 'step') {
+      if (action.ids.length) { setSelected(action.ids); flyTo(...action.ids) }
+      focusAfter.current = tabId(action.tool)
+      setTool(action.tool)
+      return
+    }
+    setSelected(action.ids)
+    flyTo(...action.ids)
+    setDecisionBusinesses(true)
+    // once the list is drawn (under the card, or the step's own), it comes into view
+    window.setTimeout(() => document.getElementById(JOURNEY_BUSINESSES)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300)
+  }
   // «قارن مباشرة»: the two districts the shading figure ranks first, or the picked one and the top other
   const compareStart = (() => {
     if (tool !== 'compare' || selected.length >= 2 || search || metricPending) return null
@@ -1014,11 +1059,12 @@ export function LensMap() {
             </div>
           </div>
         </div>
-        <MapSheet snap={sheet} onSnap={setSheet} onPeek={setPeekPx} title={sheetTitle} summary={!search && !chosen.length ? peekLine : null} resetKey={search ? `search|${search.nonce}` : `${lens}|${tool}`}
+        <MapSheet snap={sheet} onSnap={setSheet} onPeek={setPeekPx} title={sheetTitle} summary={!search && !chosen.length ? peekLine : null} summaryAction={peekAction} resetKey={search ? `search|${search.nonce}` : `${lens}|${tool}`}
           panel={!search && data.status !== 'error' ? { id: STEP_PANEL, labelledBy: tabId(tool) } : null}
           header={!search && data.status !== 'error' ? (
-            // the steps stay above the scrolling body at every stop of the sheet, and on one line from lg too
-            <ScrollRow role="tablist" arrows label={`خطوات ${active.label}`} active={tool} onKeyDown={tabKeys} className="-mx-3 gap-1.5 px-3 pb-1">
+            // the steps stay above the scrolling body at every stop of the sheet: one sideways line on a phone, and from lg
+            // they wrap, so a five-step journey shows every step and its ✓ at once (no arrows, nothing cut)
+            <ScrollRow role="tablist" arrows label={`خطوات ${active.label}`} active={tool} onKeyDown={tabKeys} className="-mx-3 gap-1.5 px-3 pb-1 lg:flex-wrap lg:overflow-visible">
               {active.steps.map((item, index) => (
                 <StepTab key={item.tool} tool={item.tool} index={index} label={item.label} active={tool === item.tool} done={done.includes(item.tool)} onClick={() => setTool(item.tool)} />
               ))}
@@ -1051,6 +1097,7 @@ export function LensMap() {
                       onDetails={() => document.getElementById('picked-summary')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />
                   )}
                   {start && startRow && <StartFrom name={startRow.name} from={start.from} onPick={() => pickFromList(startRow.id)} />}
+                  {slowWait && <StillWorking>{slowWait.why} {slowWait.meanwhile}</StillWorking>}
                   {/* the open step's tool crossfades as the step changes — a short, gentle swap so the panel reads as one
                       surface answering, not a flicker. mode="wait" keeps one tool mounted at a time (no racing overlays);
                       the shared panels below (summary, businesses) stay put and never remount here. */}
@@ -1084,7 +1131,12 @@ export function LensMap() {
                         onClear={() => { focusAfter.current = tabId(tool); setSelected([]) }} />
                     </div>
                   )}
-                  {showBusinesses && <BusinessesPanel key={`${tool}|${rival ?? ''}`} city={city} districts={chosen.map((row) => row.name)} query={tool === 'competitors' ? rival ?? undefined : undefined} onLocate={locate} located={located?.id ?? null} />}
+                  {showBusinesses && (
+                    <div id={JOURNEY_BUSINESSES} className="scroll-mt-2">
+                      <BusinessesPanel key={`${tool}|${rival ?? ''}`} city={city} districts={chosen.map((row) => row.name)} query={tool === 'competitors' ? rival ?? undefined : undefined} onLocate={locate} located={located?.id ?? null}
+                        onAnswer={tool === 'businesses' ? onBusinessesAnswer : undefined} />
+                    </div>
+                  )}
                   {data.status !== 'loading' && (tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full={lens === 'analysts' || tool === 'growth'} onRetry={metricFailed ? data.reload : null} loading={metricPending} />}
                   {/* once the step has answered, the journey goes on: the next step opens with the same activity and districts */}
                   {next && done.includes(tool) && (
@@ -1101,8 +1153,15 @@ export function LensMap() {
                   {/* the last step closes the journey: what each step answered, on one card, and a link to come back to it */}
                   {!next && active.steps.length > 1 && done.some((id) => active.steps.some((item) => item.tool === id)) && (
                     <JourneySummary lens={active} cityName={cityName} tool={tool} done={done} answers={trailNow?.summaries ?? {}}
-                      picked={chosen.map((row) => row.name)} activity={chosenActivity}
+                      picked={chosen.map((row) => row.name)} activity={chosenActivity} decision={decision} onAct={act}
                       onOpen={(id) => { focusAfter.current = tabId(id); setTool(id) }} />
+                  )}
+                  {/* the decision's businesses, where the quote request, the campaign or the list is made from the picks
+                      after review (the same list as every step's); only when the open step does not show it already */}
+                  {decisionBusinesses && selected.length > 0 && !showBusinesses && (
+                    <div id={JOURNEY_BUSINESSES} className="scroll-mt-2">
+                      <BusinessesPanel key={`decision|${pickedKey}`} city={city} districts={chosen.map((row) => row.name)} onLocate={locate} located={located?.id ?? null} />
+                    </div>
                   )}
                 </>
               )}
