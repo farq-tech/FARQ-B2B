@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Building2, Calculator, ClipboardList, Megaphone, Users } from 'lucide-react'
-import { ArrowLeft, Check, ChevronDown, ChevronLeft, Hourglass, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronUp, Hourglass, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
 import { CopyLinkButton } from '@/components/shared/copy-link'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
@@ -458,6 +458,7 @@ const DISTRICTS_MULTI = '__multi__'
  * three figures on the map, and one business search for every group.
  */
 export function LensMap() {
+  const { views: savedViews } = useAppStore()
   const cities = useCities()
   // the kept answers belong to the data they came from: a city list with other counts (a new snapshot) forgets them
   // the service's own snapshot time (X-Data-Version) when it sends one, the city list's counts otherwise
@@ -941,6 +942,15 @@ export function LensMap() {
   const rankLine = !toolColors && leadRow && leadValue != null
     ? `الأعلى في ${METRICS[metric].label}: ${leadRow.name} ${METRICS[metric].unit === '%' ? ltr(format(leadValue, '%')) : format(leadValue, METRICS[metric].unit)}`
     : null
+  // a ranking step has answered once its ranking is drawn (its first district and line, as the ranking reads them);
+  // a pick then answers in its place (pickedLine, above)
+  const growthFirst = tool === 'growth' && data.status !== 'loading' && !selected.length
+  const ranked = (tool === 'growth' || tool === 'district') && data.status === 'ready' && !metricPending && !selected.length && rankLine != null
+  useEffect(() => {
+    if (!ranked || !rankLine) return
+    markDone(tool)
+    remember(trailKey, tool, rankLine, leadId)
+  }, [ranked, rankLine, leadId, tool, trailKey, markDone, remember])
   // a step still waiting for the customer says what to do on it; only the steps whose answer is the ranking itself
   // («الأحياء والترتيب», «أين يُبنى الآن؟») lead with the top district of the shading figure
   // the step's own line: its answer, else that it is working, slow or failed (with a retry), else what to do on it
@@ -953,6 +963,24 @@ export function LensMap() {
     </span>
   ) : null
   const peekAction = retry && !search && !chosen.length ? <Chip onClick={retry}>أعد المحاولة</Chip> : null
+  // a phone whose sheet only peeks cannot see the field the step asks for («اختر نشاطك…»): the ask is a button that
+  // raises the sheet halfway (and, with a mouse or keyboard, puts the cursor on the step's first control)
+  const startStep = () => {
+    setSheet('half')
+    // on a touch screen the field is shown, not focused: a focused field opens the keyboard over the chips under it
+    if (window.matchMedia('(pointer: coarse)').matches) return
+    window.setTimeout(() => {
+      const first = document.querySelector<HTMLElement>(`#${STEP_PANEL} input, #${STEP_PANEL} select, #${STEP_PANEL} button`)
+      first?.focus({ preventScroll: true })
+    }, 320)
+  }
+  const askAction = line?.tone === 'ask' && sheet === 'peek' && !search && !chosen.length ? (
+    <button type="button" onClick={startStep}
+      className="inline-flex min-h-9 max-w-[calc(100vw-2rem)] items-center gap-1.5 rounded-full border border-primary/40 bg-primary/5 px-3 text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:min-h-11">
+      <span className="truncate">{line.text}</span>
+      <ChevronUp className="size-4 shrink-0 text-primary" aria-hidden />
+    </button>
+  ) : null
   // a slow step says why it takes long and what to do meanwhile, once, above its tool (territories and the site
   // comparison say it in their own words already)
   const slowWait = overlay.state === 'loading' && overlay.slow && tool !== 'territories' && tool !== 'around' ? STEP_WAIT[tool] : null
@@ -1230,9 +1258,10 @@ export function LensMap() {
           <PointerTip store={pointer} describe={describePointed} />
           <p aria-live="polite" className="sr-only">{pickedSay}</p>
           <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed || noDistricts}
-            onShowMe={leadId ? () => pickFromList(leadId) : null} showMeName={leadRow?.name ?? null}
-            // «أين ينقص نشاطي؟» is the step that waits for the activity before it colours anything (the others start on one)
-            firstAsk={tool === 'gaps' && !chosenActivity ? step?.ask ?? null : null} />
+            onShowMe={startRow ? () => pickFromList(startRow.id) : leadId ? () => pickFromList(leadId) : null} showMeName={startRow?.name ?? leadRow?.name ?? null}
+            // the hint asks what the step needs first: «أين ينقص نشاطي؟» its activity, a step that takes no district its own
+            // choice (the reps, a site, an activity); the others a district
+            firstAsk={(tool === 'gaps' && !chosenActivity) || !TOOL_INPUTS[tool].district ? step?.ask ?? null : null} onFirstAsk={startStep} />
           {/* the view is in the address, so its link reopens this work (above the «؟» on a phone, beside it from lg) */}
           <CopyLinkButton className="absolute end-3 bottom-[calc(6.5rem+var(--lift,0px))] z-10 transition-[bottom,color] duration-300 motion-reduce:transition-none lg:end-16 lg:top-3 lg:bottom-auto" />
           {noDistricts && (
@@ -1316,7 +1345,7 @@ export function LensMap() {
             </div>
           </div>
         </div>
-        <MapSheet snap={sheet} onSnap={setSheet} onPeek={setPeekPx} title={sheetTitle} summary={!search && !decisionLine && !chosen.length ? peekLine : null} summaryAction={!search && decisionLine ? decisionLine : peekAction} resetKey={search ? `search|${search.nonce}` : `${lens}|${tool}`}
+        <MapSheet snap={sheet} onSnap={setSheet} onPeek={setPeekPx} title={sheetTitle} summary={!search && !decisionLine && !askAction && !chosen.length ? peekLine : null} summaryAction={!search && decisionLine ? decisionLine : askAction ?? peekAction} resetKey={search ? `search|${search.nonce}` : `${lens}|${tool}`}
           panel={!search && data.status !== 'error' ? { id: STEP_PANEL, labelledBy: tabId(tool) } : null}
           header={!search && data.status !== 'error' ? (
             // the steps stay above the scrolling body at every stop of the sheet: one sideways line on a phone, and from lg
@@ -1371,22 +1400,26 @@ export function LensMap() {
                         {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
                         {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} next={nextFor('homes')} onListings={setStepListings} />}
                         {tool === 'compare' && <CompareTool rows={data.rows} selected={chosen} />}
-                        {/* the comparison kept by name inside Atlas, and every saved one a tap away (foundation §3.4) */}
-                        {tool === 'compare' && <SavedComparisons city={city} cityName={cityName} districts={chosen.map((row) => row.name)}
+                        {/* the shortest way to an answer right under «اختر حيين»: the two districts the ranking puts first */}
+                        {compareStart && <CompareStart names={[compareStart.rows[0].name, compareStart.rows[1].name]} why={compareStart.why}
+                          onPick={() => { const ids = compareStart.rows.map((row) => row.id); setSelected(ids); flyTo(...ids) }} />}
+                        {/* the comparison kept by name inside Atlas, and every saved one a tap away (foundation §3.4); with
+                            nothing picked and nothing saved there is nothing to show yet */}
+                        {tool === 'compare' && (chosen.length === 2 || savedViews.length > 0) && <SavedComparisons city={city} cityName={cityName} districts={chosen.map((row) => row.name)}
                           here={() => (typeof window === 'undefined' ? '' : `${window.location.pathname}${window.location.search}`)} onOpen={openView} />}
                         {/* the analysts' first step lists what they saved, so a comparison is reopened from where the journey starts */}
                         {tool === 'district' && lens === 'analysts' && <SavedListCard onOpen={openView} />}
                       </motion.div>
                     )}
                   </AnimatePresence>
-                  {compareStart && <CompareStart names={[compareStart.rows[0].name, compareStart.rows[1].name]} why={compareStart.why}
-                    onPick={() => { const ids = compareStart.rows.map((row) => row.id); setSelected(ids); flyTo(...ids) }} />}
                   {tool === 'businesses' && !selected.length && !start && (
                     <EmptyState icon={MousePointerClick} title="اختر حياً" body="اضغط حياً أو أكثر على الخريطة، أو اختره من «الحي» في الأعلى، فتظهر منشآته هنا. أو ابحث عن نشاط من الأعلى." />
                   )}
                   {/* while the city's tables load, the summary keeps its shape: its tiles said «غير متاح» and the ranking
                       stood empty, as if the city had no figures at all */}
                   {data.status === 'loading' && (tool === 'district' || tool === 'growth') && <SummarySkeleton cityName={cityName} />}
+                  {/* «أين يُبنى الآن؟» answers with its ranking: it comes first, the city's general figures after it */}
+                  {growthFirst && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full onRetry={metricFailed ? data.reload : null} loading={metricPending} />}
                   {data.status !== 'loading' && (tool === 'district' || tool === 'growth' || (selected.length > 0 && tool !== 'around' && tool !== 'homes')) && (
                     <div id="picked-summary" className="scroll-mt-2">
                       <DistrictPanel city={city} cityName={cityName} lens={lens} rows={data.rows} selected={chosen} total={data.total} failed={data.failed} pending={data.pending}
@@ -1401,7 +1434,7 @@ export function LensMap() {
                         onAnswer={tool === 'businesses' ? onBusinessesAnswer : undefined} />
                     </div>
                   )}
-                  {data.status !== 'loading' && (tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full={lens === 'analysts' || tool === 'growth'} onRetry={metricFailed ? data.reload : null} loading={metricPending} />}
+                  {data.status !== 'loading' && (tool === 'district' || tool === 'growth') && !growthFirst && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full={lens === 'analysts' || tool === 'growth'} onRetry={metricFailed ? data.reload : null} loading={metricPending} />}
                   {/* once the step has answered, the journey goes on: the next step opens with the same activity and districts */}
                   {next && done.includes(tool) && (
                     <button onClick={() => { focusAfter.current = tabId(next.tool); setTool(next.tool) }}

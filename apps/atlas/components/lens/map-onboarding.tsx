@@ -33,7 +33,7 @@ function write(state: CoachState) {
   try { localStorage.setItem(KEY, state) } catch { /* private window: the tour simply shows again next time */ }
 }
 
-export function MapOnboarding({ lens, onLens, picked, paused = false, onShowMe, showMeName = null, firstAsk = null }: {
+export function MapOnboarding({ lens, onLens, picked, paused = false, onShowMe, showMeName = null, firstAsk = null, onFirstAsk }: {
   lens: LensId
   onLens: (lens: LensId) => void
   picked: boolean
@@ -44,6 +44,8 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, onShowMe, 
   /** What the open step needs before a district means anything (its activity, «اختر نشاطك…»): the pick hint says this
    * first, so the tour and the panel never ask for two different things; once it is done the hint asks for the pick. */
   firstAsk?: string | null
+  /** Opens the step's first control for `firstAsk` (a phone's peeking sheet hides it). */
+  onFirstAsk?: () => void
   /** The map failed to open: the tour keeps its place and shows nothing over the failure notice. */
   paused?: boolean
 }) {
@@ -114,7 +116,7 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, onShowMe, 
   const skip = <button onClick={() => go('skipped')} className="shrink-0 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">تخطَّ الجولة</button>
   // the two hints on the map are one small line pinned to its top, under the phone's floating filters: they never sit
   // over the middle of the map, where the visitor taps a district, nor over the colour key in its bottom corner
-  const hint = (icon: ReactNode, text: string, action?: ReactNode) => hidden ? help : (
+  const hint = (icon: ReactNode, text: ReactNode, action?: ReactNode) => hidden ? help : (
     <>
       {help}
       <div role="status" className="pointer-events-none absolute inset-x-3 top-[7.5rem] z-[15] flex justify-center lg:top-3">
@@ -166,8 +168,9 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, onShowMe, 
   }
 
   if (state === 'waiting_pick') {
-    if (firstAsk) return hint(<MousePointerClick className="size-4 shrink-0 text-primary" aria-hidden />, firstAsk)
-    return hint(<MousePointerClick className="size-4 shrink-0 text-primary" aria-hidden />, onShowMe ? 'اضغط حياً على الخريطة' : 'اختر حياً: اضغطه على الخريطة',
+    if (firstAsk) return hint(<MousePointerClick className="size-4 shrink-0 text-primary" aria-hidden />, firstAsk,
+      onFirstAsk && <button onClick={onFirstAsk} className="shrink-0 text-sm font-semibold text-primary underline-offset-4 hover:underline lg:hidden">ابدأ</button>)
+    return hint(<MousePointerClick className="size-4 shrink-0 text-primary" aria-hidden />, onShowMe ? <><span className="lg:hidden">اضغط حياً</span><span className="max-lg:hidden">اضغط حياً على الخريطة</span></> : 'اختر حياً: اضغطه على الخريطة',
       onShowMe && <button onClick={() => { trackOnboardingStep('show_me'); onShowMe() }} className="max-w-[9rem] shrink-0 truncate text-sm font-semibold text-primary underline-offset-4 hover:underline">{showMeName ? `أو اعرض ${showMeName}` : 'أو أرني الأعلى'}</button>)
   }
 
