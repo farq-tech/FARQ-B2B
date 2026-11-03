@@ -218,11 +218,16 @@ function isInboxMessage(value: unknown): value is InboxMessage {
   return typeof message.id === 'string' && typeof message.requestId === 'string' && typeof message.body === 'string'
 }
 
-/** The account's saved comparisons; 'out' when signed out; null when the account cannot keep them or is out of reach. */
-async function fetchViews(): Promise<SavedView[] | 'out' | null> {
+/** Where saved comparisons can be kept: 'in' the account, 'out' (signed out), 'off' (this account cannot keep them),
+ * 'error' (the account did not answer), null before the first answer. */
+export type ViewsAccount = 'in' | 'out' | 'off' | 'error' | null
+
+/** The account's saved comparisons; 'out' when signed out; 'off' when the account cannot keep them; null when out of reach. */
+async function fetchViews(): Promise<SavedView[] | 'out' | 'off' | null> {
   try {
     const response = await fetch('/api/saved-views', { cache: 'no-store' })
     if (response.status === 401) return 'out'
+    if (response.status === 404) return 'off'
     if (!response.ok) return null
     const body = await response.json().catch(() => null) as { views?: unknown } | null
     return Array.isArray(body?.views) ? body.views.map(readView).filter((view): view is SavedView => Boolean(view)) : null
@@ -274,6 +279,10 @@ interface StoreValue extends State {
   /** Saves a comparison by name (the same address again is renamed, not copied); removes one by id. */
   saveComparison: (view: SavedView) => void
   removeComparison: (id: string) => void
+  /** Where the saved comparisons can be kept now (lib/store.tsx ViewsAccount). */
+  viewsAccount: ViewsAccount
+  /** Joins this device's comparisons to the account again (the «احفظ في حسابك» retry); true when all are kept there. */
+  syncComparisons: () => Promise<boolean>
   updateMessage: (id: string, patch: Partial<InboxMessage>) => void
 }
 
@@ -379,7 +388,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const viewsRef = useRef<SavedView[]>([])
   const removedRef = useRef<string[]>([])
   /** 'in' once the account answered, 'out' once it said signed out, null before or when it could not be reached. */
-  const accountRef = useRef<'in' | 'out' | null>(null)
+  const accountRef = useRef<ViewsAccount>(null)
+  const [viewsAccount, setViewsAccount] = useState<ViewsAccount>(null)
+  const setAccount = useCallback((next: ViewsAccount) => { accountRef.current = next; setViewsAccount(next) }, [])
   useEffect(() => { viewsRef.current = state.views; removedRef.current = state.viewsRemoved }, [state.views, state.viewsRemoved])
   const setViews = useCallback((views: SavedView[], viewsRemoved = removedRef.current) => {
     // the refs move with the dispatch, so a save and a sync answer arriving together both see the latest list
@@ -402,19 +413,25 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const syncViews = useCallback(async () => {
     const cloud = await fetchViews()
     if (cloud === 'out') {
-      accountRef.current = 'out'
+      setAccount('out')
       // signed out: the account's comparisons stay in the account, this device keeps the ones saved on it
       const own = deviceOnlyViews(viewsRef.current)
       if (own.length !== viewsRef.current.length) setViews(own)
-      return
+      return false
     }
-    if (cloud === null) { accountRef.current = null; return }
-    accountRef.current = 'in'
+    if (cloud === 'off' || cloud === null) { setAccount(cloud === 'off' ? 'off' : 'error'); return false }
+    setAccount('in')
     const plan = mergeSavedViews(viewsRef.current, cloud, removedRef.current)
     setViews(plan.views, plan.remove)
-    plan.upload.forEach(pushView)
     plan.remove.forEach(dropView)
-  }, [setViews, pushView, dropView])
+    // waited for, so a retry can say whether everything is in the account now
+    const sent = await Promise.all(plan.upload.map(async (view) => {
+      const ok = await sendView(view)
+      if (ok) markSynced(view.href)
+      return ok
+    }))
+    return sent.every(Boolean)
+  }, [setViews, dropView, markSynced, setAccount])
   useEffect(() => {
     if (!workspaceReady) return
     void syncViews()
@@ -439,7 +456,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   }, [workspaceReady, syncViews])
   /** Takes a view out of the account; remembered until the account confirms, so it is not merged back meanwhile. */
   const removeFromAccount = useCallback((href: string) => {
-    if (accountRef.current === 'out') return
+    if (accountRef.current === 'out' || accountRef.current === 'off') return
     setViews(viewsRef.current, [...removedRef.current.filter((item) => viewKey(item) !== viewKey(href)), href].slice(-100))
     if (accountRef.current === 'in') dropView(href)
   }, [setViews, dropView])
@@ -464,8 +481,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo(
-    () => ({ ...state, toggleSelect, setSelection, createDraft, updateRequest, addToRequest, removeFromRequest: removeFrom, markRead, updateMessage, saveComparison, removeComparison }),
-    [state, toggleSelect, setSelection, createDraft, updateRequest, addToRequest, removeFrom, markRead, updateMessage, saveComparison, removeComparison],
+    () => ({ ...state, toggleSelect, setSelection, createDraft, updateRequest, addToRequest, removeFromRequest: removeFrom, markRead, updateMessage, saveComparison, removeComparison, viewsAccount, syncComparisons: syncViews }),
+    [state, toggleSelect, setSelection, createDraft, updateRequest, addToRequest, removeFrom, markRead, updateMessage, saveComparison, removeComparison, viewsAccount, syncViews],
   )
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }

@@ -1114,8 +1114,10 @@ class H(BaseHTTPRequestHandler):
         elif route.path == '/access-requests':
             # the owner's list of «اطلب حساباً» requests (access_requests.py): the console login only, never the service token
             if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
-            saved = urllib.parse.parse_qs(route.query).get('saved') == ['1']
-            b = access_requests.render_html(access_requests.with_reviews(RUNTIME_DIR), saved=saved).encode()
+            query = urllib.parse.parse_qs(route.query)
+            saved = 'حُذفت بيانات التواصل.' if query.get('redacted') == ['1'] else 'حُفظ القرار.' if query.get('saved') == ['1'] else ''
+            access_requests.apply_retention(RUNTIME_DIR)   # details past the retention period are emptied before anyone sees them
+            b = access_requests.render_html(access_requests.with_reviews(RUNTIME_DIR), saved=saved, status=query.get('status', ['all'])[0]).encode()
             self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Cache-Control', 'no-store'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
         elif route.path == '/access-requests/count':
             # the console's badge: how many requests wait for a decision (a number only, no contact)
@@ -1163,14 +1165,20 @@ class H(BaseHTTPRequestHandler):
                 'message': 'بيئة الاختبار للقراءة فقط: لا يتم إرسال رسائل أو حفظ تغييرات أو الاتصال بميتا.',
             }, 403)
             return
-        if self.path == '/access-requests/review':
-            # the owner's decision on a request, from the list's own form (console login only; the cookie is SameSite=Strict)
+        if self.path in ('/access-requests/review', '/access-requests/redact'):
+            # the owner's decision on a request, or removing its personal details on the person's request, from the
+            # list's own forms (console login only; the cookie is SameSite=Strict)
             if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
             form = urllib.parse.parse_qs(raw.decode(errors='replace'), keep_blank_values=True)
-            status, answer = access_requests.review(RUNTIME_DIR, form.get('id', [''])[0], form.get('status', [''])[0], form.get('note', [''])[0])
-            LOGGER.info('access_request_review status=%s', status)
+            field = lambda name: form.get(name, [''])[0]
+            if self.path.endswith('/review'):
+                status, answer = access_requests.review(RUNTIME_DIR, field('id'), field('status'), field('note')); done = 'saved'
+            else:
+                status, answer = access_requests.redact(RUNTIME_DIR, field('id')); done = 'redacted'
+            LOGGER.info('access_request_%s status=%s', 'review' if done == 'saved' else 'redact', status)
             if status != 200: self._json(answer, status); return
-            self.send_response(303); self.send_header('Location', '/access-requests?saved=1'); self.end_headers(); return
+            back = field('back') if field('back') in access_requests.FILTERS else 'all'
+            self.send_response(303); self.send_header('Location', f'/access-requests?status={back}&{done}=1'); self.end_headers(); return
         body = json.loads(raw or b'{}')
         if self.path in ('/map-query','/map-profile','/map-focus'):
             try:
@@ -1195,6 +1203,7 @@ class H(BaseHTTPRequestHandler):
             # «اطلب حساباً» from Atlas: stored for the owner's review, nothing is sent and no account is created
             try: known = {row['en'] for row in cities()}
             except Exception: known = None
+            access_requests.apply_retention(RUNTIME_DIR)
             status, answer = access_requests.submit(RUNTIME_DIR, body, known)
             LOGGER.info('access_request status=%s', status)
             self._json(answer, status)

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { Bookmark, BookmarkCheck, Cloud, Smartphone, Trash2 } from 'lucide-react'
+import { Bookmark, BookmarkCheck, Cloud, CloudUpload, Loader2, Smartphone, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, makeId } from '@/lib/format'
 import { numberFormat } from '@/lib/insights-api'
@@ -82,12 +82,32 @@ export function SavedList({ current = null, onOpen, hideEmpty = false, heading =
   hideEmpty?: boolean
   heading?: 'h2' | 'h3'
 }) {
-  const { views, removeComparison } = useAppStore()
+  const { views, removeComparison, viewsAccount, syncComparisons } = useAppStore()
+  const [retrying, setRetrying] = useState(false)
+  // signed in, yet some comparisons are still on this device only (a save that did not reach the account, or the
+  // account did not answer): one tap asks again, for all of them
+  const waiting = views.filter((view) => !view.synced).length
+  const canRetry = waiting > 0 && (viewsAccount === 'in' || viewsAccount === 'error')
+  const retry = async () => {
+    if (retrying) return
+    setRetrying(true)
+    const ok = await syncComparisons().catch(() => false)
+    setRetrying(false)
+    if (ok) toast.success('حُفظت مقارناتك في حسابك', { description: 'تفتحها الآن من أي جهاز بعد الدخول.' })
+    else toast.error('تعذر الحفظ في حسابك الآن', { description: 'تبقى على هذا الجهاز. أعد المحاولة بعد قليل.' })
+  }
   if (hideEmpty && !views.length) return null
   const Heading = heading
   return (
     <div className="flex flex-col gap-1.5">
       <Heading className="text-sm font-semibold text-muted-foreground">المقارنات المحفوظة{views.length ? ` (${numberFormat.format(views.length)})` : ''}</Heading>
+      {canRetry && (
+        <button type="button" onClick={() => void retry()} disabled={retrying} aria-live="polite"
+          className="inline-flex min-h-9 items-center gap-1.5 self-start rounded-full border border-primary/40 px-3 text-xs font-semibold text-primary outline-none hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 pointer-coarse:min-h-11">
+          {retrying ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <CloudUpload className="size-3.5" aria-hidden />}
+          {retrying ? 'جارٍ الحفظ في حسابك…' : waiting === 1 ? 'احفظ المقارنة في حسابك' : `احفظ ${numberFormat.format(waiting)} مقارنات في حسابك`}
+        </button>
+      )}
       {views.length === 0 ? (
         <p className="text-sm text-muted-foreground">لا مقارنة محفوظة بعد. اختر حيين ثم احفظ المقارنة باسم تعرفه.</p>
       ) : (
