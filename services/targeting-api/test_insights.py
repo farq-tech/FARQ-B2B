@@ -157,6 +157,42 @@ class InsightTests(unittest.TestCase):
         self.assertEqual(found["total"], 3)
         self.assertIsNone(insights.real_estate_listings("Riyadh", {}, str(self.root / "missing.json")))
 
+    def test_best_order_does_not_pack_the_first_cards_on_the_discount_floor(self):
+        card = {"city": "Riyadh", "kind": "rent", "deal": "rent_year", "type": "apartment", "district_id": "1", "lon": 46.7, "lat": 24.7,
+                "price_sar": 60000, "area_sqm": 120, "photos": ["p.jpg"]}
+        cards = [dict(card, id="floor_old", vs_district_pct=-30, updated_on="2026-10-01"),
+                 dict(card, id="under_new", vs_district_pct=-12, updated_on="2026-10-28", area_sqm=121),
+                 dict(card, id="near_newest", vs_district_pct=-2, updated_on="2026-10-30", area_sqm=122),
+                 dict(card, id="typo", vs_district_pct=-35, updated_on="2026-10-30", area_sqm=123),
+                 dict(card, id="over", vs_district_pct=20, updated_on="2026-10-30", area_sqm=124)]
+        path = self.root / "best.json"
+        path.write_text(json.dumps({"listings": cards}), encoding="utf-8")
+        ids = [c["id"] for c in insights.real_estate_listings("Riyadh", {}, str(path))["listings"]]
+        # clearly under the median first, the fresher of those first; near, over, then a discount past the floor
+        self.assertEqual(ids, ["under_new", "floor_old", "near_newest", "over", "typo"])
+
+    def test_near_identical_ads_fold_into_one_card_only_when_asked(self):
+        card = {"city": "Riyadh", "kind": "rent", "deal": "rent_year", "type": "apartment", "district_id": "491", "lon": 46.7, "lat": 24.7,
+                "price_sar": 34000, "area_sqm": 100, "beds": 1, "photos": ["p.jpg"], "vs_district_pct": -20, "phone": "0500000001"}
+        cards = [dict(card, id=str(i), updated_on=f"2026-10-{10 + i}") for i in range(6)]
+        cards += [dict(card, id="other_price", price_sar=36000), dict(card, id="other_agent", phone="0500000002"),
+                  dict(card, id="no_area", area_sqm=None), dict(card, id="no_area_2", area_sqm=None)]
+        path = self.root / "similar.json"
+        path.write_text(json.dumps({"listings": cards}), encoding="utf-8")
+        flat = insights.real_estate_listings("Riyadh", {}, str(path))
+        self.assertEqual(len(flat["listings"]), 10)
+        self.assertFalse(any("similar" in c for c in flat["listings"]))
+        grouped = insights.real_estate_listings("Riyadh", {"group_similar": True}, str(path))
+        self.assertEqual(grouped["total"], 10)
+        leads = {c["id"]: [o["id"] for o in c["similar"]] for c in grouped["listings"]}
+        # the freshest of the six leads them; another price, another advertiser and an ad without an area stay alone
+        self.assertEqual(leads["5"], ["4", "3", "2", "1", "0"])
+        self.assertEqual(sorted(leads), sorted(["5", "other_price", "other_agent", "no_area", "no_area_2"]))
+        self.assertFalse(any("phone" in o for c in grouped["listings"] for o in c["similar"]))
+        # the limit counts ads, members included
+        capped = insights.real_estate_listings("Riyadh", {"group_similar": True, "limit": 3}, str(path))
+        self.assertEqual(sum(1 + len(c["similar"]) for c in capped["listings"]), 3)
+
     def test_the_advertiser_number_never_rides_in_a_list_and_is_served_one_listing_at_a_time(self):
         card = {"city": "Riyadh", "kind": "rent", "type": "apartment", "district_id": "1", "lon": 46.7, "lat": 24.7,
                 "price_sar": 60000, "area_sqm": 120, "photo": "p.jpg"}

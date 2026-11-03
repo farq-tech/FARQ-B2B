@@ -3,22 +3,22 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ClipboardList, ListPlus, Loader2, MapPin, Megaphone, Search, SearchX } from 'lucide-react'
+import { ChevronDown, ClipboardList, ListPlus, Loader2, LogIn, MapPin, Megaphone, Search, SearchX } from 'lucide-react'
 import { EmptyState, NoResult } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { toast } from 'sonner'
 import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
+import { GUEST_PREVIEW, type GuestPreviewRow } from '@/lib/guest-preview'
 import { BusinessDetail } from './business-detail'
 import { Skeleton, SkeletonRows } from '@/components/ui/skeleton'
 import { useAppStore } from '@/lib/store'
-import { useStudiedActivity } from '@/lib/sticky-state'
+import { useStickyState, useStudiedActivity } from '@/lib/sticky-state'
 import { Icon3D } from '@/components/shared/icon-3d'
 import type { RequestType } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { loginHref } from '@/lib/handoff'
 
-type Status = 'idle' | 'loading' | 'ready' | 'login' | 'error' | 'needs-scope'
+type Status = 'idle' | 'loading' | 'ready' | 'login' | 'guest' | 'error' | 'needs-scope'
 const PAGE = 200
 // one search per district, so a wide selection is read up to this many districts and the count says so
 const MAX_DISTRICTS = 5
@@ -50,15 +50,32 @@ export function BusinessesPanel({ city, districts, query, onLocate, located }: {
   const [message, setMessage] = useState('')
   // how many of the selected districts the last search covered (it reads the first MAX_DISTRICTS of them)
   const [searched, setSearched] = useState<number | null>(null)
-  // the poi_key of the business whose directory details are expanded, or null
-  const [openId, setOpenId] = useState<string | null>(null)
+  // the poi_key of the business whose directory details are expanded, or null; kept in the map's address
+  // (map-query.ts `biz`) with this list's own search (`bq`), so a reload opens the same list on the same card
+  const [openId, setOpenId] = useStickyState<string | null>('businesses.open', null)
+  const [kept, setKept] = useStickyState<{ q: string; scope: string | null } | null>('businesses.search', null)
+  // a signed-out search: the match count and the first few names the server allows (lib/guest-preview.ts)
+  const [preview, setPreview] = useState<GuestPreviewRow[]>([])
   const key = districts.join('|')
+  // the list a kept search belongs to: another city, other districts or another search from the top start afresh
+  const scope = `${city}|${key}|${query ?? ''}`
   // each search takes a number; an answer that is no longer the latest (another search, city or districts since) is dropped
   const latest = useRef(0)
 
-  useEffect(() => { latest.current++; setRows([]); setTotal(null); setPicked(new Set()); setStatus('idle') }, [key, city])
-  // a search from the top of the map runs at once, over the selected districts or the whole city
-  useEffect(() => { if (query) void load() }, [query, city]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    latest.current++; setRows([]); setTotal(null); setPicked(new Set()); setStatus('idle')
+    // a search and a card kept for another list leave (and the address with them)
+    if (kept?.scope != null && kept.scope !== scope) { setKept(null); setOpenId(null) }
+  }, [key, city]) // eslint-disable-line react-hooks/exhaustive-deps
+  // a search from the top of the map runs at once, over the selected districts or the whole city; a search made in
+  // this same list before (a reload, or a step left and opened again) runs instead
+  useEffect(() => {
+    if (kept && (kept.scope == null || kept.scope === scope)) {
+      if (kept.scope == null) setKept({ q: kept.q, scope })
+      setActivity(kept.q)
+      void load(kept.q)
+    } else if (query) void load()
+  }, [query, city]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load(text: string = activity) {
     const typed = text.trim()
@@ -71,6 +88,7 @@ export function BusinessesPanel({ city, districts, query, onLocate, located }: {
     try {
       const found: PublicDirectoryEntity[] = []
       let count = 0
+      let guest = false
       // no district chosen: one search over the whole city, which needs an activity
       const scopes: (string | null)[] = districts.length ? districts.slice(0, MAX_DISTRICTS) : typed ? [null] : []
       for (const district of scopes) {
@@ -80,20 +98,31 @@ export function BusinessesPanel({ city, districts, query, onLocate, located }: {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset: 0, ...(typed ? { q: typed, objective: 'purchase' } : {}) }),
         })
-        const body = await response.json().catch(() => null) as { rows?: PublicDirectoryEntity[]; total?: number; error?: string } | null
+        const body = await response.json().catch(() => null) as { rows?: PublicDirectoryEntity[]; total?: number; error?: string; guest?: boolean } | null
         if (stale()) return
         if (response.status === 401) { setStatus('login'); return }
         if (!response.ok || !body) throw new Error(body?.error || 'تعذر تحميل المنشآت.')
+        if (body.guest) {
+          guest = true
+          setPreview((current) => (count ? current : []).concat(((body.rows ?? []) as unknown as GuestPreviewRow[])).slice(0, GUEST_PREVIEW))
+          count += typeof body.total === 'number' ? body.total : 0
+          continue
+        }
         found.push(...(body.rows ?? []))
         count += typeof body.total === 'number' ? body.total : (body.rows ?? []).length
       }
       if (stale()) return
+      if (guest) { setTotal(count); setSearched(districts.length ? scopes.length : null); setStatus('guest'); setKept(query && typed === query.trim() ? null : { q: typed, scope }); return }
       const unique = [...new Map(found.map((row) => [row.id, row])).values()]
       setRows(unique)
       setTotal(count)
       setSearched(districts.length ? scopes.length : null)
       setPicked(new Set())
       setStatus('ready')
+      // a search typed here is kept for this list; the top search's own is already in the address
+      setKept(query && typed === query.trim() ? null : { q: typed, scope })
+      // a card kept open on a business this list no longer holds closes
+      setOpenId((current) => (current && unique.some((row) => row.id === current) ? current : null))
     } catch (error) {
       if (stale()) return
       setMessage(error instanceof Error ? error.message : 'تعذر تحميل المنشآت.')
@@ -129,6 +158,8 @@ export function BusinessesPanel({ city, districts, query, onLocate, located }: {
     router.push(`/requests/${id}`)
   }
 
+  // sign-in returns to this same view (city, districts and search kept in the address)
+  const here = () => typeof window === 'undefined' ? '/map' : `${window.location.pathname}${window.location.search}`
   const where = !districts.length ? 'المدينة' : districts.length === 1 ? districts[0] : counted(districts.length, 'district')
 
   return (
@@ -160,7 +191,30 @@ export function BusinessesPanel({ city, districts, query, onLocate, located }: {
         </>
       )}
       {status === 'needs-scope' && <p role="status" className="text-base text-muted-foreground">اكتب نشاطاً لتبحث في المدينة كلها، أو حدّد حياً على الخريطة لترى كل منشآته.</p>}
-      {status === 'login' && <p className="text-base">لعرض المنشآت وإنشاء طلب <Link href={loginHref(`${window.location.pathname}${window.location.search}`)} className="font-semibold text-primary underline">سجّل الدخول</Link>.</p>}
+      {status === 'login' && <p className="text-base">لعرض المنشآت وإنشاء طلب <Link href={`/login?next=${encodeURIComponent(here())}`} className="font-semibold text-primary underline">سجّل الدخول</Link>.</p>}
+      {status === 'guest' && total === 0 && (
+        <NoResult title={`لا منشآت «${activity.trim()}» في ${where}`} body="جرّب اسماً آخر للنشاط."
+          action={<Link href={`/login?next=${encodeURIComponent(here())}`} className="text-sm font-semibold text-primary underline">سجّل الدخول</Link>} />
+      )}
+      {status === 'guest' && total != null && total > 0 && (
+        <>
+          <p role="status" className="text-base"><span className="font-bold">{numberFormat.format(total)}</span> منشأة «{activity.trim()}» في {where}{searched != null && searched < districts.length ? ` (في ${numberFormat.format(searched)} من ${counted(districts.length, 'district')} محددة)` : ''}</p>
+          <ul className="divide-y rounded-lg border text-base">
+            {preview.map((row, index) => (
+              <li key={index} className="px-3 py-2">
+                <span className="block truncate font-medium">{row.name}</span>
+                <span className="block truncate text-sm text-muted-foreground">{row.category}{row.district ? ` · ${row.district}` : ''}</span>
+              </li>
+            ))}
+          </ul>
+          {total > preview.length && <p className="text-sm text-muted-foreground">أول {numberFormat.format(preview.length)} من {numberFormat.format(total)}.</p>}
+          <Link href={`/login?next=${encodeURIComponent(here())}`}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-base font-semibold text-primary-foreground">
+            <LogIn className="size-4" aria-hidden /> سجّل الدخول لترى الكل وتتواصل
+          </Link>
+          <p className="text-sm text-muted-foreground">بعد الدخول ترى كل المنشآت وتفاصيلها، وتختار منها لطلب تسعير أو قائمة.</p>
+        </>
+      )}
       {status === 'error' && <LoadError what="المنشآت" detail={message === 'تعذر تحميل المنشآت.' ? undefined : message} onRetry={() => void load()} />}
       {status === 'ready' && rows.length === 0 && (
         <NoResult title={`لا منشآت ${activity.trim() ? `«${activity.trim()}» ` : ''}في ${where}`} body={activity.trim() ? 'جرّب اسماً آخر للنشاط، أو كل الأنشطة.' : 'جرّب حياً آخر.'} />

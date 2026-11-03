@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, CheckCheck, ChevronDown, ChevronUp, ClipboardList, FileText, Inbox as InboxIcon, MailOpen, Megaphone } from 'lucide-react'
+import { ArrowRight, CheckCheck, ChevronDown, ChevronUp, ClipboardList, FileText, Inbox as InboxIcon, LogIn, MailOpen, Megaphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { numberFormat } from '@/lib/insights-api'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -12,6 +12,7 @@ import { useEffect, useRef, type KeyboardEvent } from 'react'
 import { businessName } from '@/lib/business-name'
 import { formatDateTime } from '@/lib/format'
 import { useAppStore } from '@/lib/store'
+import { signInHref, useSignedIn } from '@/lib/use-signed-in'
 import type { InboxMessage } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { MessageDetail } from './message-detail'
@@ -35,6 +36,8 @@ export function InboxView() {
   const pathname = usePathname()
   const params = useSearchParams()
   const { inbox, requests, markRead } = useAppStore()
+  // a signed-out visitor is told to sign in, not «لا رسائل بعد» as if their account were empty
+  const signedIn = useSignedIn()
 
   const filterParam = params.get('f')
   const filter: InboxFilter = FILTERS.some((f) => f.id === filterParam) ? (filterParam as InboxFilter) : 'all'
@@ -129,7 +132,11 @@ export function InboxView() {
 
       {/* a first visit has no message to filter or open: one welcome that says what arrives here and where it comes
           from, instead of four «0» filters beside «لا رسائل هنا» and an «اختر رسالة» that has nothing to choose */}
-      {inbox.length === 0 ? (
+      {inbox.length === 0 && signedIn === null ? null : inbox.length === 0 && !signedIn ? (
+        <EmptyState heading="h2" icon={LogIn} title="سجّل الدخول لترى رسائلك"
+          body="هنا ردود الموردين على طلبات التسعير وتفاعلات حملاتك، بعد أن ترسلها بنفسك."
+          action={<Button nativeButton={false} render={<Link href={signInHref('/inbox')} />}><LogIn data-icon="inline-start" />سجّل الدخول</Button>} />
+      ) : inbox.length === 0 ? (
         <EmptyState heading="h2" icon={InboxIcon} title="لا رسائل بعد"
           body="ردود الموردين على طلبات التسعير وتفاعلات حملاتك تصل هنا، بعد أن ترسل الطلب أو الحملة بنفسك من صفحته."
           action={<Button nativeButton={false} render={<Link href="/requests" />}><ClipboardList data-icon="inline-start" />افتح الطلبات</Button>} />
