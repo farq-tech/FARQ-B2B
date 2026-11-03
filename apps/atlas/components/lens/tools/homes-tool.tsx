@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Check, MapPin, Scale, X } from 'lucide-react'
 import { NoResult, NotAvailable } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
@@ -17,11 +17,13 @@ import type { DistrictRow } from '../city-data'
 import { ListingCard, NoPhoto } from '../listing-card'
 import { ListingCompare } from '../listing-compare'
 import type { MyPoint } from '../listing-surroundings'
-import type { Overlay } from './overlay'
+import { waiting, type Overlay } from './overlay'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { useStickyState } from '@/lib/sticky-state'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
+import { listingVerdict } from './tool-answers'
+import { Verdict } from './verdict'
 import { homesFacts, homesMedianKey } from './district-facts'
 
 type Result = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; listings: Listing[] }
@@ -65,7 +67,7 @@ function Thumb({ src, type, comparing }: { src: string | null; type: string; com
  * price against their district (in the selected districts, or the whole city). A dot opens one card; the side list
  * puts the best value first; two listings, or two selected districts, go to the comparison assistant.
  */
-export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: {
+export function HomesTool({ city, rows, selected, onOverlay, preset, onHover, next }: {
   city: string
   rows: DistrictRow[]
   selected: DistrictRow[]
@@ -74,6 +76,8 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
   preset?: { kind: ListingKind; type: string; deal?: Deal | 'all' }
   /** The district of the listing a row points at, outlined on the map; null when it leaves. */
   onHover?: (id: string | null) => void
+  /** The step after the verdict (the listing's own page, a request), given by the map shell. */
+  next?: ReactNode
 }) {
   // the shops lens opens on store rents, so its choices are kept apart from the homes lens's
   const sticky = `homes.${preset ? 'preset' : 'plain'}`
@@ -150,6 +154,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
       color: toneColor[versusDistrict(listing)?.tone ?? 'none'],
     }))
     onOverlay({
+      ...(result.status !== 'ready' ? waiting(search) : {}),
       listings: dots,
       onListing: (id) => { const listing = byId.get(id); if (listing) setActive(listing) },
       focus,
@@ -163,12 +168,14 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
       lead: result.status === 'ready' ? shown[0]?.district_id ?? null : null,
       onPick: picking ? (point) => { setMyPoint(point); savePoint(point); setPicking(false); setNearest(true) } : null,
     })
-  }, [result.listings, result.status, shown, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density, summary, facts])
+    // search.retry is stable; slow is what the waiting overlay says
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result.listings, result.status, shown, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density, summary, facts, search.slow])
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       {/* the heading is the step's own name (lenses.ts): the shops lens opens this tool as «محلات للإيجار» */}
-      <h2 className="text-xl font-bold">{preset ? 'محلات للإيجار' : 'اختر عقاراً'}</h2>
+      <h2 className="text-xl font-bold max-lg:-order-2">{preset ? 'محلات للإيجار' : 'اختر عقاراً'}</h2>
       <Choice label="إيجار أو شراء" value={kind} onChange={pickKind} options={[{ id: 'rent', label: 'إيجار' }, { id: 'sale', label: 'شراء' }]} />
       <Choice label="نوع العقار" variant="chip" value={type} onChange={setType} options={types.map((item) => ({ id: item.id, label: item.label, icon: <Icon3D type={item.id} /> }))} />
       {kind === 'rent' && (
@@ -218,6 +225,14 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
           </p>
           {result.listings.length === 0 && (
             <NoResult title={`لا عروض تطابق اختيارك ${where}`} body={budget ? 'جرّب ميزانية أعلى، أو نوعاً آخر، أو أحياء أكثر.' : 'جرّب نوعاً آخر أو مدة أخرى، أو أحياء أكثر.'} />
+          )}
+          {result.listings.length > 0 && shown[0] && (
+            // the first listing of the list as the answer, with why it comes first; a tap opens its card on the map
+            <Verdict lift next={next} verdict={listingVerdict({
+              type: typeLabel(shown[0].type), district: shown[0].district_ar ?? null, price: shown[0].price_sar == null ? null : priceLine(shown[0]),
+              versus: versusDistrict(shown[0])?.text ?? null, area: shown[0].area_sqm ?? null,
+              away: myPoint ? `${formatDistance(distanceKm(shown[0], myPoint) * 1000)} من نقطتك` : null,
+            }, nearest && Boolean(myPoint))} />
           )}
           {result.listings.length > 0 && (
             <div>

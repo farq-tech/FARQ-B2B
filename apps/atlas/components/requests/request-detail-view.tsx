@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertCircle, ArrowRight, Check, Copy, FileText, Hand, LoaderCircle, Megaphone, MessageSquareText, Pencil, Send } from 'lucide-react'
+import { AlertCircle, ArrowRight, Check, Copy, FileText, Hand, LoaderCircle, MapPinned, Megaphone, MessageSquareText, Pencil, Send } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -13,6 +13,9 @@ import { formatDate, formatDateTime, requestCity, nextStep, statusLabel } from '
 import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
+import { useBackClose } from '@/lib/use-back-close'
+import { businessName } from '@/lib/business-name'
+import { addToRequestHref, cityKey, mapHref, safeMapOrigin } from '@/lib/handoff'
 import type { RequestItem } from '@/lib/types'
 import { BusinessListEditor } from './business-list-editor'
 import { CampaignEditor, campaignIssues, eligibility, renderTemplate } from './campaign-editor'
@@ -27,7 +30,8 @@ export function RequestDetailView({ id }: { id: string }) {
   const router = useRouter()
   const { requests, inbox, updateRequest, createDraft } = useAppStore()
   const cities = useCities()
-  const [reviewOpen, setReviewOpen] = useState(false)
+  // the phone's Back closes the review instead of leaving the request (lib/use-back-close.ts)
+  const [reviewOpen, setReviewOpen] = useBackClose('review')
   const request = requests.find((r) => r.id === id)
 
   if (!request) {
@@ -46,6 +50,8 @@ export function RequestDetailView({ id }: { id: string }) {
   const city = requestCity(request, cities)
   const replies = inbox.filter((m) => m.requestId === request.id).sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
   const quotes = replies.filter((m) => m.quote)
+  // the map view the request was made from; an older request without one opens its city and its search
+  const mapView = safeMapOrigin(request.origin) ?? mapHref({ city: cityKey(request.cityId, cities), q: request.query })
   const patch = (p: Partial<RequestItem>) => updateRequest(request.id, p)
 
   const changeBusinesses = (ids: string[]) => {
@@ -78,6 +84,7 @@ export function RequestDetailView({ id }: { id: string }) {
       liveBusinesses: request.liveBusinesses,
       categoryHint: firstLiveBusiness?.category,
       districtHint: firstLiveBusiness?.district,
+      origin: request.origin,
     })
     router.push(`/requests/${newId}`)
   }
@@ -92,10 +99,17 @@ export function RequestDetailView({ id }: { id: string }) {
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-4 py-6 pb-28 lg:py-8">
-      <Link href="/requests" className="inline-flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
-        <ArrowRight className="size-4" aria-hidden />
-        كل الطلبات
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Link href="/requests" className="inline-flex min-h-11 items-center gap-1 rounded-lg px-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+          <ArrowRight className="size-4" aria-hidden />
+          كل الطلبات
+        </Link>
+        {/* back to the map as it was when the businesses were picked: the same city, group, step, districts and search */}
+        <Link href={mapView} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-1 text-sm font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+          <MapPinned className="size-4" aria-hidden />
+          {request.origin ? 'افتح الخريطة كما كانت' : 'افتح على الخريطة'}
+        </Link>
+      </div>
 
       <header className="flex flex-col gap-2">
         {/* read in the order a person asks: what it is, to whom, where it stands, what to do next */}
@@ -132,6 +146,7 @@ export function RequestDetailView({ id }: { id: string }) {
       {request.status === 'needs_decision' || (quotes.length > 0 && request.status !== 'draft') ? (
         <QuoteComparison
           quotes={quotes}
+          request={request}
           acceptedId={request.acceptedQuoteId}
           canDecide={request.status === 'needs_decision' || request.status === 'awaiting'}
           onAccept={(mid) => {
@@ -168,6 +183,8 @@ export function RequestDetailView({ id }: { id: string }) {
           liveBusinesses={request.liveBusinesses}
           editable={editable}
           onChange={changeBusinesses}
+          mapView={editable ? addToRequestHref(mapView, request.id) : mapView}
+          addMore={editable}
         />
       )}
 
@@ -190,7 +207,7 @@ export function RequestDetailView({ id }: { id: string }) {
                   <MessageSquareText className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-2 text-sm font-medium">
-                      {businessById.get(m.businessId)?.name ?? 'غير متاح'}
+                      {businessName(m.businessId, request)}
                       {/* a span's aria-label is not read: the word goes in as hidden text */}
                       {m.unread ? <span className="size-2 rounded-full bg-primary"><span className="sr-only">غير مقروء</span></span> : null}
                     </p>
@@ -337,7 +354,7 @@ function WhatsAppSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
 }) {
   // every hook before the first early return, so the order never changes between renders
   const [sendingId, setSendingId] = useState<string | null>(null)
-  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useBackClose('send-confirm')
   const [error, setError] = useState('')
   const [ready, setReady] = useState<boolean | null>(null)
   const [readyStatus, setReadyStatus] = useState('جارٍ التحقق من جاهزية الإرسال...')

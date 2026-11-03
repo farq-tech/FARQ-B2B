@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { inboxBusiness, inboxMapHref, kindNote, mergeServerInbox, parseServerInbox, previewText, requestFor } from './inbox-feed.ts'
-import type { InboxMessage, LiveBusinessSnapshot } from './types.ts'
+import { kindNote, mergeServerInbox, parseServerInbox, previewText, requestFor } from './inbox-feed.ts'
+import type { InboxMessage } from './types.ts'
 
 // fixed fakes: no network, no real business, no number anywhere
 const reply = { id: 'wamid.IN1', requestId: 'cmp-1', poiKey: 'poi:1', kind: 'text', body: 'نعم مهتم', receivedAt: '2026-11-03T10:00:00Z' }
-const live = (id: string, extra: Partial<LiveBusinessSnapshot> = {}) => ({ id, name: 'مخبز تجريبي', category: 'مخابز', district: 'العليا', street: '', latitude: null, longitude: null, wholesale: false, whatsapp: true, reason: '', fit: null, ...extra }) as LiveBusinessSnapshot
 
 test('server replies join the inbox without replacing anything on the device', () => {
   const local: InboxMessage = { id: 'm-local', source: 'rfq', requestId: 'rfq-1', businessId: 'b1', body: 'عرض', receivedAt: '2026-11-01T00:00:00Z', unread: false }
@@ -49,20 +48,4 @@ test('a reply finds its request by the id it was sent under, then by the cloud i
   assert.equal(requestFor(requests, 'cmp-1')?.id, 'cmp-1')
   assert.equal(requestFor(requests, 'r-9')?.id, 'cmp-1')
   assert.equal(requestFor(requests, 'cmp-3'), undefined)
-})
-
-test('the business is named from the request it answers, else the sample, else unknown — never a contact', () => {
-  const request = { liveBusinesses: [live('poi:1')] }
-  assert.deepEqual(inboxBusiness('poi:1', request), { name: 'مخبز تجريبي', category: 'مخابز', district: 'العليا' })
-  assert.deepEqual(inboxBusiness('b1', request, { name: 'عينة', category: 'نشاط', district: null }), { name: 'عينة', category: 'نشاط', district: null })
-  assert.deepEqual(inboxBusiness('poi:2', undefined), { name: null, category: null, district: null })
-  assert.equal(Object.keys(inboxBusiness('poi:1', { liveBusinesses: [live('poi:1', { extraPhones: ['0500000000'] })] })).includes('extraPhones'), false)
-})
-
-test('the map link opens the request city with the business in the search', () => {
-  assert.equal(inboxMapHref({ cityId: 'riyadh' }, 'مخبز تجريبي'), `/map?q=${encodeURIComponent('مخبز تجريبي').replace(/%20/g, '+')}`)
-  assert.equal(inboxMapHref({ cityId: 'al khobar' }, null, [{ en: 'Al Khobar' }]), '/map?city=Al+Khobar')
-  assert.equal(inboxMapHref({ cityId: 'jeddah' }, null), '/map?city=Jeddah')
-  assert.equal(inboxMapHref(undefined, null), '/map')
-  assert.equal(new URLSearchParams(inboxMapHref({ cityId: 'riyadh' }, '<b>x</b>').split('?')[1]).get('q'), 'b x /b', 'angle brackets dropped')
 })

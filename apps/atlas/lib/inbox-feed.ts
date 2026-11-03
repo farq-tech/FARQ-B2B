@@ -91,32 +91,3 @@ export function parseServerInbox(payload: unknown): ServerInboxMessage[] {
     return [{ id: m.id, requestId: m.requestId, poiKey: m.poiKey, kind: typeof m.kind === 'string' ? m.kind : 'unsupported', body: typeof m.body === 'string' ? m.body : '', receivedAt: m.receivedAt }]
   })
 }
-
-type Sample = { name: string; category: string; district: string | null }
-
-/**
- * A reply's business as its request saved it from the map (name, activity, district), else the sample directory
- * (`sample`), else nothing known: the caller shows «غير متاح». Never a contact.
- */
-export function inboxBusiness(businessId: string, request: Pick<RequestItem, 'liveBusinesses'> | undefined, sample?: Sample | null): { name: string | null; category: string | null; district: string | null } {
-  const live = request?.liveBusinesses?.find((business) => business.id === businessId)
-  if (live) return { name: live.name || null, category: live.category || null, district: live.district || null }
-  if (sample) return { name: sample.name || null, category: sample.category || null, district: sample.district || null }
-  return { name: null, category: null, district: null }
-}
-
-const CITY = /^[A-Za-z][A-Za-z .'-]{0,39}$/
-
-/**
- * The map opened on the reply's business: the request's city and the business name in the map's search. The city is
- * the shared list's spelling when it is known; the default city (Riyadh) is left out of the address, as the map does.
- */
-export function inboxMapHref(request: Pick<RequestItem, 'cityId'> | undefined, name: string | null, cities: readonly { en: string }[] = []): string {
-  const query = new URLSearchParams()
-  const id = request?.cityId?.trim().toLowerCase() ?? ''
-  const city = cities.find((item) => item.en.toLowerCase() === id)?.en ?? id.replace(/\b[a-z]/g, (letter) => letter.toUpperCase())
-  if (city && city !== 'Riyadh' && CITY.test(city)) query.set('city', city)
-  if (name) query.set('q', name.replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80))
-  const text = query.toString()
-  return text ? `/map?${text}` : '/map'
-}

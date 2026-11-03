@@ -33,12 +33,17 @@ function write(state: CoachState) {
   try { localStorage.setItem(KEY, state) } catch { /* private window: the tour simply shows again next time */ }
 }
 
-export function MapOnboarding({ lens, onLens, picked, paused = false, onShowMe }: {
+export function MapOnboarding({ lens, onLens, picked, paused = false, onShowMe, showMeName = null, firstAsk = null }: {
   lens: LensId
   onLens: (lens: LensId) => void
   picked: boolean
   /** Picks the district the open step ranks first, so a first visit reaches an answer in one tap; absent when none. */
   onShowMe?: (() => void) | null
+  /** The name of the district «أرني» opens, so the offer says where it goes («أو اعرض طويق») instead of «الأعلى» in what. */
+  showMeName?: string | null
+  /** What the open step needs before a district means anything (its activity, «اختر نشاطك…»): the pick hint says this
+   * first, so the tour and the panel never ask for two different things; once it is done the hint asks for the pick. */
+  firstAsk?: string | null
   /** The map failed to open: the tour keeps its place and shows nothing over the failure notice. */
   paused?: boolean
 }) {
@@ -161,8 +166,9 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, onShowMe }
   }
 
   if (state === 'waiting_pick') {
+    if (firstAsk) return hint(<MousePointerClick className="size-4 shrink-0 text-primary" aria-hidden />, firstAsk)
     return hint(<MousePointerClick className="size-4 shrink-0 text-primary" aria-hidden />, onShowMe ? 'اضغط حياً على الخريطة' : 'اختر حياً: اضغطه على الخريطة',
-      onShowMe && <button onClick={() => { trackOnboardingStep('show_me'); onShowMe() }} className="shrink-0 text-sm font-semibold text-primary underline-offset-4 hover:underline">أو أرني الأعلى</button>)
+      onShowMe && <button onClick={() => { trackOnboardingStep('show_me'); onShowMe() }} className="max-w-[9rem] shrink-0 truncate text-sm font-semibold text-primary underline-offset-4 hover:underline">{showMeName ? `أو اعرض ${showMeName}` : 'أو أرني الأعلى'}</button>)
   }
 
   // waiting_explain: the pick is done, so the line now points at the «i» beside a figure in the panel

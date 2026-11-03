@@ -1,12 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { ClipboardList, House, Inbox, LogIn, LogOut, Map as MapIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { numberFormat } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import { REMEMBERED, lastView, loginHref } from '@/lib/handoff'
+import { SignInLink } from '@/components/shared/sign-in-link'
 import { WhatsNew } from '@/components/shared/whats-new'
 import { buttonVariants } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -44,6 +46,7 @@ export function BrandMark({ className }: { className?: string }) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
   const { requests, inbox } = useAppStore()
   const [user, setUser] = useState<SessionUser | null>(null)
   const [sessionChecked, setSessionChecked] = useState(false)
@@ -64,6 +67,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => { active = false }
   }, [ownHeader])
 
+  // the main navigation goes back to each surface's last view in this tab (the map's city, step and districts, the
+  // listings' filters, the price's answers), read again whenever the page changes; a first visit opens the default
+  const [views, setViews] = useState<Record<string, string>>({})
+  useEffect(() => { setViews(Object.fromEntries(REMEMBERED.map((path) => [path, lastView(path)]))) }, [pathname])
+
   // the header says «signed out» only once the server has cleared the session; a failed request leaves it as it was
   const signOut = async () => {
     const response = await fetch('/api/session/logout', { method: 'POST' }).catch(() => null)
@@ -73,12 +81,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const needsDecision = requests.filter((r) => r.status === 'needs_decision').length
   const unread = inbox.filter((m) => m.unread).length
   const items: NavItem[] = [
-    { href: '/map', label: 'الخريطة', icon: MapIcon },
-    { href: '/homes', label: 'العقار', icon: House },
+    { href: views['/map'] ?? '/map', label: 'الخريطة', icon: MapIcon },
+    { href: views['/homes'] ?? '/homes', label: 'العقار', icon: House },
     { href: '/requests', label: 'الطلبات', icon: ClipboardList, count: needsDecision },
     { href: '/inbox', label: 'الوارد', icon: Inbox, count: unread },
   ]
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`) || false
+  const isActive = (href: string) => { const path = href.split('?')[0]; return pathname === path || pathname.startsWith(`${path}/`) }
 
   // The landing page owns its own header and calls to action.
   if (ownHeader) return <>{children}</>
@@ -93,7 +101,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             const active = isActive(item.href)
             return (
               <Link
-                key={item.href}
+                key={item.label}
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
@@ -127,10 +135,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : sessionChecked ? (
-            <Link href={`/login?next=${encodeURIComponent(pathname)}`} className={buttonVariants({ variant: 'outline', size: 'sm', className: 'font-semibold' })}>
+            // back to the page as it is, with its whole address (the map's journey lives there), after signing in
+            <SignInLink className={buttonVariants({ variant: 'outline', size: 'sm', className: 'font-semibold' })}>
               <LogIn aria-hidden />
               دخول
-            </Link>
+            </SignInLink>
           ) : null}
         </div>
       </header>
@@ -146,7 +155,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           const active = isActive(item.href)
           return (
             <Link
-              key={item.href}
+              key={item.label}
               href={item.href}
               aria-current={active ? 'page' : undefined}
               className={cn('relative flex flex-col items-center justify-center gap-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', active ? 'font-bold text-foreground' : 'font-medium text-muted-foreground')}

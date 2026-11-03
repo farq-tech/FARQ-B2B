@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import { BadgeCheck, Building2, Check, ChevronDown, ExternalLink, MessageCircle, Phone, Scale } from 'lucide-react'
+import Link from 'next/link'
+import { BadgeCheck, Building2, Calculator, Check, ChevronDown, ExternalLink, MapPinned, MessageCircle, Phone, Scale } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat } from '@/lib/insights-api'
 import { FEATURES, LISTING_TYPES, shownPhotos, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
+import { loginHref, priceHref } from '@/lib/handoff'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
 import { Lightbox } from '@/components/shared/lightbox'
 import { MapWindow } from '@/components/shared/map-window'
@@ -112,7 +114,7 @@ function ListingPhone({ id }: { id: string }) {
         <Phone className="size-4" aria-hidden /> {state.loading ? 'يجلب الرقم…' : 'اعرض رقم المعلن'}
       </button>
       {state.phone === null && <p className="text-sm text-muted-foreground">رقم المعلن غير متاح لهذا العرض.</p>}
-      {state.error && <p role="alert" className="text-sm text-warning">{state.error}{/سجّل/.test(state.error) && <> <a href="/login" className="underline">دخول</a></>}</p>}
+      {state.error && <p role="alert" className="text-sm text-warning">{state.error}{/سجّل/.test(state.error) && <> <a href={loginHref(`${window.location.pathname}${window.location.search}`)} className="underline">دخول</a></>}</p>}
     </div>
   )
 }
@@ -122,7 +124,7 @@ function ListingPhone({ id }: { id: string }) {
  * price per m² stands against the same deal in its district. Two actions only: open the ad itself, or put the
  * listing in the comparison.
  */
-export function ListingCard({ listing, comparing, onCompare, compareCount = 0, onCompareNow, onClose, myPoint = null, density = null, className }: {
+export function ListingCard({ listing, comparing, onCompare, compareCount = 0, onCompareNow, onClose, myPoint = null, density = null, districtHref = null, className }: {
   listing: Listing
   comparing: boolean
   /** Absent where there is no comparison (a street's units): the card then has no compare button. */
@@ -136,6 +138,8 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
   myPoint?: MyPoint | null
   /** Residents per km² of the listing's district. */
   density?: number | null
+  /** The listing's district on the map («تعرّف على الحي»), where the card is not already on the map. */
+  districtHref?: string | null
   /** Where the window sits, when the page floats its own buttons over the foot of the map. */
   className?: string
 }) {
@@ -148,6 +152,8 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
     listing.wc ? counted(listing.wc, 'bathroom') : null,
   ].filter(Boolean)
   const photos = shownPhotos(listing)
+  // «is this price right?»: the price page with this listing's own facts as the answers (null when it cannot price it)
+  const priced = priceHref(listing)
   // what the property has, as the ad's form records it; what it lacks shows in the comparison
   const has = FEATURES.filter(([key]) => listing.features?.[key] === 1).map(([, label]) => label)
   const listed = daysAgo(listing.listed_on)
@@ -215,6 +221,21 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
           <ChevronDown className={cn('size-4 transition-transform', around && 'rotate-180')} aria-hidden />
         </button>
         {around && <ListingSurroundings listing={listing} myPoint={myPoint} density={density} />}
+        {/* the next questions about this listing, each opening its page on this listing's own facts */}
+        {(priced || districtHref) && (
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {priced && (
+              <Link href={priced} className="inline-flex items-center gap-1.5 rounded-lg py-1 text-sm font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11">
+                <Calculator className="size-4" aria-hidden />سعّر عقاراً مثله
+              </Link>
+            )}
+            {districtHref && listing.district_ar && (
+              <Link href={districtHref} className="inline-flex items-center gap-1.5 rounded-lg py-1 text-sm font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11">
+                <MapPinned className="size-4" aria-hidden />تعرّف على {listing.district_ar}
+              </Link>
+            )}
+          </div>
+        )}
         {listing.has_phone && <ListingPhone key={listing.id} id={listing.id} />}
         {/* with the number on file the main button asks for it, and the ad itself stays one tap away */}
         {listing.has_phone && listing.url && (

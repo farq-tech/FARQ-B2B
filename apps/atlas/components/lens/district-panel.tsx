@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
+import Link from 'next/link'
+import { Building2, X } from 'lucide-react'
+import { homesHref } from '@/lib/handoff'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
@@ -241,6 +243,13 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
             ))}
           </ul>
         </div>
+      )}
+      {/* the prices above lead to the listings behind them: «العقار» opens on this district (a shop owner on shops) */}
+      {single && (
+        <Link href={homesHref({ city, districts: [single.id], ...(lens === 'shops' ? { types: ['store'] } : {}) })}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg py-1 text-sm font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11">
+          <Building2 className="size-4" aria-hidden />{lens === 'shops' ? 'محلات للإيجار' : 'عروض العقار'} في {single.name}
+        </Link>
       )}
       {pricesFirst && unmetBlock}
       {single && profile && profile.main_activities.length > 0 && (

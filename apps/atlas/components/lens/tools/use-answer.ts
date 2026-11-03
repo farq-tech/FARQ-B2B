@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { answerCache } from './answer-cache.ts'
 
 /**
  * A counter that names each request, so only the latest one may land: `next()` before asking, `isLatest(token)` when
@@ -37,28 +38,50 @@ type Held<T> = { key: string | null; attempt: number; status: Answer<T>['status'
  * new question), and a late answer to an old key is dropped. `key` null asks nothing (status «idle»). `run` is read
  * when the key changes, so it may close over the current values freely.
  */
-export function useAnswer<T>(key: string | null, run: () => Promise<T>, { slowAfter = 8000 }: { slowAfter?: number } = {}): Answer<T> {
+export function useAnswer<T>(key: string | null, run: () => Promise<T>, { slowAfter = 8000, cache, keep }: {
+  slowAfter?: number
+  /** Keep the answer for the visit under `${cache}|${key}` (answer-cache.ts): asked again, it is shown at once. Only
+   * for an answer that is plain JSON and the same for everyone who asks the same key. */
+  cache?: string
+  /** Whether this answer is worth keeping (one with a part that failed is asked again next time); all by default. */
+  keep?: (data: T) => boolean
+} = {}): Answer<T> {
+  const keepRef = useRef(keep)
+  useEffect(() => { keepRef.current = keep })
+  const cacheKey = cache && key != null ? `${cache}|${key}` : null
   const runRef = useRef(run)
   useEffect(() => { runRef.current = run })
   const sequence = useRef(answerSequence())
+  // the question asked last, so a retry of the same key (and only that) skips the kept answer
+  const asked = useRef<{ key: string | null; attempt: number }>({ key: null, attempt: 0 })
   const [attempt, setAttempt] = useState(0)
   const [held, setHeld] = useState<Held<T>>({ key: null, attempt: 0, status: 'idle', data: null, error: null, slow: false })
 
   useEffect(() => {
     const token = sequence.current.next()
     if (key == null) { setHeld({ key, attempt, status: 'idle', data: null, error: null, slow: false }); return }
+    // a retry asks afresh; otherwise an answer kept for this visit is shown at once, with no request
+    if (cacheKey && attempt !== asked.current.attempt && key === asked.current.key) answerCache.drop(cacheKey)
+    asked.current = { key, attempt }
+    const kept = cacheKey ? answerCache.get<T>(cacheKey) : undefined
+    if (kept !== undefined) { setHeld({ key, attempt, status: 'ready', data: kept, error: null, slow: false }); return }
     setHeld({ key, attempt, status: 'loading', data: null, error: null, slow: false })
     const timer = setTimeout(() => { if (sequence.current.isLatest(token)) setHeld((now) => ({ ...now, slow: true })) }, slowAfter)
     runRef.current().then(
-      (data) => { if (sequence.current.isLatest(token)) setHeld({ key, attempt, status: 'ready', data, error: null, slow: false }) },
+      (data) => {
+        if (cacheKey && (keepRef.current?.(data) ?? true)) answerCache.set(cacheKey, data)
+        if (sequence.current.isLatest(token)) setHeld({ key, attempt, status: 'ready', data, error: null, slow: false })
+      },
       (error: unknown) => { if (sequence.current.isLatest(token)) setHeld({ key, attempt, status: 'error', data: null, error, slow: false }) },
     ).finally(() => clearTimeout(timer))
     return () => { clearTimeout(timer); if (sequence.current.isLatest(token)) sequence.current.drop() }
-  }, [key, attempt, slowAfter])
+  }, [key, attempt, slowAfter, cacheKey])
 
   const retry = useCallback(() => setAttempt((value) => value + 1), [])
   // the render right after a new key (or a retry), before the effect above has run: already the new question's state
   if (held.key !== key || held.attempt !== attempt) {
+    const kept = cacheKey && attempt === held.attempt ? answerCache.get<T>(cacheKey) : undefined
+    if (kept !== undefined) return { status: 'ready', data: kept, error: null, slow: false, retry }
     return { status: key == null ? 'idle' : 'loading', data: null, error: null, slow: false, retry }
   }
   return { status: held.status, data: held.data, error: held.error, slow: held.slow, retry }

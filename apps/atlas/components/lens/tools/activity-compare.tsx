@@ -16,7 +16,8 @@ import type { MainActivity } from '@/lib/main-activities'
 import { useStickyState, type StudiedActivity } from '@/lib/sticky-state'
 import type { DistrictRow } from '../city-data'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
-import { comparePairs, sameActivity } from './tool-answers'
+import { comparePairs, pairsVerdict, sameActivity } from './tool-answers'
+import { Verdict } from './verdict'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
 
@@ -133,6 +134,8 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
             <StatTile label={`«${first.label}» في المدينة`}><p className="mt-0.5 text-xl font-bold tabular-nums">{total(firstTotal)}</p></StatTile>
             <StatTile label={`«${rival.label}» في المدينة`}><p className="mt-0.5 text-xl font-bold tabular-nums">{total(answer.total)}</p></StatTile>
           </div>
+          {/* where one trade is and the other is not, in one line, before the districts behind it */}
+          {!missing && <Verdict verdict={pairsVerdict(pairs, first.label, rival.label)} />}
           {/* short labels, side by side from a small width up and stacked on a narrow phone, so long names never squeeze them */}
           <Choice label="ترتيب المقارنة" className="flex-col min-[380px]:flex-row" value={order} onChange={setOrder}
             options={[{ id: 'gap', label: 'حيث يزيد الأول على الثاني' }, { id: 'first', label: 'الأكثر من الأول' }]} />

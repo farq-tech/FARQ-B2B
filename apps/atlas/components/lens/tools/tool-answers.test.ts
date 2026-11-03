@@ -20,6 +20,7 @@ test('the competitors line reads the service total, or «غير متاح» when 
   const top = { row: district('4', 'الروضة'), competitors: 8, perKm2: 5.1 }
   assert.equal(competitorsSummary(1234, 'صيدلية', top), '1,234 منشأة «صيدلية» في المدينة · الأكثر تنافساً: الروضة')
   assert.equal(competitorsSummary(null, 'صيدلية', null), 'عدد منشآت «صيدلية» غير متاح')
+  assert.equal(competitorsSummary(1234, 'صيدلية', top, 'light'), '1,234 منشأة «صيدلية» في المدينة · الأخف منافسة: الروضة')
 })
 
 test('two activities pair by district, a missing count is none, and the gap order puts the widest lead first', () => {

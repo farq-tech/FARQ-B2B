@@ -6,12 +6,13 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { requestBusiness } from '@/lib/business-name'
 import { formatDateTime, formatSar } from '@/lib/format'
-import { inboxMapHref, kindNote, requestFor } from '@/lib/inbox-feed'
+import { cityKey, mapHref } from '@/lib/handoff'
+import { kindNote, requestFor } from '@/lib/inbox-feed'
 import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import type { InboxMessage } from '@/lib/types'
-import { messageBusiness } from './message-business'
 import { SourceLabel } from './source-label'
 
 export function MessageDetail({ message }: { message: InboxMessage }) {
@@ -20,8 +21,9 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
   const [saved, setSaved] = useState(false)
   const cities = useCities()
   const request = requestFor(requests, message.requestId)
-  // the business as the request saved it from the map; no number is shown here, for a sample or a real reply
-  const b = messageBusiness(message, request)
+  // named from the request's own saved businesses, as the map and the request show it; no contact is shown
+  const b = requestBusiness(message.businessId, request)
+  const name = b.name ?? 'غير متاح'
   const note = kindNote(message.kind)
   const total = message.quote?.lines.reduce((s, l) => s + l.unitPrice * l.qty, 0) ?? 0
 
@@ -29,16 +31,16 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
     <article className="flex flex-col gap-4 rounded-2xl border bg-card p-4 lg:p-5">
       <header className="flex flex-col gap-2">
         <SourceLabel message={message} />
-        <h2 className="text-xl font-bold text-balance">{b.name ?? 'غير متاح'}</h2>
-        {/* only the parts the request knows, so a missing district never leaves «·  ·» */}
-        {b.category || b.district ? <p className="text-xs text-muted-foreground">{[b.category, b.district].filter(Boolean).join(' · ')}</p> : null}
+        <h2 className="text-xl font-bold text-balance">{name}</h2>
+        {/* only the parts the directory has, so a missing district never leaves «·  ·» */}
+        {(b.category || b.district) && <p className="text-xs text-muted-foreground">{[b.category, b.district].filter(Boolean).join(' · ')}</p>}
       </header>
 
       {/* the thread reads like a chat: who wrote and when above the bubble, the message at reading size with its own
           line breaks, so a long supplier reply is not a grey block of small text */}
       <figure className="flex max-w-xl flex-col gap-1 self-start">
         <figcaption className="text-xs text-muted-foreground">
-          <span className="font-semibold text-foreground">{b.name ?? 'غير متاح'}</span> · <time dateTime={message.receivedAt}>{formatDateTime(message.receivedAt)}</time>
+          <span className="font-semibold text-foreground">{name}</span> · <time dateTime={message.receivedAt}>{formatDateTime(message.receivedAt)}</time>
           {message.origin === 'whatsapp' ? ' · واتساب' : null}
         </figcaption>
         {/* a photo, a voice note or a file is named, not shown: Atlas keeps only the words of a reply */}
@@ -90,7 +92,7 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
         ) : null}
         {/* the business on the map, in the request's city: from the reply to the place it came from */}
         {request && b.name ? (
-          <Button variant="outline" nativeButton={false} render={<Link href={inboxMapHref(request, b.name, cities)} />}>
+          <Button variant="outline" nativeButton={false} render={<Link href={mapHref({ city: cityKey(request.cityId, cities), q: b.name })} />}>
             <MapPinned data-icon="inline-start" />اعرضها على الخريطة
           </Button>
         ) : null}

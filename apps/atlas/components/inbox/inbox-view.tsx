@@ -9,6 +9,7 @@ import { Chip, ChipCount } from '@/components/ui/chip'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, type KeyboardEvent } from 'react'
+import { businessName } from '@/lib/business-name'
 import { previewText, requestFor } from '@/lib/inbox-feed'
 import { formatDateTime } from '@/lib/format'
 import { useAppStore } from '@/lib/store'
@@ -16,7 +17,6 @@ import { signInHref, useSignedIn } from '@/lib/use-signed-in'
 import type { InboxMessage } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { MessageDetail } from './message-detail'
-import { messageBusiness } from './message-business'
 import { SourceLabel } from './source-label'
 
 export type InboxFilter = 'all' | 'unread' | 'rfq' | 'campaign'
@@ -166,7 +166,7 @@ export function InboxView() {
           ) : (
             <ul onKeyDown={moveFocus} aria-describedby="inbox-keys" className="flex flex-col overflow-hidden rounded-2xl border bg-card">
               {visible.map((m) => {
-                const b = messageBusiness(m, requestFor(requests, m.requestId))
+                const name = businessName(m.businessId, requestFor(requests, m.requestId))
                 const active = m.id === selected?.id
                 const Icon = m.source === 'rfq' ? FileText : Megaphone
                 return (
@@ -192,7 +192,7 @@ export function InboxView() {
                       </span>
                       <span className="flex min-w-0 flex-1 flex-col gap-1">
                         <span className="flex items-center gap-2">
-                          <span className={cn('min-w-0 flex-1 truncate text-sm', m.unread ? 'font-bold' : 'font-medium')}>{b?.name ?? 'غير متاح'}</span>
+                          <span className={cn('min-w-0 flex-1 truncate text-sm', m.unread ? 'font-bold' : 'font-medium')}>{name}</span>
                           <time className="shrink-0 text-xs text-muted-foreground" dateTime={m.receivedAt}>
                             {formatDateTime(m.receivedAt)}
                           </time>

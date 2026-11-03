@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { PEEK_PX } from './map-sheet'
 import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
 import { boundsOf } from './map-bounds'
-import { cityFrame, framePadding } from './map-framing'
+import { cityFrame, framePadding, sheetCoverPx } from './map-framing'
 
 const STYLE_URL = 'mapbox://styles/mapbox/light-v11'
 const STYLE_JSON = 'https://api.mapbox.com/styles/v1/mapbox/light-v11'
@@ -87,6 +87,14 @@ export type MapPoint = { id: string; lon: number; lat: number; /** Its own colou
 /** A drawn area (a radius or a drive-time area) and the numbered site it belongs to. */
 export type Area = { id: string; color: string; geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon }
 export type Site = { id: string; label: string; color: string; lon: number; lat: number }
+/** A group of close businesses as a click on it gives it: its first GROUP_NAMES by id, how many, where, and a zoom that splits it. */
+export type BusinessGroup = { ids: string[]; count: number; lon: number; lat: number; expand: () => void }
+/** How many of a group's businesses its card names. */
+export const GROUP_NAMES = 8
+
+/** A business a list shows on the map: named beside its dot, lit while its row is pointed at, olive once it is in the request. */
+export type BusinessDot = { id: string; lon: number; lat: number; name: string; active?: boolean; inRequest?: boolean }
+
 /** A current property listing on the map, coloured by its price against its district. */
 /** A trade corridor: a run of one street lined with one activity, drawn along the street itself. */
 export type StreetLine = { id: string; color: string; geometry: GeoJSON.LineString | GeoJSON.MultiLineString; /** The street's name, written along it when zoomed in. */ label: string; /** The corridor the viewer picked: drawn thicker, and the map frames it. */ active?: boolean }
@@ -94,7 +102,7 @@ export type ListingDot = { id: string; lon: number; lat: number; color: string; 
 
 export { circlePolygon }
 
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName, hover, onPoint, cover = 0, peek = PEEK_PX, onDistrictClick, pin, onPin }: {
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, businesses, onBusiness, onBusinessHover, onBusinessGroup, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName, hover, onPoint, cover = 0, peek = PEEK_PX, onDistrictClick, pin, onPin }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -109,6 +117,12 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   sites?: Site[] | null
   listings?: ListingDot[] | null
   onListing?: ((id: string) => void) | null
+  /** The businesses a list shows, each named beside its dot once zoomed in; a click opens it, a hover lights its row. */
+  businesses?: BusinessDot[] | null
+  onBusiness?: ((id: string) => void) | null
+  onBusinessHover?: ((id: string | null) => void) | null
+  /** A group of businesses was clicked: the first of them by id, how many it holds, where it is, and its way to come apart. */
+  onBusinessGroup?: ((group: BusinessGroup) => void) | null
   streets?: StreetLine[] | null
   onStreet?: ((id: string) => void) | null
   focus?: { lon: number; lat: number } | null
@@ -143,6 +157,12 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   const openListing = useRef(onListing)
   const openStreet = useRef(onStreet)
   openStreet.current = onStreet
+  const openBusiness = useRef(onBusiness)
+  openBusiness.current = onBusiness
+  const hoverBusiness = useRef(onBusinessHover)
+  hoverBusiness.current = onBusinessHover
+  const openGroup = useRef(onBusinessGroup)
+  openGroup.current = onBusinessGroup
   const point = useRef(onPoint)
   point.current = onPoint
   const reportBounds = useRef(onBounds)
@@ -153,11 +173,25 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   reportPin.current = onPin
   const sheetCover = useRef(cover)
   sheetCover.current = cover
+  // what the person can see of the map: on a phone the half sheet hides its foot, so a list that follows the map
+  // keeps only what is above the sheet (west, south, east, north)
+  const reportVisible = useRef(() => {})
+  reportVisible.current = () => {
+    const instance = map.current
+    if (!instance || !reportBounds.current) return
+    const box = instance.getContainer()
+    const hidden = sheetCoverPx({ height: box.clientHeight, phone: !window.matchMedia('(min-width: 64rem)').matches, cover: sheetCover.current, peek: sheetPeek.current })
+    const southWest = instance.unproject([0, Math.max(1, box.clientHeight - hidden)])
+    const northEast = instance.unproject([box.clientWidth, 0])
+    reportBounds.current([southWest.lng, southWest.lat, northEast.lng, northEast.lat])
+  }
   const sheetPeek = useRef(peek)
   sheetPeek.current = peek
   // the first city framing is instant (nothing is on screen yet); a city changed later is flown to
   const framed = useRef(false)
   const [ready, setReady] = useState(false)
+  // the sheet rising or falling changes what is seen without the map moving
+  useEffect(() => { if (ready) reportVisible.current() }, [ready, cover])
   // the map focused from the keyboard, and the district under its centre (the keyboard's pick)
   const [keyed, setKeyed] = useState(false)
   const [centre, setCentre] = useState<string | null>(null)
@@ -278,11 +312,51 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
           'text-field': ['get', 'label'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 12, 'text-offset': [0, -1.4], 'text-allow-overlap': false,
           'symbol-sort-key': ['case', ['boolean', ['get', 'active'], false], 0, 1],
         }, paint: { 'text-color': PALETTE.ink, 'text-halo-color': PALETTE.white, 'text-halo-width': 6 } })
-        instance.on('moveend', () => {
-          const b = instance.getBounds()
-          if (b) reportBounds.current?.([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()])
-        })
+        // a list's businesses: close ones grouped into a numbered circle until zoomed in (olive when one is in the request
+        // being built, ringed when the row under the pointer is inside), then a dot each, its name beside it
+        instance.addSource('businesses', { type: 'geojson', data: EMPTY, cluster: true, clusterRadius: 36, clusterMaxZoom: 15,
+          clusterProperties: { inRequest: ['max', ['case', ['boolean', ['get', 'inRequest'], false], 1, 0]], active: ['max', ['case', ['boolean', ['get', 'active'], false], 1, 0]] } })
+        instance.addLayer({ id: 'business-cluster', type: 'circle', source: 'businesses', filter: ['has', 'point_count'], paint: {
+          'circle-color': ['case', ['>', ['get', 'inRequest'], 0], PALETTE.olive, PALETTE.ochre],
+          'circle-radius': ['step', ['get', 'point_count'], 13, 10, 17, 50, 22],
+          'circle-stroke-color': ['case', ['>', ['get', 'active'], 0], PALETTE.ink, PALETTE.white],
+          'circle-stroke-width': ['case', ['>', ['get', 'active'], 0], 3, 2],
+        } })
+        instance.addLayer({ id: 'business-count', type: 'symbol', source: 'businesses', filter: ['has', 'point_count'], layout: {
+          'text-field': ['get', 'point_count_abbreviated'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 12, 'text-allow-overlap': true,
+        }, paint: { 'text-color': PALETTE.white } })
+        instance.addLayer({ id: 'business-dot', type: 'circle', source: 'businesses', filter: ['!', ['has', 'point_count']], paint: {
+          'circle-color': ['case', ['boolean', ['get', 'inRequest'], false], PALETTE.olive, PALETTE.ochre],
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, ['case', ['boolean', ['get', 'active'], false], 7, 4.5], 16, ['case', ['boolean', ['get', 'active'], false], 11, 8]],
+          'circle-stroke-color': ['case', ['boolean', ['get', 'active'], false], PALETTE.ink, PALETTE.white],
+          'circle-stroke-width': ['case', ['boolean', ['get', 'active'], false], 3, 1.5],
+        } })
+        instance.addLayer({ id: 'business-name', type: 'symbol', source: 'businesses', minzoom: 13, filter: ['!', ['has', 'point_count']], layout: {
+          'text-field': ['get', 'name'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 12, 'text-offset': [0, -1.3], 'text-anchor': 'bottom',
+          'text-max-width': 10, 'text-allow-overlap': false, 'symbol-sort-key': ['case', ['boolean', ['get', 'active'], false], 0, 1],
+        }, paint: { 'text-color': PALETTE.ink, 'text-halo-color': PALETTE.white, 'text-halo-width': 2 } })
+        instance.on('mousemove', 'business-dot', (event) => { const id = event.features?.[0]?.properties?.id; hoverBusiness.current?.(id == null ? null : String(id)) })
+        instance.on('mouseleave', 'business-dot', () => hoverBusiness.current?.(null))
+        instance.on('moveend', () => reportVisible.current())
         instance.on('click', (event) => {
+          const [business] = instance.queryRenderedFeatures(event.point, { layers: ['business-dot'] })
+          if (business && openBusiness.current) { openBusiness.current(String(business.properties?.id)); return }
+          const [group] = instance.queryRenderedFeatures(event.point, { layers: ['business-cluster'] })
+          if (group) {
+            // a group of businesses opens at the zoom where it comes apart
+            const source = instance.getSource('businesses') as GeoJSONSource
+            const centre = (group.geometry as GeoJSON.Point).coordinates as [number, number]
+            const clusterId = Number(group.properties?.cluster_id)
+            const expand = () => source.getClusterExpansionZoom(clusterId, (error, zoom) => instance.easeTo({ center: centre, zoom: error || zoom == null ? instance.getZoom() + 2 : zoom + 0.5 }))
+            // with a card for groups, the group names its businesses first; without one it comes apart at once
+            if (!openGroup.current) { expand(); return }
+            const count = Number(group.properties?.point_count) || 0
+            source.getClusterLeaves(clusterId, GROUP_NAMES, 0, (error, leaves) => {
+              const ids = error || !leaves ? [] : leaves.map((leaf) => String(leaf.properties?.id))
+              openGroup.current?.({ ids, count, lon: centre[0], lat: centre[1], expand })
+            })
+            return
+          }
           const [listing] = instance.queryRenderedFeatures(event.point, { layers: ['listing-dot'] })
           if (listing && openListing.current) { openListing.current(String(listing.properties?.id)); return }
           const [cluster] = instance.queryRenderedFeatures(event.point, { layers: ['listing-cluster'] })
@@ -295,7 +369,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
           districtClick.current?.({ id: String(id), lon: event.lngLat.lng, lat: event.lngLat.lat })
           toggle.current(String(id))
         })
-        for (const layer of ['listing-dot', 'listing-cluster', 'street-line']) {
+        for (const layer of ['listing-dot', 'listing-cluster', 'street-line', 'business-dot', 'business-cluster']) {
           instance.on('mouseenter', layer, () => { instance.getCanvas().style.cursor = 'pointer' })
           instance.on('mouseleave', layer, () => { instance.getCanvas().style.cursor = '' })
         }
@@ -394,6 +468,11 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     if (!ready || !instance) return
     ;(instance.getSource('listings') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (listings ?? []).map((dot) => ({ type: 'Feature', properties: { id: dot.id, color: dot.color, ...(dot.label ? { label: dot.label } : {}), active: !!dot.active }, geometry: { type: 'Point', coordinates: [dot.lon, dot.lat] } })) })
   }, [ready, listings])
+
+  useEffect(() => {
+    if (!ready) return
+    ;(map.current?.getSource('businesses') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (businesses ?? []).map((dot) => ({ type: 'Feature', properties: { id: dot.id, name: dot.name, active: !!dot.active, inRequest: !!dot.inRequest }, geometry: { type: 'Point', coordinates: [dot.lon, dot.lat] } })) })
+  }, [ready, businesses])
 
   useEffect(() => {
     const instance = map.current

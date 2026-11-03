@@ -63,12 +63,24 @@ export function useStudiedActivity() {
   return useStickyState<StudiedActivity>('activity', { q: 'صيدلية', label: 'صيدلية' })
 }
 
+/** The main activity whose Arabic name is `label` (spaces and the definite article aside), or null. */
+export function matchMain(activities: readonly { main_id: string; main_ar: string }[], label: string): string | null {
+  const plain = (text: string) => text.trim().replace(/\s+/g, ' ').replace(/^ال/, '')
+  const wanted = plain(label)
+  if (!wanted) return null
+  return activities.find((activity) => plain(activity.main_ar) === wanted)?.main_id ?? null
+}
+
 /** A main-activity picker that also offers «all»: it opens on the studied main activity, and picking one studies it in every step. */
 export function useStudiedMainId(activities: { main_id: string; main_ar: string }[]) {
   const [studied, setStudied] = useStudiedActivity()
   const [mainId, setMainId] = useState(studied.main_id ?? '')
   // an activity set elsewhere (another step, or a shared link read after this step mounted) reaches the picker too
   useEffect(() => { if (studied.main_id) setMainId(studied.main_id) }, [studied.main_id])
+  // an activity the customer typed in an earlier step («صيدلية») carries over when it is one of the main activities by
+  // name, so «نشاط عملائك» and «منشآت الأحياء» open on it; the default nobody picked never does
+  const carried = !studied.main_id && stickyHas('activity') ? matchMain(activities, studied.label) : null
+  useEffect(() => { if (carried) setMainId((current) => current || carried) }, [carried])
   const pick = useCallback((id: string) => {
     setMainId(id)
     const item = activities.find((activity) => activity.main_id === id)

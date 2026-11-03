@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
 import { NoResult, NotAvailable } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
@@ -14,13 +14,15 @@ import { ListingCard } from '../listing-card'
 import { cn } from '@/lib/utils'
 import { OCHRE_STEPS } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
-import { useStudiedActivity } from '@/lib/sticky-state'
+import { stickyHas, useStudiedActivity } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
-import type { Overlay } from './overlay'
+import { waiting, type Overlay } from './overlay'
 import { useMainActivities } from '@/lib/main-activities'
 import { StreetOpportunities } from './street-opportunities'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
+import { corridorVerdict } from './tool-answers'
+import { Verdict } from './verdict'
 import { corridorFacts } from './district-facts'
 import type { DistrictRow } from '../city-data'
 
@@ -40,6 +42,8 @@ type Units = { status: 'loading' | 'ready' | 'error'; available: boolean; total:
 const UNIT_TYPES = ['store', 'showroom', 'office']
 const UNIT_METERS = 60
 const UNITS_SHOWN = 5
+// a street median from fewer ads than this is a small sample (lenses.RELIABLE_LISTINGS)
+const THIN_SAMPLE = 10
 
 const EXAMPLES = ['أدوات صحية', 'ورش سيارات', 'قطع غيار سيارات', 'صالون حلاقة', 'خياطة', 'مفروشات', 'أغراض مواليد']
 // more shops on the street reads as a deeper colour, in five even groups of the corridors shown
@@ -50,10 +54,16 @@ const ROAD: Record<'main' | 'secondary', string> = { main: 'شارع رئيسي'
  * «شوارع النشاط»: the streets an activity lines, drawn along the streets themselves. Typing «أدوات صحية» or
  * «ورش سيارات» shows where that trade gathers, how many shops on how many metres, and whether it is a main road.
  */
-export function CorridorsTool({ city, rows = [], onOverlay }: { city: string; rows?: DistrictRow[]; onOverlay: (overlay: Overlay) => void }) {
+export function CorridorsTool({ city, rows = [], onOverlay, next }: {
+  city: string; rows?: DistrictRow[]; onOverlay: (overlay: Overlay) => void
+  /** The step after the verdict (units for rent on the street, a request), given by the map shell. */
+  next?: ReactNode
+}) {
   const activities = useMainActivities(city)
   const [studied, setStudied] = useStudiedActivity()
-  const [query, setQuery] = useState(studied.q ?? '')
+  // no street is drawn for an activity nobody picked: the step waits for one (here, another step, or a link)
+  const chosen = stickyHas('activity')
+  const [query, setQuery] = useState(chosen ? studied.q ?? '' : '')
   const [active, setActive] = useState<number | null>(null)
   const [unit, setUnit] = useState<Unit | null>(null)
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
@@ -62,7 +72,7 @@ export function CorridorsTool({ city, rows = [], onOverlay }: { city: string; ro
 
   // the streets of one activity; a new activity clears the last one's streets at once, and its picked street with them
   const streetsKey = `${city}|${studied.q ?? ''}|${studied.main_id ?? ''}`
-  const answer = useAnswer<Result>(streetsKey, () => postMarket<Result>('street-density', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }))
+  const answer = useAnswer<Result>(chosen ? streetsKey : null, () => postMarket<Result>('street-density', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }), { cache: 'streets' })
   const result = answer.data
   const status = answer.status === 'loading' ? 'loading' : answer.status === 'error' ? 'error' : 'idle'
   useEffect(() => { setActive(null) }, [streetsKey])
@@ -111,15 +121,19 @@ export function CorridorsTool({ city, rows = [], onOverlay }: { city: string; ro
       : top ? `${counted(corridors.length, 'street')} لـ«${studied.label}» · الأعلى: ${top.street_ar} ${counted(top.n, 'shop')}`
         : result.understood === false ? null : `لا شارع يتجمع فيه «${studied.label}»`
     onOverlay({
+      ...(result ? {} : waiting(answer)),
       summary, facts, streets, onStreet: (id) => setActive(Number(id)), legend: streets.length ? { from: 'محلات أقل', to: 'محلات أكثر', shades: HEAT } : null,
       listings, onListing: (id) => { const item = units?.listings.find((listing) => listing.id === id); if (item) setUnit(item) },
       focus,
       popup: unit ? <ListingCard listing={unit} comparing={false} onClose={() => setUnit(null)} /> : null,
     })
-  }, [mode, corridors, colors, active, onOverlay, units, unit, focus, status, result, studied.label, facts])
+    // answer.retry is stable; slow is what the no-answer overlay says
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, corridors, colors, active, onOverlay, units, unit, focus, status, result, studied.label, facts, answer.slow])
 
   // a long list draws 30 streets at a time; a street picked on the map further down is drawn so it can come into view
-  const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}`)
+  // a shortlist first: the verdict names the top two, the rest are one tap away
+  const [limit, showMore] = useShowMore(10, `${city}|${studied.q ?? studied.main_id}`)
   const visible = Math.max(limit, active != null ? active + 1 : 0)
 
   // a corridor picked on the map comes into view in the list
@@ -131,7 +145,7 @@ export function CorridorsTool({ city, rows = [], onOverlay }: { city: string; ro
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-      <h2 className="text-xl font-bold">شوارع النشاط</h2>
+      <h2 className="text-xl font-bold max-lg:-order-2">شوارع النشاط</h2>
       <form role="search" className="flex gap-2" onSubmit={(e) => { e.preventDefault(); study(query.trim()) }}>
         <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="النشاط" enterKeyHint="search"
           placeholder="اكتب النشاط: أدوات صحية، ورش سيارات…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
@@ -143,12 +157,13 @@ export function CorridorsTool({ city, rows = [], onOverlay }: { city: string; ro
         onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); setStudied({ main_id: item.main_id, label: item.main_ar }) } }} />
       <div role="group" aria-label="أمثلة" className="flex flex-wrap gap-2">
         {EXAMPLES.map((example) => (
-          <button key={example} onClick={() => { setQuery(example); study(example) }} aria-pressed={studied.q === example}
-            className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', studied.q === example ? 'border-primary bg-primary/10 font-semibold text-primary' : 'hover:border-primary hover:text-primary')}><Icon3D activity={example} />{example}</button>
+          <button key={example} onClick={() => { setQuery(example); study(example) }} aria-pressed={chosen && studied.q === example}
+            className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', chosen && studied.q === example ? 'border-primary bg-primary/10 font-semibold text-primary' : 'hover:border-primary hover:text-primary')}><Icon3D activity={example} />{example}</button>
         ))}
       </div>
       <Choice label="طريقة العرض" size="base" value={mode} onChange={setMode} options={[{ id: 'cluster', label: 'أين يتجمع' }, { id: 'gap', label: 'أين الفرصة' }]} />
-      {mode === 'gap' && <StreetOpportunities city={city} rows={rows} studied={studied} clusters={clusters} onOverlay={onOverlay} />}
+      {!chosen && <p className="text-base text-muted-foreground">اختر النشاط لترى الشوارع التي يتجمع فيها، أو التي ينقصها.</p>}
+      {mode === 'gap' && chosen && <StreetOpportunities city={city} rows={rows} studied={studied} clusters={clusters} onOverlay={onOverlay} />}
       {mode === 'cluster' && status === 'error' && <LoadError what="الشوارع" onRetry={answer.retry} />}
       {mode === 'cluster' && status === 'idle' && result?.understood === false && <NoResult title={`لم نتعرف على «${studied.label}»`} body="جرّب اسماً آخر للنشاط، أو اختر نشاطاً رئيسياً." />}
       {mode === 'cluster' && status === 'idle' && result && result.understood !== false && !corridors.length && (
@@ -162,7 +177,8 @@ export function CorridorsTool({ city, rows = [], onOverlay }: { city: string; ro
       )}
       {mode === 'cluster' && status !== 'loading' && corridors.length > 0 && (
         <>
-          <p className="text-base">{counted(corridors.length, 'street')} يتجمع {corridors.length === 1 ? 'فيه' : 'فيها'} «{studied.label}»، مرتبة بعدد المحلات. اضغط شارعاً لتراه كاملاً على الخريطة.</p>
+          <Verdict lift verdict={corridorVerdict(corridors.map((item) => item.properties), studied.label)} next={next} />
+          <p className="text-sm text-muted-foreground">{counted(corridors.length, 'street')} يتجمع {corridors.length === 1 ? 'فيه' : 'فيها'} «{studied.label}»، الأكثر محلات أولاً. اضغط شارعاً لترى المحلات المتاحة عليه وإيجارها.</p>
           <ol className="divide-y text-base lg:max-h-[45vh] lg:overflow-y-auto">
             {corridors.slice(0, visible).map(({ properties: corridor }, index) => (
               <ResultRow key={index} id={`corridor-${index}`} active={index === active} onClick={() => setActive(index)}
@@ -265,6 +281,10 @@ function StreetRent({ street, rent }: { street: string; rent: RentSummary }) {
       {rows.map((row) => versusAround(row.pct) && (
         <p key={row.label} className="text-sm font-medium text-primary">{row.label}: {versusAround(row.pct)}</p>
       ))}
+      {/* a median from a handful of ads is shown, and said to be one */}
+      {rent.street.units > 0 && rent.street.units < THIN_SAMPLE && (
+        <p className="text-sm text-warning">عينة صغيرة: {counted(rent.street.units, 'listing')} فقط على الشارع، فعرض واحد يغيّر الوسيط كثيراً.</p>
+      )}
     </div>
   )
 }
