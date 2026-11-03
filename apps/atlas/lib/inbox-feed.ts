@@ -142,3 +142,31 @@ export function parseServerFeed(payload: unknown): ServerFeed {
   })
   return { messages, deliveries, owner: root.owner === true }
 }
+
+/** The latest reply of each recipient of one request, by recipient id: whether, and with which message, they answered. */
+export function repliesFor(inbox: readonly InboxMessage[], request: Pick<RequestItem, 'id' | 'remoteId'>): Record<string, string> {
+  const out: Record<string, { id: string; at: string }> = {}
+  for (const m of inbox) {
+    if (m.requestId !== request.id && (request.remoteId == null || m.requestId !== request.remoteId)) continue
+    const seen = out[m.businessId]
+    if (!seen || m.receivedAt > seen.at) out[m.businessId] = { id: m.id, at: m.receivedAt }
+  }
+  return Object.fromEntries(Object.entries(out).map(([businessId, reply]) => [businessId, reply.id]))
+}
+
+export type SourceHealth = { running: boolean; lastOkAt: string | null; lastErrorAt: string | null; lastErrorKind: string | null; failures: number }
+
+/** A read older than this (several missed minute polls) is worth a word to the owner. */
+export const STALE_AFTER_MS = 10 * 60_000
+
+/**
+ * Where the reply source stands, for the owner: not running at all, never read yet, failing now (its last poll
+ * failed), stale (no success for a while), or reading normally.
+ */
+export function healthState(health: SourceHealth | null | undefined, nowMs: number): 'unknown' | 'off' | 'never' | 'failing' | 'stale' | 'ok' {
+  if (!health) return 'unknown'
+  if (!health.running) return 'off'
+  if (health.failures > 0) return 'failing'
+  if (!health.lastOkAt) return 'never'
+  return nowMs - Date.parse(health.lastOkAt) > STALE_AFTER_MS ? 'stale' : 'ok'
+}

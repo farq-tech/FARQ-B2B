@@ -6,6 +6,7 @@ under the schema name `construction`, and opened read only: a write from the sou
 is a fixed fake. Nothing is sent and no real database is touched.
 """
 import datetime as dt
+import json
 import os
 import sqlite3
 import tempfile
@@ -150,7 +151,54 @@ class ConstructionSourceTests(unittest.TestCase):
             self.assertTrue(sql.lstrip().lower().startswith('select'))
 
 
+ARRIVALS_SCHEMA = """
+create table inbox_arrivals (
+  id text primary key, owner_id text, provider text not null, account_id text not null, external_id text not null,
+  state text not null, candidate_invites text not null default '[]', invite_id text, message_id text,
+  evidence text not null default '{}', payload text not null default '{}', payload_hash text not null,
+  occurred_at text, ingested_at text not null default '', revision integer not null default 1, resolved_by text,
+  resolved_at text, resolution_reason text, unique(provider, account_id, external_id)
+);
+"""
+
+
+class RoutingRecordTests(unittest.TestCase):
+    """With the construction routing record (inbox_arrivals) present."""
+    setUp = ConstructionSourceTests.setUp
+    tearDown = ConstructionSourceTests.tearDown
+    connect_read_only = ConstructionSourceTests.connect_read_only
+    write = ConstructionSourceTests.write
+    routed = ConstructionSourceTests.routed
+
+    def arrival(self, message_id, reason):
+        con = sqlite3.connect(self.db)
+        if not con.execute("select 1 from sqlite_master where name='inbox_arrivals'").fetchone():
+            con.executescript(ARRIVALS_SCHEMA)
+        con.execute("insert into inbox_arrivals (id, provider, account_id, external_id, state, evidence, payload_hash) values (?,?,?,?,?,?,?)",
+                    (f'a-{message_id}', 'WHATSAPP', 'PHONE', message_id, 'RESOLVED', json.dumps({'resolver_version': 1, 'reason': reason}), 'h'))
+        con.commit(); con.close()
+
+    def test_a_reply_that_quoted_a_construction_message_is_left_out(self):
+        self.routed(('m1', 'i-golden', 'wamid.RFQ', 'هذا عرضنا لطلبكم', T0 + 60), ('m2', 'i-golden', 'wamid.ATLAS', 'نعم مهتم', T0 + 70))
+        self.arrival('wamid.RFQ', 'WHATSAPP_CONTEXT')
+        self.arrival('wamid.ATLAS', 'LATEST_FOR_SENDER')
+        result = self.source.poll(self.store, now=T0 + 120)
+        self.assertEqual((result['quotesConstruction'], result['new']), (1, 1))
+        self.assertEqual([m['id'] for m in self.store.feed('org-1')['messages']], ['wamid.ATLAS'])
+
+    def test_a_routed_reply_without_a_routing_record_is_read_as_before(self):
+        self.arrival('wamid.OTHER', 'LATEST_FOR_SENDER')
+        self.routed(('m1', 'i-catch', 'wamid.IN1', 'نعم', T0 + 60))
+        self.assertEqual(self.source.poll(self.store, now=T0 + 120)['new'], 1)
+
+
 class HelperTests(unittest.TestCase):
+    def test_the_routing_reason_reads_from_jsonb_or_text(self):
+        self.assertEqual(source_mod.routing_reason({'reason': 'WHATSAPP_CONTEXT'}), 'WHATSAPP_CONTEXT')
+        self.assertEqual(source_mod.routing_reason('{"reason": "LATEST_FOR_SENDER"}'), 'LATEST_FOR_SENDER')
+        self.assertIsNone(source_mod.routing_reason(None))
+        self.assertIsNone(source_mod.routing_reason('not json'))
+
     def test_timestamps_from_postgres_and_text_read_the_same(self):
         moment = dt.datetime(2027, 1, 15, 8, 0, tzinfo=dt.timezone.utc)
         self.assertEqual(source_mod.epoch(moment), source_mod.epoch('2027-01-15T08:00:00+00:00'))

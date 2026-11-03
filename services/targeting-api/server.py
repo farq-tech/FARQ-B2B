@@ -873,13 +873,22 @@ def _poll_construction_inbox():
     while True:
         try:
             result = source.poll(INBOX)
+            INBOX.record_poll('construction_db', True, counts=result)
             if result['new'] or result['statuses']: LOGGER.info('inbox_construction_poll %s', json.dumps(result))
         except Exception as error:
-            LOGGER.warning('inbox_construction_poll failed: %s', type(error).__name__)
+            kind = type(error).__name__
+            try: failures = INBOX.record_poll('construction_db', False, kind)
+            except Exception: failures = -1
+            LOGGER.warning('inbox_construction_poll failed: %s', kind)
+            # one alert line on the first failure and every 10th in a row, so a broken source is seen without flooding
+            if failures in (1, -1) or failures % 10 == 0:
+                LOGGER.error('ALERT inbox_source_unhealthy source=construction_db error=%s failures_in_row=%s', kind, failures)
         time.sleep(every)
 
+INBOX_SOURCE_STATE = {'running': False}
 def start_inbox_source():
     if INBOX_SOURCE == 'construction_db' and DB_URL and not read_only_test.enabled():
+        INBOX_SOURCE_STATE['running'] = True
         threading.Thread(target=_poll_construction_inbox, daemon=True, name='inbox-construction').start()
         return 'construction_db'
     return 'webhook' if webhook_enabled() else 'off'
@@ -957,7 +966,7 @@ def _send_template(body):
     message_id = (r.get('messages') or [{}])[0].get('id')
     if ok and body.get('atlas_campaign') is True and message_id:
         # the Atlas account and request this message belongs to, so its reply reaches that account's inbox
-        try: INBOX.record_outbound(message_id, body.get('account_id'), body.get('request_id'), row['poi_key'], to, sender_id=body.get('sender_id'))
+        try: INBOX.record_outbound(message_id, body.get('account_id'), body.get('request_id'), row['poi_key'], to, sender_id=body.get('sender_id'), request_title=body.get('request_title'))
         except Exception as error: LOGGER.warning('wa_inbox outbound not recorded: %s', type(error).__name__)
     with open(os.path.join(HERE, 'data', 'wa_template_log.jsonl'), 'a', encoding='utf-8') as f:
         f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'to': status_policy.mask(to), 'poi_key': row['poi_key'], 'template': name, 'ok': ok, 'error_code': (r.get('error') or {}).get('code')}, ensure_ascii=False) + '\n')
@@ -976,7 +985,9 @@ def unlinked_replies():
     names = directory_names([c['poiKey'] for r in rows for c in r['candidates']])
     for r in rows:
         for c in r['candidates']: c['name'] = names.get(c['poiKey'])
-    return {'ok': True, 'messages': rows}
+    # the reply source's health, so the owner sees a broken source here instead of an empty list
+    health = {**(INBOX.health(INBOX_SOURCE) if INBOX_SOURCE == 'construction_db' else {'source': INBOX_SOURCE}), 'running': INBOX_SOURCE_STATE['running'] or webhook_enabled()}
+    return {'ok': True, 'messages': rows, 'health': health}
 
 def test_mobile(value):
     """Normalize a Saudi mobile supplied only for an owner test message."""

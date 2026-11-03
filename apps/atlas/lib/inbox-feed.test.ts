@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { deliveryFor, freshReplies, trackedFor, deliveryLabel, kindNote, mergeServerInbox, parseServerFeed, previewText, requestFor, unreadCount } from './inbox-feed.ts'
+import { deliveryFor, freshReplies, healthState, repliesFor, trackedFor, deliveryLabel, kindNote, mergeServerInbox, parseServerFeed, previewText, requestFor, unreadCount } from './inbox-feed.ts'
 import { inboxAccounts } from './inbox-scope.ts'
 import type { InboxMessage } from './types.ts'
 
@@ -85,4 +85,24 @@ test('replies are filed under the organisation, and the person also reads their 
   assert.deepEqual(inboxAccounts(null, '42'), { send: 'user-42', read: ['user-42'], sender: '42' })
   assert.deepEqual(inboxAccounts('bad org!', 'a@b'), { send: 'user-ab', read: ['user-ab'], sender: 'ab' })
   assert.deepEqual(inboxAccounts(null, ''), { send: null, read: [], sender: null })
+})
+
+test('each recipient’s latest reply in a request is found, other requests left out', () => {
+  const inbox = mergeServerInbox([], [
+    reply, { ...reply, id: 'wamid.IN2', receivedAt: '2026-11-03T11:00:00Z' },
+    { ...reply, id: 'wamid.IN3', poiKey: 'poi:2', requestId: 'r-9' }, { ...reply, id: 'wamid.X', requestId: 'other' },
+  ])
+  assert.deepEqual(repliesFor(inbox, { id: 'cmp-1', remoteId: 'r-9' }), { 'poi:1': 'wamid.IN2', 'poi:2': 'wamid.IN3' })
+  assert.deepEqual(repliesFor(inbox, { id: 'none' }), {})
+})
+
+test('the reply source’s health reads as off, never, failing, stale or ok', () => {
+  const now = Date.parse('2026-11-03T12:00:00Z')
+  const base = { running: true, lastOkAt: '2026-11-03T11:59:00Z', lastErrorAt: null, lastErrorKind: null, failures: 0 }
+  assert.equal(healthState(null, now), 'unknown')
+  assert.equal(healthState({ ...base, running: false }, now), 'off')
+  assert.equal(healthState({ ...base, lastOkAt: null }, now), 'never')
+  assert.equal(healthState({ ...base, failures: 3, lastErrorKind: 'InsufficientPrivilege' }, now), 'failing')
+  assert.equal(healthState({ ...base, lastOkAt: '2026-11-03T11:30:00Z' }, now), 'stale')
+  assert.equal(healthState(base, now), 'ok')
 })
