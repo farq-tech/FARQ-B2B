@@ -124,6 +124,24 @@ SUPPLY_CUES = {'مستلزمات', 'معدات', 'ادوات', 'اجهزه', 'م
 # words after which a seller names the customer type: «أستهدف محلات النجارة», «عملائي المطاعم»
 TARGET_CUES = ('استهدف', 'نستهدف', 'اسوق', 'نسوق', 'عملائي', 'عملاءنا', 'زبائني', 'target', 'targeting')
 SELL_CUES = ('ابيع', 'نبيع', 'بيع', 'عندي', 'عندنا', 'توريد', 'نورد', 'اورد', 'مشترين', 'مشتري', 'عملاء', 'زبائن', 'يشتري', 'يشترون', 'تشتري', 'sell', 'selling', 'supply', 'buyers', 'customers')
+# asking for a supplier («مورد قهوة», «موزع مياه») means who sells the product to a business, never the places that serve it to
+# the public: a café buys coffee, it does not supply it
+SUPPLIER_CUES = {'مورد', 'موردين', 'موردي', 'موزع', 'موزعين', 'موزعي', 'توريد', 'جمله', 'بالجمله', 'supplier', 'suppliers', 'distributor',
+                 'distributors', 'wholesale'}
+SERVED_SUBS = {'food.restaurant', 'food.fast_food', 'food.buffet_popular', 'food.cafe', 'food.juice_icecream', 'food.hookah',
+               'food.cloud_kitchen', 'food.food_truck'}
+
+
+def asks_supplier(q):
+    return bool(set(norm(q).split()) & SUPPLIER_CUES)
+
+
+def without_served(q, subs):
+    """Drop the places that serve the product when the request asks for its supplier; keep them if nothing else is left."""
+    if not asks_supplier(q):
+        return subs
+    kept = [s for s in subs if s not in SERVED_SUBS]
+    return kept or subs
 BUY_CUES = ('ابي', 'ابغي', 'ابغى', 'ادور', 'احتاج', 'نحتاج', 'اشتري', 'نشتري', 'مورد', 'موردين', 'محلات', 'buy', 'need', 'supplier', 'suppliers', 'looking')
 
 
@@ -466,19 +484,25 @@ class Taxonomy:
             spec_subs = {self.specs[x]['sub_id'] for x in specs}
             fallback = {k: v for k, v in targets.items() if v < 2 and k not in spec_subs}
             targets = {k: max(v, 2.0) for k, v in targets.items() if k not in fallback}
+        if objective != 'marketing' and asks_supplier(q):
+            fallback = {k: v for k, v in fallback.items() if k not in SERVED_SUBS}
+            targets = {k: targets[k] for k in without_served(q, list(targets))}
         # a weaker specialty mention only refines ranking inside the understood subcategories («جبس بورد» is not mining)
         specs = [x for x in specs if self.specs[x]['sub_id'] in targets] if objective != 'marketing' else []
         return {'families': fams, 'named_subs': named, 'relation': relation, 'targets': targets, 'source': source, 'specialties': specs,
                 'anchor': 'family' if fams else 'subcategory' if targets else 'none', 'fallback_targets': fallback}
 
     def _from_specialties(self, q, specs, objective, relation):
+        if objective != 'marketing' and asks_supplier(q):
+            specs = [x for x in specs if self.specs[x]['sub_id'] not in SERVED_SUBS] or specs
         spec_subs = list(dict.fromkeys(self.specs[x]['sub_id'] for x in specs))
         # the families the specialty's own subcategory sells: used to describe it and, for a seller, to find its usual buyers
         sold = [f for f, _ in sorted(((f, w) for f, lst in self.rel['sells'].items() for sub, w in lst if sub in spec_subs), key=lambda x: -x[1])]
         if objective != 'marketing':
             targets = {sub: 3.0 for sub in spec_subs}
             # other shops that sell the same family: shown only after the specialty's own trade, and only if that trade is thin
-            fallback = {sub: 0.5 for f in sold[:1] for sub, _ in self.rel['sells'].get(f, []) if self._sub_ok(sub) and sub not in targets}
+            fallback = {sub: 0.5 for f in sold[:1] for sub, _ in self.rel['sells'].get(f, []) if self._sub_ok(sub) and sub not in targets
+                        and not (sub in SERVED_SUBS and asks_supplier(q))}
             return {'families': sold[:1], 'named_subs': spec_subs, 'relation': relation, 'targets': targets, 'source': 'taxonomy',
                     'specialties': specs, 'anchor': 'specialty', 'fallback_targets': fallback}
         # seller: buyers of this exact specialty (contractor classes that list it), then the usual buyers of its family

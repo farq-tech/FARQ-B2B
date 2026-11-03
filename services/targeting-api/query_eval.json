@@ -260,6 +260,10 @@
     {"q": "توزيع مواد غذائية للبقالات", "objective": "marketing", "expect": ["food.grocery"]},
     {"q": "موزع مياه للبقالات", "objective": "marketing", "expect": ["food.grocery"]},
     {"q": "توزيع منظفات بالجملة للسوبرماركت", "objective": "marketing", "expect": ["food.supermarket", "food.grocery"]},
-    {"q": "ابيع خشب للنجارين", "objective": "marketing", "expect": ["build.carpentry"]}
+    {"q": "ابيع خشب للنجارين", "objective": "marketing", "expect": ["build.carpentry"]},
+    {"q": "مورد قهوة", "objective": "purchase", "expect": ["food.coffee_tea_supplier"], "also": ["food.roastery", "food.food_wholesale"], "not": ["food.cafe"]},
+    {"q": "موردين قهوة", "objective": "purchase", "expect": ["food.coffee_tea_supplier"], "also": ["food.roastery", "food.food_wholesale"], "not": ["food.cafe"]},
+    {"q": "مورد حليب", "objective": "purchase", "expect": ["food.dairy"], "also": ["food.coffee_tea_supplier", "food.food_wholesale"], "not": ["food.cafe"]},
+    {"q": "مورد ارز", "objective": "purchase", "expect": ["food.food_wholesale"], "also": ["food.coffee_tea_supplier", "food.grain_mills"], "not": ["food.buffet_popular"]}
   ]
 }
