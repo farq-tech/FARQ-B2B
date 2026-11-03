@@ -167,7 +167,7 @@ export function CorridorsTool({ city, rows = [], onOverlay, next }: {
       </form>
       <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
         onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); setStudied({ main_id: item.main_id, label: item.main_ar }) } }} />
-      <Examples examples={EXAMPLES} active={chosen ? studied.q ?? null : null} collapse={chosen} onPick={(example) => { setQuery(example); study(example) }} />
+      <Examples examples={EXAMPLES} active={chosen ? studied.q ?? null : null} collapse={chosen && status === 'idle' && corridors.length > 0} onPick={(example) => { setQuery(example); study(example) }} />
       <Choice label="طريقة العرض" size="base" value={mode} onChange={setMode} options={[{ id: 'cluster', label: 'أين يتجمع' }, { id: 'gap', label: 'أين الفرصة' }]} />
       {!chosen && <p className="text-base text-muted-foreground">اختر النشاط لترى الشوارع التي يتجمع فيها، أو التي ينقصها.</p>}
       {mode === 'gap' && chosen && <StreetOpportunities city={city} rows={rows} studied={studied} clusters={clusters} onOverlay={onOverlay} />}

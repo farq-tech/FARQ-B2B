@@ -4,6 +4,7 @@ import { MousePointerClick } from 'lucide-react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { AdvisorPanel } from '../advisor-panel'
 import { figure } from '../advisor-facts'
+import { counted } from '@/lib/insights-api'
 import type { DistrictRow } from '../city-data'
 import { districtsVerdict, type DistrictFigure } from './tool-answers'
 import { RELIABLE_LISTINGS } from '../lenses'
@@ -38,6 +39,12 @@ const FIGURES: { label: string; value: (row: DistrictRow) => number | null; unit
  * analyst reads the figures), then go to the comparison assistant, which asks what the comparison is for and compares
  * them from Atlas figures only.
  */
+function shownWith(item: (typeof FIGURES)[number], row: DistrictRow): string {
+  const shown = figure(item.value(row), item.unit)
+  const listings = item.listings?.(row)
+  return item.value(row) != null && listings ? `${shown} من ${counted(listings, 'listing')}` : shown
+}
+
 export function CompareTool({ rows, selected }: { rows: DistrictRow[]; selected: DistrictRow[] }) {
   if (selected.length !== 2) {
     return selected.length < 2
@@ -46,7 +53,9 @@ export function CompareTool({ rows, selected }: { rows: DistrictRow[]; selected:
   }
   const [a, b] = selected
   const figures: DistrictFigure[] = FIGURES.map((item) => ({
-    label: item.label, a: item.value(a), b: item.value(b), shown: [figure(item.value(a), item.unit), figure(item.value(b), item.unit)],
+    label: item.label, a: item.value(a), b: item.value(b),
+    // a listing median carries how many ads it rests on («900 ريال من 25 عرضاً»), so its weight is read with it
+    shown: [shownWith(item, a), shownWith(item, b)],
     ...(item.listings ? { thin: [(item.listings(a) ?? 0) < RELIABLE_LISTINGS, (item.listings(b) ?? 0) < RELIABLE_LISTINGS] as [boolean, boolean] } : {}),
   }))
   return (
