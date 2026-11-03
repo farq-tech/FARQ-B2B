@@ -34,11 +34,12 @@ import { CompareStart, JourneySummary, StartFrom } from './journey'
 import { STEP_WAIT, decisionFor, pickedLine, stepLine, type DecisionAction, type HomesChoice, type SitesCompared } from './journey-logic'
 import { trackDecisionMoment, trackJourneyDecision } from '@/lib/commercial-metrics'
 import { StillWorking } from './tools/choice'
+import { answerCache, dataVersion } from './tools/answer-cache'
 import { AroundTool } from './tools/around-tool'
 import { AudienceTool } from './tools/audience-tool'
 import { CompareTool } from './tools/compare-tool'
 import { CompetitorsTool } from './tools/competitors-tool'
-import { CorridorsTool } from './tools/corridors-tool'
+import { CorridorsTool, streetsQuestion } from './tools/corridors-tool'
 import { BusinessesPanel } from './businesses-panel'
 import { GapsTool } from './tools/gaps-tool'
 import { HomesTool } from './tools/homes-tool'
@@ -456,6 +457,8 @@ const DISTRICTS_MULTI = '__multi__'
  */
 export function LensMap() {
   const cities = useCities()
+  // the kept answers belong to the data they came from: a city list with other counts (a new snapshot) forgets them
+  useEffect(() => { if (cities.length > 1) answerCache.setVersion(dataVersion(cities)) }, [cities])
   const reduce = useReducedMotion()
   const [city, setCity] = useState('Riyadh')
   const [lens, setLens] = useState<LensId>('shops')
@@ -811,6 +814,25 @@ export function LensMap() {
   // the activity is carried by name only once the customer chose it (a pick, a link): the default nobody picked is
   // not «يكمل على «صيدلية»»
   const chosenActivity = stickyHas('activity') ? studied.label : null
+  // the next step's slow answer, asked ahead: only once an activity is chosen and the open step has answered, only for
+  // a next step whose answer is one request («شوارع النشاط»), once per question, and only when the page is idle
+  const prefetched = useRef(new Set<string>())
+  const prefetchFor = chosenActivity && next?.tool === 'corridors' && done.includes(tool) ? streetsQuestion(city, studied) : null
+  const prefetchKey = prefetchFor ? `${prefetchFor.cache}|${prefetchFor.key}` : null
+  useEffect(() => {
+    if (!prefetchFor || !prefetchKey || prefetched.current.has(prefetchKey) || answerCache.get(prefetchKey) !== undefined) return
+    const run = prefetchFor.run
+    const idle = typeof window.requestIdleCallback === 'function'
+      ? { start: (go: () => void) => window.requestIdleCallback(go, { timeout: 10000 }), stop: (id: number) => window.cancelIdleCallback(id) }
+      : { start: (go: () => void) => window.setTimeout(go, 3000), stop: (id: number) => window.clearTimeout(id) }
+    const handle = idle.start(() => {
+      prefetched.current.add(prefetchKey)
+      run().then((data) => answerCache.set(prefetchKey, data)).catch(() => { prefetched.current.delete(prefetchKey) })
+    })
+    return () => idle.stop(handle)
+    // keyed by the question as one string
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefetchKey])
   const carried = next ? [
     TOOL_INPUTS[next.tool].activity && TOOL_INPUTS[tool].activity && chosenActivity ? `«${chosenActivity}»` : null,
     TOOL_INPUTS[next.tool].district && chosen.length ? (chosen.length === 1 ? chosen[0].name : counted(chosen.length, 'district')) : null,
@@ -1002,8 +1024,20 @@ export function LensMap() {
   // at the journey's last step the peeking sheet says the decision itself, so a phone sees it without raising the panel
   // (a failed step still says it failed, with its retry)
   const shownDecision = !search && decision?.pick && active.steps.length > 1 && done.some((id) => active.steps.some((item) => item.tool === id)) ? decision.pick : null
+  // a tap on it opens the closing card: the sheet rises to its full stop and the card comes into view
+  const openDecision = () => {
+    setSheet('full')
+    window.setTimeout(() => document.getElementById('journey-summary')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 320)
+  }
   const decisionLine = shownDecision && overlay.state !== 'error'
-    ? <span className="inline-flex items-center gap-1.5 font-semibold text-foreground"><Check className="size-3.5 shrink-0 text-primary" strokeWidth={3} aria-hidden /><span className="truncate">{shownDecision}</span></span>
+    ? (
+      <button type="button" onClick={openDecision} aria-label={`${shownDecision}، افتح خلاصة رحلتك`}
+        className="inline-flex min-h-9 max-w-[calc(100vw-2rem)] items-center gap-1.5 rounded-full border border-primary/40 bg-primary/5 px-3 text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:min-h-11">
+        <Check className="size-3.5 shrink-0 text-primary" strokeWidth={3} aria-hidden />
+        <span className="truncate">{shownDecision}</span>
+        <ChevronLeft className="size-4 shrink-0 text-primary" aria-hidden />
+      </button>
+    )
     : null
   // the decision moment of the journey itself: the closing card shown, once per group, city and decision in a visit
   useEffect(() => {
@@ -1189,7 +1223,7 @@ export function LensMap() {
             </div>
           </div>
         </div>
-        <MapSheet snap={sheet} onSnap={setSheet} onPeek={setPeekPx} title={sheetTitle} summary={!search ? decisionLine ?? (!chosen.length ? peekLine : null) : null} summaryAction={peekAction} resetKey={search ? `search|${search.nonce}` : `${lens}|${tool}`}
+        <MapSheet snap={sheet} onSnap={setSheet} onPeek={setPeekPx} title={sheetTitle} summary={!search && !decisionLine && !chosen.length ? peekLine : null} summaryAction={!search && decisionLine ? decisionLine : peekAction} resetKey={search ? `search|${search.nonce}` : `${lens}|${tool}`}
           panel={!search && data.status !== 'error' ? { id: STEP_PANEL, labelledBy: tabId(tool) } : null}
           header={!search && data.status !== 'error' ? (
             // the steps stay above the scrolling body at every stop of the sheet: one sideways line on a phone, and from lg
@@ -1292,6 +1326,19 @@ export function LensMap() {
                     <JourneySummary lens={active} cityName={cityName} tool={tool} done={done} answers={trailNow?.summaries ?? {}}
                       picked={chosen.map((row) => row.name)} activity={chosenActivity} decision={decision} onAct={act}
                       onOpen={(id) => { focusAfter.current = tabId(id); setTool(id) }} />
+                  )}
+                  {/* the candidate sites side by side, kept by name like an analyst's comparison (its sites are in the
+                      address), and reopened from the same list */}
+                  {!next && lens === 'shops' && decision?.sites && (
+                    <SavedComparisons city={city} cityName={cityName} districts={[]}
+                      sites={decision.sites.sites.map((site) => `الموقع ${site.label}${site.district ? ` في ${site.district}` : ''}`)}
+                      // saved on «قارن المواقع» itself, so reopening it measures the same sites again from today's numbers
+                      here={() => {
+                        if (typeof window === 'undefined') return ''
+                        const query = new URLSearchParams(window.location.search)
+                        query.set('tool', 'around')
+                        return `${window.location.pathname}?${query}`
+                      }} onOpen={openView} />
                   )}
                   {/* the decision's businesses, where the quote request, the campaign or the list is made from the picks
                       after review (the same list as every step's); only when the open step does not show it already */}

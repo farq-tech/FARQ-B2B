@@ -16,6 +16,9 @@ export type SavedView = {
   /** The districts compared, by name as the map showed them. */
   districts: string[]
   createdAt: string
+  /** What is compared: two districts (absent, the first kind saved) or a shop owner's candidate sites, named by their
+   * slot and district in `districts` (additive: an older reader shows them as it shows districts). */
+  kind?: 'sites'
 }
 
 const MAX_NAME = 80
@@ -38,7 +41,7 @@ export function readView(value: unknown): SavedView | null {
   if (typeof view.id !== 'string' || typeof view.name !== 'string' || !href || typeof view.city !== 'string' || typeof view.cityName !== 'string'
     || !Array.isArray(view.districts) || !view.districts.every((name) => typeof name === 'string') || typeof view.createdAt !== 'string') return null
   const name = cleanName(view.name)
-  return name ? { id: view.id, name, href, city: view.city, cityName: view.cityName, districts: view.districts.slice(0, 12), createdAt: view.createdAt } : null
+  return name ? { id: view.id, name, href, city: view.city, cityName: view.cityName, districts: view.districts.slice(0, 12), createdAt: view.createdAt, ...(view.kind === 'sites' ? { kind: 'sites' as const } : {}) } : null
 }
 
 /**

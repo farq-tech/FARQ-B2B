@@ -18,7 +18,7 @@ import { trackComparisonSaved } from '@/lib/commercial-metrics'
  * worked out again from today's numbers. No figure is stored, nothing is exported; a saved comparison is shared by
  * its link inside the platform («انسخ الرابط»).
  */
-export function SavedComparisons({ city, cityName, districts, here, onOpen }: {
+export function SavedComparisons({ city, cityName, districts, here, onOpen, sites }: {
   city: string
   cityName: string
   /** The two districts on screen, by name; fewer than two and there is nothing to save yet. */
@@ -27,20 +27,23 @@ export function SavedComparisons({ city, cityName, districts, here, onOpen }: {
   here: () => string
   /** Opens a saved comparison's address on the map. */
   onOpen: (href: string) => void
+  /** Saves the shop owner's candidate sites instead (two or three, named «الموقع 1 في …»), with `kind: 'sites'`. */
+  sites?: string[]
 }) {
   const { views, saveComparison } = useAppStore()
-  const offered = defaultName(districts)
+  const names = sites ?? districts
+  const offered = defaultName(names)
   const [name, setName] = useState<string | null>(null)
   const typed = name ?? offered
   const current = safeMapOrigin(here())
   const saved = current ? views.find((view) => view.href === current) ?? null : null
-  const ready = districts.length === 2
+  const ready = sites ? sites.length >= 2 : districts.length === 2
 
   const save = () => {
     const href = safeMapOrigin(here())
     const clean = cleanName(typed) || offered
     if (!href || !clean) return
-    saveComparison({ id: makeId('cmpv'), name: clean, href, city, cityName, districts, createdAt: new Date().toISOString() })
+    saveComparison({ id: makeId('cmpv'), name: clean, href, city, cityName, districts: names, createdAt: new Date().toISOString(), ...(sites ? { kind: 'sites' as const } : {}) })
     setName(null)
     trackComparisonSaved({ city, saved: views.length + (saved ? 0 : 1) })
     toast.success(`حُفظت «${clean}»`, { description: 'تجدها هنا في «المقارنات المحفوظة»، وتُحسب من أرقام اليوم كلما فتحتها.' })

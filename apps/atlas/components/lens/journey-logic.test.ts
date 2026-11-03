@@ -5,6 +5,7 @@ import { homesHref, readHomesMax } from '../../lib/handoff.ts'
 import { matchMain } from '../../lib/sticky-state.ts'
 import type { DistrictRow } from './city-data.ts'
 import { STEP_WAIT, decisionFor, pickedLine, stepLine } from './journey-logic.ts'
+import { readMapOptions, writeMapOptions } from './map-query.ts'
 import { LENSES, TOOL_INPUTS, journeyStart, lensById } from './lenses.ts'
 
 // a fixed city of three districts, for every journey below (no production data)
@@ -117,6 +118,20 @@ test('decision moments are measured by sizes and ids only: no district, business
   assert.deepEqual(props, { moment: 'audience_filtered', lens: 'marketers', city: 'Riyadh', filters: 'income,sex' })
   assert.deepEqual(decisionMomentProps('route_planned', { lens: 'distributors', city: 'Riyadh', count: 23 }), { moment: 'route_planned', lens: 'distributors', city: 'Riyadh', size: '16-30' })
   assert.equal(decisionMomentProps('audience_filtered', { lens: 'marketers', city: 'Riyadh', filters: [] }).filters, 'none')
+})
+
+test('the compared sites live in the map address: at most three, inside the Kingdom, read back as written', () => {
+  const steps = ['gaps', 'competitors', 'corridors', 'around', 'homes']
+  const sites = [{ lon: 46.67512, lat: 24.71101 }, { lon: 46.72, lat: 24.7 }]
+  const search = writeMapOptions('', 'shops', steps, (key) => (key === 'around.sites' ? sites : undefined))
+  assert.equal(new URLSearchParams(search).get('sites'), '46.67512,24.71101;46.72000,24.70000')
+  assert.deepEqual(readMapOptions(search, 'shops', steps)['around.sites'], [{ lon: 46.67512, lat: 24.71101 }, { lon: 46.72, lat: 24.7 }])
+  // outside the box, malformed, or a lens without the step: nothing
+  assert.equal(readMapOptions('?sites=10,10;abc', 'shops', steps)['around.sites'], undefined)
+  assert.equal(readMapOptions('?sites=46.7,24.7', 'analysts', ['district', 'compare'])['around.sites'], undefined)
+  assert.equal((readMapOptions('?sites=46.1,24.1;46.2,24.2;46.3,24.3;46.4,24.4', 'shops', steps)['around.sites'] as unknown[]).length, 3)
+  // no sites: no parameter
+  assert.equal(writeMapOptions('', 'shops', steps, (key) => (key === 'around.sites' ? [] : undefined)), '')
 })
 
 test('«العقار» opens on the budget a link carries, and only a sensible one', () => {

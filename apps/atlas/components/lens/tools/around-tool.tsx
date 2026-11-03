@@ -113,6 +113,28 @@ export function AroundTool({ city, onOverlay, districts, features, next, siteAct
     const id = nextId.current++
     setSites((current) => placeSite(current, { ...point, id }, MAX_SITES))
   }, [])
+  // the sites live in the map's address too (map-query.ts `sites`), so a link, a reload or a saved comparison reopens
+  // them: read once on arrival, written back as they change
+  const [keptSites, setKeptSites] = useStickyState<Point[]>('around.sites', [])
+  const restored = useRef(false)
+  useEffect(() => {
+    if (restored.current) return
+    restored.current = true
+    if (!sites.length && keptSites.length) keptSites.slice(0, MAX_SITES).forEach((point) => pick({ lon: point.lon, lat: point.lat }))
+    // once, on arrival
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const sitesKey = [...sites].sort((a, b) => a.slot - b.slot).map((site) => `${site.lon.toFixed(5)},${site.lat.toFixed(5)}`).join(';')
+  // nothing is written before a site has been on the map: the arrival's empty list would wipe the sites being restored
+  const hadSites = useRef(false)
+  if (sites.length) hadSites.current = true
+  useEffect(() => {
+    if (!restored.current || !hadSites.current) return
+    const keptKey = keptSites.map((point) => `${point.lon.toFixed(5)},${point.lat.toFixed(5)}`).join(';')
+    if (keptKey !== sitesKey) setKeptSites([...sites].sort((a, b) => a.slot - b.slot).map((site) => ({ lon: site.lon, lat: site.lat })))
+    // keyed by the sites' places as one string
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sitesKey])
 
   // keyed by what is asked (the reach and the activity as strings), never by their objects; the objects are read from
   // refs when a request starts, so a new object for the same reach or activity asks nothing again

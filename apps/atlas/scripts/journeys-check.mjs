@@ -15,44 +15,55 @@ const BASE = process.env.ATLAS_URL ?? 'http://localhost:3473'
 
 // ── fixed data ────────────────────────────────────────────────────────────────────────────────────────────────────
 const square = (lon, lat) => ({ type: 'Polygon', coordinates: [[[lon, lat], [lon + 0.02, lat], [lon + 0.02, lat + 0.02], [lon, lat + 0.02], [lon, lat]]] })
-const DISTRICTS = [
-  { id: 'd1', ar: 'حي الأول', lon: 46.66, lat: 24.70, population: 120000, n: 9000, built: [40, 60] },
-  { id: 'd2', ar: 'حي الثاني', lon: 46.69, lat: 24.70, population: 80000, n: 3000, built: [500, 700] },
-  { id: 'd3', ar: 'حي الثالث', lon: 46.72, lat: 24.70, population: 280000, n: 22000, built: [10, 5] },
-]
+// Riyadh: three districts with every figure. Jeddah: a second city the way most cities are today: no income (the
+// site score falls back on villa share), and one district without a population (its figures read «غير متاح»)
+const CITIES = {
+  Riyadh: [
+    { id: 'd1', ar: 'حي الأول', lon: 46.66, lat: 24.70, population: 120000, n: 9000, built: [40, 60], income: 6000 },
+    { id: 'd2', ar: 'حي الثاني', lon: 46.69, lat: 24.70, population: 80000, n: 3000, built: [500, 700], income: 8000 },
+    { id: 'd3', ar: 'حي الثالث', lon: 46.72, lat: 24.70, population: 280000, n: 22000, built: [10, 5], income: 10000 },
+  ],
+  Jeddah: [
+    { id: 'j1', ar: 'حي البحر', lon: 39.16, lat: 21.54, population: 150000, n: 8000, built: [30, 20], villa: 12 },
+    { id: 'j2', ar: 'حي السوق', lon: 39.19, lat: 21.54, population: null, n: 6000, built: [5, 5], villa: 2 },
+    { id: 'j3', ar: 'حي الجبل', lon: 39.22, lat: 21.54, population: 210000, n: 12000, built: [60, 90], villa: 30 },
+  ],
+}
+const cityOf = (url, body) => {
+  const named = url.searchParams.get('city') ?? body?.city
+  return CITIES[named] ? named : 'Riyadh'
+}
 const GET = {
-  '/api/market/cities': [{ en: 'Riyadh', ar: 'الرياض', districts: 3, n: 34000 }],
-  '/api/market/districts': { type: 'FeatureCollection', features: DISTRICTS.map((d) => ({ type: 'Feature', properties: { id: d.id, ar: d.ar }, geometry: square(d.lon, d.lat) })) },
-  '/api/market/population-districts': { districts: DISTRICTS.map((d) => ({ district_id: d.id, district_ar: d.ar, population: d.population, source: 'census' })) },
+  '/api/market/cities': () => [{ en: 'Riyadh', ar: 'الرياض', districts: 3, n: 34000 }, { en: 'Jeddah', ar: 'جدة', districts: 3, n: 26000 }],
+  '/api/market/districts': (D) => ({ type: 'FeatureCollection', features: D.map((d) => ({ type: 'Feature', properties: { id: d.id, ar: d.ar }, geometry: square(d.lon, d.lat) })) }),
+  '/api/market/population-districts': (D) => ({ districts: D.map((d) => ({ district_id: d.id, district_ar: d.ar, population: d.population, source: d.population == null ? null : 'census' })) }),
 }
 const POST = {
-  'district-counts': (body) => (body.q || body.main_id
-    ? { districts: DISTRICTS.map((d) => ({ district_ar: d.ar, n: Math.round(d.n / 100), per_km2: 3 })), total: 340, located: 340 }
-    : { districts: DISTRICTS.map((d) => ({ district_ar: d.ar, n: d.n, area_km2: 4, residents_per: d.population / d.n, per_km2: d.n / 4, density: d.population / 4 })), total: 34000 }),
-  growth: () => ({ districts: DISTRICTS.map((d) => ({ district_ar: d.ar, under_construction: d.built[0], new_buildings: d.built[1] })) }),
-  'district-audience': () => ({ districts: DISTRICTS.map((d) => ({ district_ar: d.ar, men: d.population / 2, women: d.population / 2, saudi: d.population / 2, non_saudi: d.population / 2 })) }),
-  'market-gaps': () => ({
-    residents_per_business: 700,
-    districts: [
-      { district_ar: 'حي الثالث', businesses: 300, expected_businesses: 400, shortfall: 100, population: 280000 },
-      { district_ar: 'حي الأول', businesses: 170, expected_businesses: 171, shortfall: 1, population: 120000 },
-      { district_ar: 'حي الثاني', businesses: 200, expected_businesses: 114, shortfall: -86, population: 80000 },
-    ],
-  }),
-  'real-estate-listings': () => ({
+  'district-counts': (D, body) => (body.q || body.main_id
+    ? { districts: D.map((d) => ({ district_ar: d.ar, n: Math.round(d.n / 100), per_km2: 3 })), total: 340, located: 340 }
+    : { districts: D.map((d) => ({ district_ar: d.ar, n: d.n, area_km2: 4, residents_per: d.population == null ? null : d.population / d.n, per_km2: d.n / 4, density: d.population == null ? null : d.population / 4 })), total: D.reduce((sum, d) => sum + d.n, 0) }),
+  growth: (D) => ({ districts: D.map((d) => ({ district_ar: d.ar, under_construction: d.built[0], new_buildings: d.built[1] })) }),
+  'district-audience': (D) => ({ districts: D.filter((d) => d.population != null).map((d) => ({ district_ar: d.ar, men: d.population / 2, women: d.population / 2, saudi: d.population / 2, non_saudi: d.population / 2 })) }),
+  // the activity is short most in the most populous district, as the service orders it
+  'market-gaps': (D) => {
+    const people = D.filter((d) => d.population != null).sort((a, b) => b.population - a.population)
+    const short = [100, 1, -80]
+    return { residents_per_business: 700, districts: people.map((d, index) => ({ district_ar: d.ar, businesses: 200, expected_businesses: 200 + short[index], shortfall: short[index], population: d.population })) }
+  },
+  'real-estate-listings': (D) => ({
     available: true, total: 2,
-    listings: [
-      { id: 'l1', url: null, lon: 46.70, lat: 24.71, district_id: 'd2', district_ar: 'حي الثاني', kind: 'rent', deal: 'rent_year', group: 'residential', type: 'apartment', price_sar: 30000, area_sqm: 100, sar_per_sqm: 300, vs_district_pct: -20, check: false, city: 'Riyadh', photo: '/brand/farq-b2b-light.svg', photos: ['/brand/farq-b2b-light.svg'], address: null },
-      { id: 'l2', url: null, lon: 46.67, lat: 24.71, district_id: 'd1', district_ar: 'حي الأول', kind: 'rent', deal: 'rent_year', group: 'residential', type: 'apartment', price_sar: 50000, area_sqm: 120, sar_per_sqm: 416, vs_district_pct: 5, check: false, city: 'Riyadh', photo: '/brand/farq-b2b-light.svg', photos: ['/brand/farq-b2b-light.svg'], address: null },
-    ],
+    listings: [D[1], D[0]].map((d, index) => ({ id: `l${index + 1}${d.id}`, url: null, lon: d.lon + 0.01, lat: d.lat + 0.01, district_id: d.id, district_ar: d.ar, kind: 'rent', deal: 'rent_year', group: 'residential', type: 'apartment', price_sar: index ? 50000 : 30000, area_sqm: index ? 120 : 100, sar_per_sqm: index ? 416 : 300, vs_district_pct: index ? 5 : -20, check: false, city: 'Riyadh', photo: '/brand/farq-b2b-light.svg', photos: ['/brand/farq-b2b-light.svg'], address: null })),
   }),
   territories: () => ({ territories: [] }),
-  'district-income': () => ({ districts: DISTRICTS.map((d, index) => ({ district_ar: d.ar, income_all: 6000 + 2000 * index })) }),
-  // the people inside a site's reach: the second site (the east one) has more
-  'population-within': (body) => {
-    const east = (body.geometry?.coordinates?.[0]?.[0]?.[0] ?? 0) > 46.7
+  // Riyadh publishes income; Jeddah does not (the villa share stands in)
+  'district-income': (D) => ({ districts: D.filter((d) => d.income != null).map((d) => ({ district_ar: d.ar, income_all: d.income })) }),
+  'housing-level': (D) => ({ districts: D.filter((d) => d.villa != null).map((d) => ({ district_ar: d.ar, villa_share_pct: d.villa })) }),
+  // the people inside a site's reach: the east site of each city has more
+  'population-within': (D, body) => {
+    const east = (body.geometry?.coordinates?.[0]?.[0]?.[0] ?? 0) > D[1].lon + 0.01
     return east ? { population: 52000, dwellings: 9000, businesses: 400, residents_per: 130, top_activities: [] } : { population: 30000, dwellings: 6000, businesses: 900, residents_per: 33, top_activities: [] }
   },
+  'street-density': () => ({ type: 'FeatureCollection', features: [] }),
 }
 const WAIT = (await import('node:fs')).readFileSync(new URL('../components/lens/journey-logic.ts', import.meta.url), 'utf8')
 const gapsWhy = WAIT.match(/gaps: \{ why: '([^']+)'/)[1]
@@ -71,10 +82,11 @@ async function open(browser, { phone, gaps = 'ok' }) {
     const body = request.postDataJSON?.() ?? null
     asked.push({ path: url.pathname, body })
     const resource = url.pathname.replace('/api/market/', '')
-    if (request.method() === 'GET' && GET[url.pathname]) return route.fulfill({ json: GET[url.pathname] })
+    const D = CITIES[cityOf(url, body)]
+    if (request.method() === 'GET' && GET[url.pathname]) return route.fulfill({ json: GET[url.pathname](D) })
     if (resource === 'market-gaps' && gaps === 'slow') await new Promise((resolve) => setTimeout(resolve, 10000))
     if (resource === 'market-gaps' && gaps === 'fail') return route.fulfill({ status: 500, json: { error: 'down' } })
-    if (request.method() === 'POST' && POST[resource]) return route.fulfill({ json: POST[resource](body ?? {}) })
+    if (request.method() === 'POST' && POST[resource]) return route.fulfill({ json: POST[resource](D, body ?? {}) })
     return route.fulfill({ status: 503, json: { error: 'غير متاح' } })
   })
   const page = await context.newPage()
@@ -121,9 +133,13 @@ try {
     // the slow answer is kept for the visit: leaving the step and coming back shows it at once, with no second request
     const gapsAsked = () => asked.filter((item) => item.path === '/api/market/market-gaps').length
     const before = gapsAsked()
-    await tab(page, 'المنافسون'); await settle(page, 1000)
+    const streetsAsked = () => asked.filter((item) => item.path === '/api/market/street-density').length
+    await tab(page, 'المنافسون'); await settle(page, 4000)
+    check(streetsAsked() === 1, 'the next step\'s slow answer is asked ahead once, when idle (streets, after competitors answered)')
     await tab(page, 'أين ينقص نشاطي؟'); await settle(page, 800)
     check(gapsAsked() === before && (await text(page)).includes('حي الثالث'), 'a slow answer is kept for the visit (no second wait)')
+    await tab(page, 'شوارع النشاط'); await settle(page, 1000)
+    check(streetsAsked() === 1, 'the step asked ahead opens on its answer, with no second request')
     // two candidate sites, through the step's own «ابدأ من هنا» (the map itself needs a token here)
     await tab(page, 'قارن المواقع'); await settle(page, 800)
     await panel(page).getByRole('button', { name: /ابدأ من هنا/ }).click(); await settle(page, 3000)
@@ -133,6 +149,14 @@ try {
     await shoot(page, 'shops-desktop')
     check(homes.includes('خلاصة رحلتك') && homes.includes('أين تفتح «صيدلية»') && /أجذب موقع: الموقع \d/.test(homes), 'the shop owner\'s journey closes on its decision, the best site first')
     check(homes.includes('الجاذبية') && homes.includes('السكان في') && homes.includes('منشآت لكل كم²'), 'the candidate sites are side by side in the closing card')
+    check(new URL(page.url()).searchParams.get('sites')?.split(';').length === 2, 'the compared sites are in the address')
+    await panel(page).getByRole('button', { name: 'احفظ المقارنة' }).click(); await settle(page, 800)
+    const saved = panel(page).locator('li button', { hasText: 'الموقع' }).first()
+    check(await saved.count() > 0, 'the side-by-side is saved by name in «المقارنات المحفوظة»')
+    if (await saved.count()) { await saved.click(); await settle(page, 3500) }
+    const reopened = new URL(page.url())
+    check(reopened.searchParams.get('tool') === 'around' && reopened.searchParams.get('sites')?.split(';').length === 2 && (await text(page)).includes('الموقع 2'),
+      'a saved site comparison reopens on «قارن المواقع» with its sites, measured again')
     await context.close()
   }
   // marketer, phone: the peek says the step, step 2 starts from step 1's top district, the close opens the businesses
@@ -142,9 +166,11 @@ try {
     const peek = await page.locator('[aria-label^="اللوحة"]').first().innerText()
     check(/حجم الجمهور|اختر جمهورك|جارٍ حساب/.test(peek), 'phone: the peeking sheet says the step\'s answer or what to do')
     await tab(page, 'منشآت الأحياء'); await settle(page)
-    const lastPeek = await page.locator('[aria-label^="اللوحة"]').first().innerText()
-    check(lastPeek.includes('أعلى حي مطابق لجمهورك: حي الثالث'), 'phone: at the last step the peeking sheet says the decision')
-    await raise(page)
+    const line = page.locator('aside[aria-label="لوحة الخريطة"] button', { hasText: 'أعلى حي مطابق لجمهورك: حي الثالث' }).first()
+    check(await line.count() > 0, 'phone: at the last step the peeking sheet says the decision')
+    if (await line.count()) { await line.click(); await settle(page, 1500) }
+    const card = await page.locator('#journey-summary').boundingBox().catch(() => null)
+    check(card != null && card.y >= 0 && card.y < 844, 'phone: a tap on the decision opens the closing card')
     check((await text(page)).includes('ابدأ من حي الثالث'), 'the businesses step starts from the top audience district')
     const close = panel(page).getByRole('button', { name: /جهّز حملة لمنشآت/ })
     check(await close.count() > 0, 'the marketer\'s journey closes on «جهّز حملة»')
@@ -153,6 +179,22 @@ try {
     check((await text(page)).includes('منشآت حي الثالث'), 'the decision opens the businesses list of the district, where the campaign is made after review')
     const wide = await page.evaluate(() => document.documentElement.scrollWidth)
     check(wide <= 390, 'phone: no sideways scroll')
+    await context.close()
+  }
+  // Jeddah, desktop: no published income (the site score stands on villa share) and a district without population
+  {
+    const { context, page } = await open(browser, { phone: false })
+    await page.goto(`${BASE}/map?city=Jeddah&goal=expand`); await settle(page, 3500)
+    await panel(page).getByRole('button', { name: 'صيدلية' }).first().click(); await settle(page, 2500)
+    check((await text(page)).includes('حي الجبل'), 'Jeddah: the gaps answer names its most populous district')
+    await tab(page, 'قارن المواقع'); await settle(page, 800)
+    await panel(page).getByRole('button', { name: /ابدأ من هنا/ }).click(); await settle(page, 3000)
+    await tab(page, 'محلات للإيجار'); await settle(page, 2500)
+    const close = await text(page)
+    check(close.includes('حصة الفلل') && !close.includes('دخل الحي'), 'Jeddah: the side-by-side scores on villa share where no income is published')
+    check(/أجذب موقع: الموقع \d/.test(close), 'Jeddah: the shop owner\'s close still decides on the scored sites')
+    await page.goto(`${BASE}/map?city=Jeddah&lens=analysts&district=j2`); await settle(page, 3500)
+    check((await text(page)).includes('غير متاح'), 'Jeddah: a district without population reads «غير متاح», not 0')
     await context.close()
   }
   // a failing step, phone: the peek says it failed and offers the retry
