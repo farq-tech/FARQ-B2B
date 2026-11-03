@@ -399,9 +399,6 @@ export function LensMap() {
   useLayoutEffect(() => { openTool.current = tool }, [tool])
   // a map that failed to open: its notice takes the map, and the tour waits (there is nothing to tap)
   const [mapFailed, setMapFailed] = useState(false)
-  // the top of the panel, where the tour asks its goal question
-  const [goalSlot, setGoalSlot] = useState<HTMLDivElement | null>(null)
-  const raiseSheet = useCallback(() => setSheet((current) => (current === 'peek' ? 'half' : current)), [])
   // the district a click on the map opened a card on, where the click landed, and where that is on screen now
   const [card, setCard] = useState<{ id: string; lon: number; lat: number } | null>(null)
   const [cardAt, setCardAt] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
@@ -712,7 +709,7 @@ export function LensMap() {
           )}
           <PointerTip store={pointer} describe={describePointed} />
           <p aria-live="polite" className="sr-only">{pickedSay}</p>
-          <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed || noDistricts} goalSlot={goalSlot} onAsk={raiseSheet}
+          <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed || noDistricts}
             onShowMe={leadId ? () => pickFromList(leadId) : null} />
           {/* the view is in the address, so its link reopens this work (above the «؟» on a phone, beside it from lg) */}
           <CopyLinkButton className="absolute end-3 bottom-[calc(6.5rem+var(--lift,0px))] z-10 transition-[bottom,color] duration-300 motion-reduce:transition-none lg:end-16 lg:top-3 lg:bottom-auto" />
@@ -819,7 +816,6 @@ export function LensMap() {
               )}
               {!search && (
                 <>
-                  <div ref={setGoalSlot} className="empty:hidden" />
                   {/* a table that failed empties its figures in every district: said once at the top, with a retry, so a
                       «غير متاح» further down is not read as the city lacking the figure */}
                   {data.status === 'ready' && data.failed.length > 0 && (
