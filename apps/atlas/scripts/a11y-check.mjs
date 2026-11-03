@@ -19,11 +19,13 @@ const { chromium } = require('playwright')
 const BASE = process.env.ATLAS_URL ?? 'http://localhost:3473'
 const API = process.env.ATLAS_API ?? ''
 const PAGES = [
+  ['/price?district=396&area=180', 'سعّر عقارك (رابط بإجابات)'],
   ['/', 'الرئيسية'],
   ['/homes', 'العقار'],
   ['/price', 'سعّر عقارك'],
   ['/requests', 'الطلبات'],
-  [`/requests/${SEED_REQUESTS[0].id}`, 'طلب'],
+  // one request in each status, so every editor (quote items, campaign, list notes) and every summary is checked
+  ...SEED_REQUESTS.map((request) => [`/requests/${request.id}`, `طلب (${request.status})`]),
   ['/inbox', 'الوارد'],
   [`/inbox?m=${SEED_INBOX[0].id}`, 'رسالة'],
   ['/login', 'الدخول'],
