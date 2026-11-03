@@ -89,6 +89,18 @@ export const LENSES: Lens[] = [
 export const lensById = (id: LensId) => LENSES.find((lens) => lens.id === id) ?? LENSES[0]
 
 /**
+ * Each lens said as the visitor's goal, in one voice (simple modern Arabic, first person). The landing's goal cards and
+ * the map's first-visit row both read it, so the goal picked on one is the goal named on the other.
+ */
+export const LENS_GOALS: Record<LensId, string> = {
+  shops: 'أفتح محلاً أو أوسّع نشاطي',
+  marketers: 'أصل إلى جمهوري بحملة',
+  distributors: 'أوزّع وأغطّي المناطق',
+  analysts: 'أفهم السوق والأحياء',
+  property: 'أبحث عن عقار مناسب',
+}
+
+/**
  * What each step takes from the steps before it: the studied activity (lib/sticky-state, shared by every step) and the
  * districts picked on the map. «التالي» names what it carries into the next step. `pickAnswers` marks a step whose
  * answer is the picked districts' summary, so it counts as done once a district is picked on it.
@@ -111,4 +123,28 @@ export const TOOL_INPUTS: Record<ToolId, { activity?: boolean; district?: boolea
 export function nextStep(lens: Lens, tool: ToolId): Lens['steps'][number] | null {
   const at = lens.steps.findIndex((step) => step.tool === tool)
   return at < 0 ? null : lens.steps[at + 1] ?? null
+}
+
+/**
+ * The tables each step reads from the district rows besides the golden two (population and the directory's counts,
+ * which every step, card and pick reads). A city's other tables wait until these have answered and the page is idle:
+ * the map opened with eleven requests at once, most of them for layers nobody was looking at.
+ */
+export const STEP_TABLES: Record<ToolId, CityTable[]> = {
+  gaps: [], competitors: [], corridors: [], homes: [], territories: [], businesses: [], district: [],
+  audience: ['income'],
+  around: ['income', 'housing'],
+  growth: ['growth'],
+  compare: ['income', 'housing', 'realEstate', 'growth'],
+}
+
+/** The tables the open step cannot answer without: a failure among them is said over the panel. A layer that failed
+ * is said in the map's key once picked, and marked «غير متاح الآن» in «طبقات» until then. */
+export function stepTables(tool: ToolId): CityTable[] {
+  return ['population', 'counts', ...STEP_TABLES[tool]]
+}
+
+/** What the open step and the layer in view need first, the layer's table ahead (it colours the map). */
+export function neededTables(tool: ToolId, metric: MetricId): CityTable[] {
+  return [...new Set<CityTable>([METRIC_TABLE[metric], ...stepTables(tool)])]
 }

@@ -14,6 +14,8 @@ import type { Overlay } from './overlay'
 import { useAnswer } from './use-answer'
 import { opportunityVerdict } from './tool-answers'
 import { Verdict } from './verdict'
+import { opportunityFacts } from './district-facts'
+import type { DistrictRow } from '../city-data'
 
 type Opportunity = {
   street_ar: string; districts_ar: string[]; road_class: 'main' | 'secondary' | null; total: number; others: number; activities: number
@@ -48,8 +50,8 @@ function requestedLine(item: Opportunity, kinds: number): string {
  * «أين الفرصة»: named streets with strong commercial life where the studied activity is absent or thin against the
  * street's size, scored out of 100 within the city. The evidence is shown; the choice stays with the viewer.
  */
-export function StreetOpportunities({ city, studied, clusters, onOverlay, next }: {
-  city: string; studied: StudiedActivity; clusters: Cluster[]; onOverlay: (overlay: Overlay) => void
+export function StreetOpportunities({ city, rows = [], studied, clusters, onOverlay, next }: {
+  city: string; rows?: DistrictRow[]; studied: StudiedActivity; clusters: Cluster[]; onOverlay: (overlay: Overlay) => void
   /** The step after the verdict (units for rent on the street, a request), given by the map shell. */
   next?: ReactNode
 }) {
@@ -80,13 +82,16 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay, next }
     const summary = status !== 'idle' || !result || result.understood === false || result.available === false ? null
       : top ? `${counted(streets.length, 'street')} ${streets.length === 1 ? 'ينقصه' : 'ينقصها'} «${studied.label}» · الأعلى: ${top.street_ar} ${numberFormat.format(top.score)}/100`
         : `لا شارع تجاري نشط ينقصه «${studied.label}»`
+    // the card on a clicked district: the opportunity the service scores highest among the streets through it
+    const facts = streets.length ? opportunityFacts(streets.map((item) => item.properties), new Map(rows.map((row) => [row.name, row.id]))) : null
     onOverlay({
       summary,
+      facts,
       streets: [...reference, ...drawn],
       onStreet: (id) => { if (id.startsWith('o')) setActive(Number(id.slice(1))) },
       legend: drawn.length ? { from: 'فرصة أقل', to: 'فرصة أكبر', shades: SHADES, ...(reference.length ? { extra: { color: CLUSTER, label: 'يتجمع فيه النشاط الآن' } } : {}) } : null,
     })
-  }, [streets, clustersKey, active, onOverlay, status, result, studied.label])
+  }, [streets, clustersKey, active, onOverlay, status, result, studied.label, rows])
 
   // 30 streets at a time; one picked on the map further down is drawn so it can come into view
   // a shortlist first: the verdict names the top street, the rest are one tap away

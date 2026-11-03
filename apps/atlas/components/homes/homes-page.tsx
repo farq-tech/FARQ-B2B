@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Building2, Calculator, List, Map as MapIcon, Scale, Search, SearchX, SlidersHorizontal, X } from 'lucide-react'
+import { Building2, Calculator, ChevronDown, List, Map as MapIcon, Scale, Search, SearchX, SlidersHorizontal, X } from 'lucide-react'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { ListingFace } from '@/components/shared/listing-face'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -14,7 +14,7 @@ import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket, useCities } from '@/lib/insights-api'
-import { LISTING_TYPES, shownPhotos, RENT_DEALS, priceLine, toneColor, typeLabel, versusDistrict, type Listing, ageLabel } from '@/lib/real-estate'
+import { LISTING_TYPES, shownPhotos, RENT_DEALS, daysAgo, flattenSimilar, groupSimilar, priceLine, priceTag, similarLabel, toneColor, typeLabel, versusDistrict, type Listing, ageLabel } from '@/lib/real-estate'
 import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { HomesFilters } from './homes-filters'
 import { cn } from '@/lib/utils'
@@ -93,10 +93,12 @@ export function HomesPage() {
     setShown(PAGE)
     // the deal, types, districts and (with a deal) the top price go to the service; the other filters narrow its answer
     postMarket<{ available?: boolean; total?: number; listings?: Listing[] }>('real-estate-listings', {
-      city, kind, types, deal, limit: LIMIT, ...(filters.maxPrice ? { max_price: filters.maxPrice } : {}),
+      // near-identical ads (same district, type, area, rooms, price and advertiser) come folded into one card
+      city, kind, types, deal, limit: LIMIT, group_similar: true, ...(filters.maxPrice ? { max_price: filters.maxPrice } : {}),
       ...(filters.districts.length ? { district_ids: filters.districts } : {}),
     })
-      .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? null, listings: payload.listings ?? [] }) })
+      // laid out flat, so every filter, count and pin reads one ad at a time; the cards fold them again (groupSimilar)
+      .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? null, listings: flattenSimilar(payload.listings ?? []) }) })
       .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, listings: [] }) })
     return () => { live = false }
   }, [city, kind, typesKey, deal, filters.maxPrice, districtsKey, attempt])
@@ -110,9 +112,12 @@ export function HomesPage() {
     return filtered.filter((l) => l.lon >= w && l.lon <= e && l.lat >= s && l.lat <= n)
   }, [filtered, byMap, bounds])
 
+  // one card (and one pin) per set of near-identical ads
+  const cards = useMemo(() => groupSimilar(visible), [visible])
   const byId = useMemo(() => new Map(result.listings.map((listing) => [listing.id, listing])), [result.listings])
-  const dots = useMemo<ListingDot[]>(() => filtered.map((listing) => ({
-    id: listing.id, lon: listing.lon, lat: listing.lat, label: shortPrice(listing.price_sar), active: listing.id === hover || listing.id === active?.id,
+  const dots = useMemo<ListingDot[]>(() => groupSimilar(filtered).map(({ lead: listing, others }) => ({
+    id: listing.id, lon: listing.lon, lat: listing.lat, label: shortPrice(listing.price_sar),
+    active: [listing, ...others].some((item) => item.id === hover || item.id === active?.id),
     color: toneColor[versusDistrict(listing)?.tone ?? 'none'],
   })), [filtered, hover, active])
 
@@ -239,13 +244,15 @@ export function HomesPage() {
             )
           )}
           <ul className="grid grid-cols-1 gap-x-5 gap-y-7 sm:grid-cols-2">
-            {visible.slice(0, shown).map((listing) => (
-              <HomeCard key={listing.id} listing={listing} comparing={compareIds.has(listing.id)} onOpen={open} onCompare={toggleCompare} onHover={setHover} />
+            {cards.slice(0, shown).map(({ lead, others }, index) => (
+              <HomeCard key={lead.id} listing={lead} others={others} priority={index < 4} comparing={compareIds.has(lead.id)} compareIds={compareIds}
+                onOpen={open} onCompare={toggleCompare} onHover={setHover} />
             ))}
           </ul>
-          {visible.length > shown && (
+          {cards.length > shown && (
             <button onClick={() => setShown((count) => count + PAGE)} className="mx-auto mt-6 block h-10 rounded-full border bg-card px-5 text-sm font-semibold transition-colors outline-none hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring">
-              عرض المزيد ({numberFormat.format(visible.length - shown)})
+              {/* what is left, counted in ads as the heading counts them */}
+              عرض المزيد ({numberFormat.format(cards.slice(shown).reduce((sum, card) => sum + 1 + card.others.length, 0))})
             </button>
           )}
           {result.status === 'ready' && result.total != null && result.total > result.listings.length && (
@@ -300,27 +307,34 @@ export function HomesPage() {
 
 /**
  * One result card. Memoised: hovering a card (which lights its pin) re-renders the page, and without this every card in
- * the grid, each with its photo strip, was drawn again on every mouse move between cards.
+ * the grid, each with its photo strip, was drawn again on every mouse move between cards. It carries one price tag
+ * (priceTag), and the near-identical ads folded into it open under it as short rows.
  */
-const HomeCard = memo(function HomeCard({ listing, comparing, onOpen, onCompare, onHover }: {
+const HomeCard = memo(function HomeCard({ listing, others, priority, comparing, compareIds, onOpen, onCompare, onHover }: {
   listing: Listing
+  /** Near-identical ads folded into this card (same district, type, area, rooms, price and advertiser). */
+  others: Listing[]
+  /** In the first screen: its first photo is fetched first. */
+  priority: boolean
   comparing: boolean
+  compareIds: Set<string>
   onOpen: (listing: Listing) => void
   onCompare: (listing: Listing) => void
   onHover: (id: string | null) => void
 }) {
-  const versus = versusDistrict(listing)
+  const tag = priceTag(listing)
   const photos = shownPhotos(listing)
+  const [expanded, setExpanded] = useState(false)
+  const facts = [listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.beds ? counted(listing.beds, 'room') : null]
   return (
     <li onMouseEnter={() => onHover(listing.id)} onMouseLeave={() => onHover(null)} className="group">
       <div className="relative overflow-hidden rounded-2xl bg-muted">
         {/* an ad without photos keeps the card's shape, so the compare button never lands on the text */}
         {/* a listing with no photo to show (none in the ad, or none that loads) gets its type's face in the same slot */}
-        <Gallery photos={photos} className="aspect-[20/19]" fallback={(
-          <ListingFace type={listing.type} url={listing.url} className="aspect-[20/19]"
-            facts={[listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.beds ? counted(listing.beds, 'room') : null]} />
+        <Gallery photos={photos} priority={priority} className="aspect-[20/19]" fallback={(failed) => (
+          <ListingFace type={listing.type} url={listing.url} failed={failed} className="aspect-[20/19]" facts={facts} />
         )} />
-        {versus?.tone === 'good' && <span className="absolute start-3 top-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm">{versus.text}</span>}
+        {tag?.tone === 'good' && <span className="absolute start-3 top-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm">{tag.text}</span>}
         <button onClick={() => onCompare(listing)} aria-pressed={comparing} aria-label={`${comparing ? 'أزل من المقارنة' : 'أضف للمقارنة'}: ${typeLabel(listing.type)}${listing.district_ar ? ` في ${listing.district_ar}` : ''}`}
           className={cn('absolute end-3 top-3 grid size-9 pointer-coarse:size-11 place-items-center rounded-full outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2', comparing ? 'bg-primary text-primary-foreground' : 'bg-background/80 hover:bg-background')}>
           <Scale className="size-4" aria-hidden />
@@ -329,12 +343,48 @@ const HomeCard = memo(function HomeCard({ listing, comparing, onOpen, onCompare,
       <button onClick={() => onOpen(listing)} className="mt-2 flex w-full flex-col gap-0.5 rounded-lg text-start outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
         <span className="font-semibold">{typeLabel(listing.type)}{listing.district_ar ? ` في ${listing.district_ar}` : ''}</span>
         <span className="text-sm text-muted-foreground">
-          {[listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.beds ? counted(listing.beds, 'room') : null, listing.street_width ? `شارع ${numberFormat.format(listing.street_width)} م` : null, listing.age != null ? (listing.age === 0 ? 'جديد' : `عمره ${ageLabel(listing.age)}`) : null].filter(Boolean).join(' · ')}
+          {[...facts, listing.street_width ? `شارع ${numberFormat.format(listing.street_width)} م` : null, listing.age != null ? (listing.age === 0 ? 'جديد' : `عمره ${ageLabel(listing.age)}`) : null].filter(Boolean).join(' · ')}
         </span>
         <span className="mt-1 font-bold underline-offset-4 group-hover:underline group-focus-within:underline">{priceLine(listing)}</span>
-        {versus && versus.tone !== 'good' && <span className="text-xs text-muted-foreground">{versus.text}</span>}
-        {listing.signal && <span className="mt-0.5 w-fit rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{listing.signal.label}</span>}
+        {tag && tag.tone !== 'good' && (
+          tag.tone === 'signal'
+            ? <span className="mt-0.5 w-fit rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{tag.text}</span>
+            : <span className="text-xs text-muted-foreground">{tag.text}</span>
+        )}
       </button>
+      {others.length > 0 && (
+        <div className="mt-1.5">
+          <button onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}
+            className="inline-flex min-h-9 items-center gap-1 rounded-full border bg-card px-3 text-xs font-semibold outline-none transition-colors hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11">
+            {similarLabel(others.length + 1)}
+            <ChevronDown className={cn('size-3.5 transition-transform', expanded && 'rotate-180')} aria-hidden />
+          </button>
+          {expanded && (
+            // the same district, type, area, rooms, price and advertiser: what tells them apart is the ad itself
+            <ul className="mt-1.5 flex flex-col divide-y rounded-xl border bg-card text-sm" aria-label={similarLabel(others.length + 1)}>
+              {others.map((item) => {
+                const updated = daysAgo(item.updated_on ?? item.listed_on)
+                const itemPhotos = shownPhotos(item).length
+                return (
+                  <li key={item.id} className="flex items-center gap-2 px-3 py-1.5">
+                    <button onClick={() => onOpen(item)} className="flex min-h-9 min-w-0 flex-1 flex-col text-start outline-none focus-visible:ring-2 focus-visible:ring-ring rounded pointer-coarse:min-h-11">
+                      <span className="font-semibold">{priceLine(item)}</span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {[updated ? `حُدّث ${updated}` : 'تاريخ التحديث غير متاح', item.age != null ? (item.age === 0 ? 'جديد' : `عمره ${ageLabel(item.age)}`) : null,
+                          itemPhotos ? counted(itemPhotos, 'photo') : null].filter(Boolean).join(' · ')}
+                      </span>
+                    </button>
+                    <button onClick={() => onCompare(item)} aria-pressed={compareIds.has(item.id)} aria-label={`${compareIds.has(item.id) ? 'أزل من المقارنة' : 'أضف للمقارنة'}: ${priceLine(item)}`}
+                      className={cn('grid size-8 shrink-0 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-11', compareIds.has(item.id) ? 'bg-primary text-primary-foreground' : 'border hover:bg-muted')}>
+                      <Scale className="size-3.5" aria-hidden />
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      )}
     </li>
   )
 })

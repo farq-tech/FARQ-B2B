@@ -321,7 +321,9 @@ def insight_response(path, body):
                    'min_area': body.get('min_area') and _number(body, 'min_area', 1, 1e6), 'max_area': body.get('max_area') and _number(body, 'max_area', 1, 1e6),
                    # 0 is a real answer here («new only»), so it is read when present, not when truthy
                    'max_age': _number(body, 'max_age', 0, 99) if body.get('max_age') is not None else None,
-                   'limit': int(_number(body, 'limit', 1, insights.LISTINGS_MAX, insights.LISTINGS_MAX))}
+                   'limit': int(_number(body, 'limit', 1, insights.LISTINGS_MAX, insights.LISTINGS_MAX)),
+                   # «العقار» asks for near-identical ads folded into one card (insights.similar_groups)
+                   'group_similar': body.get('group_similar') is True}
         near = body.get('near')
         if near is not None:
             # units along an activity street: within `meters` of the corridor's own line

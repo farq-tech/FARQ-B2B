@@ -161,7 +161,9 @@ const names = (list: string[]) => (list.length < 2 ? list.join('') : `${list.sli
 const areas = (count: number) => (count === 2 ? 'منطقتان' : `${n(count)} ${count >= 3 && count <= 10 ? 'مناطق' : 'منطقة'}`)
 
 /** A gap row as «أين ينقص نشاطي؟» reads it (market-gaps). */
-export type GapVerdictRow = { district_ar: string; businesses: number; expected_businesses: number; shortfall: number; caveat?: 'industrial' | 'workers' | null }
+// expected and shortfall are null where the count does not follow the population (market-gaps); such a row is never
+// short, so it never reaches the verdict
+export type GapVerdictRow = { district_ar: string; businesses: number; expected_businesses: number | null; shortfall: number | null; caveat?: 'industrial' | 'workers' | null }
 
 /**
  * «أكبر نقص في «صيدلية»: النرجس», with what it has against what it needs at the city rate, and the next two
@@ -171,12 +173,12 @@ export type GapVerdictRow = { district_ar: string; businesses: number; expected_
 export function gapsVerdict(short: GapVerdictRow[], label: string, residentsPerBusiness: number): VerdictText | null {
   const top = short[0]
   if (!top) return null
-  const need = Math.round(top.expected_businesses)
+  const need = Math.round(top.expected_businesses ?? 0)
   const missing = need - top.businesses
   const next = short.filter((row) => row !== top && Boolean(row.caveat) === Boolean(top.caveat)).slice(0, 2)
   const why = [
     `فيه ${counted(top.businesses, 'business')} ويحتاج ${n(need)} بمعدل المدينة (منشأة لكل ${n(residentsPerBusiness)} ساكن).`,
-    ...(next.length ? [`يليه ${names(next.map((row) => `${row.district_ar} (ناقص ${n(Math.round(row.expected_businesses) - row.businesses)})`))}.`] : []),
+    ...(next.length ? [`يليه ${names(next.map((row) => `${row.district_ar} (ناقص ${n(Math.round(row.expected_businesses ?? 0) - row.businesses)})`))}.`] : []),
   ]
   const caution = top.caveat
     ? 'كل الأحياء الناقصة مناطق صناعية أو سكن عمال، فنقصها بعدد السكان لا يعني طلب أسر مقيمة.'

@@ -24,6 +24,7 @@ import { useAnswer } from './use-answer'
 import { Choice } from './choice'
 import { listingVerdict } from './tool-answers'
 import { Verdict } from './verdict'
+import { homesFacts, homesMedianKey } from './district-facts'
 
 type Result = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; listings: Listing[] }
 const LIMIT = 1500
@@ -143,6 +144,10 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover, ne
     : !result.available ? 'عروض العقار غير متاحة لهذه المدينة بعد'
       : `${result.total != null ? `${counted(result.total, 'listing')} ${where}` : `عدد العروض غير متاح ${where}`}${shown[0] ? ` · ${nearest && myPoint ? 'الأقرب' : 'الأنسب'}: ${priceLine(shown[0])}` : ''}`
 
+  // the card on a clicked district: its own median for the type and deal searched (the figure each dot's colour is
+  // measured against), from the district rows as loaded
+  const facts = useMemo(() => homesFacts(rows, homesMedianKey(kind, deal, type)), [rows, kind, deal, type])
+
   useEffect(() => {
     const dots = result.listings.map((listing) => ({
       id: listing.id, lon: listing.lon, lat: listing.lat,
@@ -157,11 +162,12 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover, ne
         myPoint={myPoint} density={active.district_id ? density.get(active.district_id) ?? null : null} /> : null,
       start: myPoint,
       summary,
+      facts,
       // «أرني الأعلى» opens the district of the first listing in the list
       lead: result.status === 'ready' ? shown[0]?.district_id ?? null : null,
       onPick: picking ? (point) => { setMyPoint(point); savePoint(point); setPicking(false); setNearest(true) } : null,
     })
-  }, [result.listings, result.status, shown, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density, summary])
+  }, [result.listings, result.status, shown, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density, summary, facts])
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
