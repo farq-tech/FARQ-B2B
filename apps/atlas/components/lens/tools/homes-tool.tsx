@@ -172,7 +172,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover, ne
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       {/* the heading is the step's own name (lenses.ts): the shops lens opens this tool as «محلات للإيجار» */}
-      <h2 className="text-xl font-bold">{preset ? 'محلات للإيجار' : 'اختر عقاراً'}</h2>
+      <h2 className="text-xl font-bold max-lg:-order-2">{preset ? 'محلات للإيجار' : 'اختر عقاراً'}</h2>
       <Choice label="إيجار أو شراء" value={kind} onChange={pickKind} options={[{ id: 'rent', label: 'إيجار' }, { id: 'sale', label: 'شراء' }]} />
       <Choice label="نوع العقار" variant="chip" value={type} onChange={setType} options={types.map((item) => ({ id: item.id, label: item.label, icon: <Icon3D type={item.id} /> }))} />
       {kind === 'rent' && (
@@ -225,7 +225,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover, ne
           )}
           {result.listings.length > 0 && shown[0] && (
             // the first listing of the list as the answer, with why it comes first; a tap opens its card on the map
-            <Verdict next={next} verdict={listingVerdict({
+            <Verdict lift next={next} verdict={listingVerdict({
               type: typeLabel(shown[0].type), district: shown[0].district_ar ?? null, price: shown[0].price_sar == null ? null : priceLine(shown[0]),
               versus: versusDistrict(shown[0])?.text ?? null, area: shown[0].area_sqm ?? null,
               away: myPoint ? `${formatDistance(distanceKm(shown[0], myPoint) * 1000)} من نقطتك` : null,

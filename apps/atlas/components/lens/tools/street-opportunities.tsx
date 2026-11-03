@@ -117,7 +117,7 @@ export function StreetOpportunities({ city, rows = [], studied, clusters, onOver
 
   return (
     <>
-      <Verdict verdict={opportunityVerdict(streets.map((item) => item.properties), studied.label, result?.population_used !== false, formatDistance)} next={next} />
+      <Verdict lift verdict={opportunityVerdict(streets.map((item) => item.properties), studied.label, result?.population_used !== false, formatDistance)} next={next} />
       <p className="text-sm text-muted-foreground">{counted(streets.length, 'street')} {streets.length === 1 ? 'تجاري نشط ينقصه' : 'تجارية نشطة ينقصها'} «{studied.label}»، الأقوى فرصة أولاً. اضغط الدرجة لترى كيف حُسبت.</p>
       <ol className="divide-y text-base lg:max-h-[45vh] lg:overflow-y-auto">
         {streets.slice(0, visible).map(({ properties: item }, index) => (
