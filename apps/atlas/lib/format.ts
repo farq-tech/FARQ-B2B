@@ -1,4 +1,5 @@
-import type { RequestStatus, RequestType } from './types'
+import type { City } from './insights-api'
+import type { RequestItem, RequestStatus, RequestType } from './types'
 
 const dateFmt = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', {
   day: 'numeric',
@@ -78,4 +79,15 @@ export function statusLabel(status: RequestStatus, type: RequestType): string {
 
 export function makeId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+}
+
+/**
+ * The city a request was made in, in Arabic: the name saved with it, else the city in the shared list (useCities)
+ * whose English name the request's id was made from (businesses-panel: `city.toLowerCase()`); undefined when neither
+ * knows it, and the caller shows «غير متاح».
+ */
+export function requestCity(request: Pick<RequestItem, 'cityId' | 'cityName'>, cities: readonly City[]): string | undefined {
+  if (request.cityName) return request.cityName
+  const id = request.cityId.toLowerCase()
+  return cities.find((city) => city.en.toLowerCase() === id)?.ar ?? undefined
 }

@@ -7,9 +7,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
-import { TEMPLATES, businessById, cityOf } from '@/lib/mock-data'
-import { formatDate, formatDateTime, nextStep, statusLabel } from '@/lib/format'
-import { counted, numberFormat } from '@/lib/insights-api'
+import { TEMPLATES, businessById } from '@/lib/mock-data'
+import { formatDate, formatDateTime, requestCity, nextStep, statusLabel } from '@/lib/format'
+import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
 import type { RequestItem } from '@/lib/types'
@@ -25,6 +25,7 @@ const SEND_BATCH_SIZE = 100
 export function RequestDetailView({ id }: { id: string }) {
   const router = useRouter()
   const { requests, inbox, updateRequest, createDraft } = useAppStore()
+  const cities = useCities()
   const [reviewOpen, setReviewOpen] = useState(false)
   const request = requests.find((r) => r.id === id)
 
@@ -41,6 +42,7 @@ export function RequestDetailView({ id }: { id: string }) {
   }
 
   const editable = request.status === 'draft'
+  const city = requestCity(request, cities)
   const replies = inbox.filter((m) => m.requestId === request.id).sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
   const quotes = replies.filter((m) => m.quote)
   const patch = (p: Partial<RequestItem>) => updateRequest(request.id, p)
@@ -69,6 +71,7 @@ export function RequestDetailView({ id }: { id: string }) {
       type,
       businessIds: request.businessIds,
       cityId: request.cityId,
+      cityName: request.cityName,
       goal: request.goal,
       query: request.query,
       liveBusinesses: request.liveBusinesses,
@@ -116,7 +119,7 @@ export function RequestDetailView({ id }: { id: string }) {
         )}
         <p className="text-sm text-muted-foreground">
           <span className="font-semibold text-foreground">في القائمة: {counted(request.businessIds.length, 'business')}</span>
-          {cityOf(request) ? ` في ${cityOf(request)}` : ''} · أنشئ {formatDate(request.createdAt)}
+          {city ? ` في ${city}` : ''} · أنشئ {formatDate(request.createdAt)}
           {request.query ? ` · من البحث: «${request.query}»` : ''}
         </p>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
