@@ -1,9 +1,10 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
-import { CATEGORIES, DEFAULT_VARIABLES, businessById, cityById } from './mock-data'
+import { CATEGORIES, DEFAULT_VARIABLES, businessById } from './mock-data'
 import { makeId } from './format'
 import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType } from './types'
+import { mergeCloudRequests } from './workspace-merge'
 
 const LOCAL_STORAGE_KEY = 'farq-atlas-workspace-v3'
 const LEGACY_SESSION_STORAGE_KEY = 'farq-atlas-workspace-v2'
@@ -24,11 +25,17 @@ type Action =
   | { type: 'mark-read'; id: string; unread?: boolean }
   | { type: 'update-message'; id: string; patch: Partial<InboxMessage> }
   | { type: 'restore'; state: Pick<State, 'requests' | 'inbox'> }
+  | { type: 'add-cloud'; requests: RequestItem[] }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'restore':
       return { ...state, requests: action.state.requests, inbox: action.state.inbox }
+    case 'add-cloud': {
+      // the account's saved requests join what is on screen now; nothing local is replaced (lib/workspace-merge.ts)
+      const requests = mergeCloudRequests(state.requests, action.requests)
+      return requests === state.requests ? state : { ...state, requests }
+    }
     case 'toggle-select':
       return {
         ...state,
@@ -61,6 +68,8 @@ export interface DraftInput {
   type: RequestType
   businessIds: string[]
   cityId: string
+  /** the city's Arabic name as the map shows it (from the shared city list) */
+  cityName?: string
   goal?: GoalId | null
   query?: string
   categoryHint?: string
@@ -74,7 +83,8 @@ function buildDraft(input: DraftInput): RequestItem {
   const firstLiveBusiness = input.liveBusinesses?.find((business) => ids.includes(business.id))
   const firstCategory =
     input.categoryHint ?? firstLiveBusiness?.category ?? (ids.length ? businessById.get(ids[0])?.category : undefined) ?? 'منشآت'
-  const place = input.districtHint ?? firstLiveBusiness?.district ?? cityById.get(input.cityId)?.name ?? ''
+  const cityName = input.cityName
+  const place = input.districtHint ?? firstLiveBusiness?.district ?? cityName ?? ''
   const cat = CATEGORIES.find((c) => c.name === firstCategory)
   const base: RequestItem = {
     id: makeId(input.type === 'rfq' ? 'rfq' : input.type === 'campaign' ? 'cmp' : 'lst'),
@@ -84,6 +94,7 @@ function buildDraft(input: DraftInput): RequestItem {
     createdAt: now,
     updatedAt: now,
     cityId: input.cityId,
+    cityName,
     businessIds: ids,
     liveBusinesses: input.liveBusinesses?.filter((business) => ids.includes(business.id)),
     goal: input.goal ?? undefined,
@@ -98,7 +109,7 @@ function buildDraft(input: DraftInput): RequestItem {
           { id: makeId('l'), name: cat?.specialties[0] ?? 'بند جديد', qty: 100, unit: 'حبة', spec: '' },
         ],
         deadline: new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10),
-        deliveryCity: cityById.get(input.cityId)?.name ?? '',
+        deliveryCity: cityName ?? '',
         notes: '',
       },
     }
@@ -140,14 +151,18 @@ function cloudRequest(value: CloudRequest): RequestItem | null {
 function normalizeCampaignRecipients(request: RequestItem): RequestItem {
   if (!request.campaign) return request
   const liveById = new Map(request.liveBusinesses?.map((business) => [business.id, business]))
+  // a recipient the person left out at review stays out after a reload: only a workspace saved without a recipient
+  // list starts from everyone on the list who can receive WhatsApp
+  const chosen = Array.isArray(request.campaign.included) ? new Set(request.campaign.included) : null
   const eligibleIds = request.businessIds.filter((id) => {
+    if (chosen && !chosen.has(id)) return false
     const business = businessById.get(id)
     const liveBusiness = liveById.get(id)
     if (business) return Boolean(business.whatsapp)
     if (liveBusiness) return liveBusiness.whatsapp
     // A cloud-restored request intentionally has no directory snapshot. Preserve
     // its previously selected POI keys; the sender re-resolves them server-side.
-    return request.campaign?.included.includes(id) ?? false
+    return chosen?.has(id) ?? false
   })
   return { ...request, campaign: { ...request.campaign, included: [...new Set(eligibleIds)] } }
 }
@@ -234,10 +249,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         return (body?.data?.requests ?? body?.requests ?? []).map(cloudRequest).filter((request): request is RequestItem => Boolean(request))
       })
       .then((cloud) => {
-        if (!cloud.length) return
-        const local = readWorkspace()?.requests ?? []
-        const localIds = new Set(local.map((request) => request.remoteId ?? request.id))
-        dispatch({ type: 'restore', state: { requests: [...local, ...cloud.filter((request) => !localIds.has(request.remoteId ?? request.id))], inbox: readWorkspace()?.inbox ?? [] } })
+        // merged into the live state, not rebuilt from storage: storage is only written once this settles, so an
+        // edit or a new draft made while the account loaded would otherwise be thrown away
+        if (cloud.length) dispatch({ type: 'add-cloud', requests: cloud })
       })
       .catch(() => undefined)
       .finally(() => setWorkspaceReady(true))

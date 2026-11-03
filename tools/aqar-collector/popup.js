@@ -18,8 +18,48 @@ async function refreshFast() {
     : fast ? `${FAST[fast.status] || ''} ${fmt.format(fast.stats.requests)} طلب · ${fmt.format(fast.stats.tiles)} مربع انتهى · ${fmt.format(fast.queue.length)} متبقٍ${fast.error ? ` (${fast.error})` : ''}` : ''
 }
 
+const PHONES = { running: 'جلب الأرقام يعمل…', waiting: 'ينتظر ثم يكمل وحده.', done: 'جلب الأرقام انتهى ✓', signin: 'سجّل الدخول في عقار ثم اضغط للاستئناف.', limit: 'عقار أوقف كشف الأرقام لهذا الحساب (يطلب اشتراكاً). ما جُمع محفوظ.', error: 'توقف بخطأ، اضغط للاستئناف.', paused: 'متوقف' }
+async function refreshPhones() {
+  const { phones } = await get({ phones: null })
+  $('phones').textContent = phones?.active ? 'إيقاف جلب الأرقام' : phones?.queue?.length ? 'استئناف جلب الأرقام' : 'جلب أرقام المعلنين'
+  $('phonesStatus').textContent = !phones ? 'سجّل الدخول في عقار وافتح أي صفحة منه، ثم اضغط. الرياض أولاً.'
+    : phones.active && phones.status === 'waiting' && phones.until > Date.now() ? `عقار طلب التمهّل. يكمل بعد ${fmt.format(Math.ceil((phones.until - Date.now()) / 1000))} ثانية`
+    : `${PHONES[phones.status] || ''} ${fmt.format(phones.stats.found)} رقم من ${fmt.format(phones.stats.asked)} · ${fmt.format(phones.queue.length)} متبقٍ${phones.error ? ` (${phones.error})` : ''}`
+}
+
+/** Every kept listing not asked yet, Riyadh's rentals first, then the rest of Riyadh, then the other cities. */
+async function phoneQueue() {
+  const BATCH = 2000
+  const keys = (await chrome.storage.local.getKeys()).filter((key) => key.startsWith('m:'))
+  const ranked = []
+  for (let i = 0; i < keys.length; i += BATCH) {
+    const chunk = await get(keys.slice(i, i + BATCH))
+    for (const row of Object.values(chunk)) {
+      // a listing with a number is done; one asked with no number given is asked again in a later run (an answer
+      // given past the account's free reveals may have come back empty); a phone field alone may be Aqar's own 0
+      if (row.phone_at && row.phone) continue
+      const riyadh = row.city === 'الرياض'
+      const rent = /للإيجار|للايجار/.test(row.title || '')
+      ranked.push([riyadh ? (rent ? 0 : 1) : 2, row.id])
+    }
+  }
+  return ranked.sort((a, b) => a[0] - b[0]).map(([, id]) => id)
+}
+
+async function startPhones(tab) {
+  const { phones } = await get({ phones: null })
+  if (phones?.active) { await set({ phones: { ...phones, active: false, status: 'paused' } }); refreshPhones(); return }
+  const next = phones?.queue?.length ? phones : { queue: await phoneQueue(), stats: { asked: 0, found: 0 } }
+  await set({ phones: { ...next, active: true, status: 'running', error: null, beat: 0 } })
+  chrome.tabs.sendMessage(tab.id, { cmd: 'phone-run' }, () => {
+    if (chrome.runtime.lastError && /establish connection|Receiving end/.test(chrome.runtime.lastError.message)) chrome.tabs.reload(tab.id)
+  })
+  refreshPhones()
+}
+
 async function refresh() {
   refreshFast()
+  refreshPhones()
   const { run } = await get({ run: null })
   const { mapStats } = await get({ mapStats: null })
   $('listings').textContent = `${fmt.format(run?.stats?.listings ?? 0)} إعلان`
@@ -28,6 +68,8 @@ async function refresh() {
   $('status').textContent = run ? `${STATUS[run.status] || ''}${run.current ? ` — ${run.current.segs.slice(1).join(' / ')} صفحة ${run.current.page}` : ''}` : ''
   $('pause').hidden = !run?.active
   $('resume').hidden = !run || run.active || run.status === 'done'
+  // the same state in the title, for a popup.html opened as a tab and read from outside (an automation script)
+  document.title = [exportStatus, $('listings').textContent, $('map').textContent, $('fastStatus').textContent].filter(Boolean).join(' · ')
 }
 
 $('start').addEventListener('click', async () => {
@@ -56,7 +98,7 @@ async function launch(tab, next) {
   await set({ fast: { ...next, active: true, status: 'running', error: null, beat: 0 } })
   chrome.tabs.sendMessage(tab.id, { cmd: 'fast-run' }, () => {
     // a tab opened before the extension was (re)loaded has no collector in it: reload it and the run starts there
-    if (chrome.runtime.lastError) chrome.tabs.reload(tab.id)
+    if (chrome.runtime.lastError && /establish connection|Receiving end/.test(chrome.runtime.lastError.message)) chrome.tabs.reload(tab.id)
   })
   refreshFast()
 }
@@ -73,6 +115,11 @@ $('fast').addEventListener('click', async () => {
     next = { queue: [{ bbox, depth: 0 }], current: null, stats: { requests: 0, listings: 0, tiles: 0 } }
   }
   await launch(tab, next)
+})
+$('phones').addEventListener('click', async () => {
+  const tab = await activeTab()
+  if (!tab?.url?.startsWith('https://sa.aqar.fm/')) { $('phonesStatus').textContent = 'افتح صفحة من sa.aqar.fm أولاً.'; return }
+  await startPhones(tab)
 })
 // a new city: the area on screen now replaces what is left of the last run; collected listings stay
 $('fastArea').addEventListener('click', async () => {
@@ -93,17 +140,127 @@ $('resume').addEventListener('click', async () => {
   chrome.tabs.update(tab.id, { url: urlOf(run.current.segs, run.current.page) })
   refresh()
 })
-$('export').addEventListener('click', async () => {
-  const all = await get(null)
-  const pick = (prefix) => Object.entries(all).filter(([key]) => key.startsWith(prefix)).map(([, value]) => value)
-  const listings = pick('l:')
-  const mapListings = pick('m:')
-  const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), listings, mapListings, findTemplate: all.findTemplate ?? null, contactSamples: all.contactSamples ?? [] })], { type: 'application/json' })
+// records are read in batches and written as one JSON text each: the whole store at once (150,000+ listings) is
+// more memory than a popup gets, and a single JSON string that long is more than JavaScript allows
+let exportStatus = ''
+async function exportAll() {
+  const BATCH = 2000
+  const keys = chrome.storage.local.getKeys ? await chrome.storage.local.getKeys() : Object.keys(await get(null))
+  const { findTemplate = null, contactSamples = [] } = await get({ findTemplate: null, contactSamples: [] })
+  const parts = ['{"exported":', JSON.stringify(new Date().toISOString())]
+  let total = 0
+  for (const [name, prefix] of [['listings', 'l:'], ['mapListings', 'm:']]) {
+    const mine = keys.filter((key) => key.startsWith(prefix))
+    parts.push(`,${JSON.stringify(name)}:[`)
+    let first = true
+    for (let i = 0; i < mine.length; i += BATCH) {
+      const chunk = await get(mine.slice(i, i + BATCH))
+      for (const key of mine.slice(i, i + BATCH)) {
+        if (!(key in chunk)) continue
+        parts.push(first ? '' : ',', JSON.stringify(chunk[key]))
+        first = false
+        total += 1
+      }
+      exportStatus = `يصدّر ${fmt.format(Math.min(i + BATCH, mine.length))} / ${fmt.format(mine.length)} ${name}`
+    }
+    parts.push(']')
+  }
+  parts.push(',"findTemplate":', JSON.stringify(findTemplate), ',"contactSamples":', JSON.stringify(contactSamples), '}')
+  const blob = new Blob(parts, { type: 'application/json' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
-  link.download = `aqar-listings-${listings.length + mapListings.length}-${Date.now()}.json`
+  link.download = `aqar-listings-${total}-${Date.now()}.json`
   link.click()
-})
+  exportStatus = `صُدّر ${fmt.format(total)}`
+}
+$('export').addEventListener('click', () => exportAll().catch((error) => { exportStatus = `فشل التصدير: ${error?.message || error}` }))
 $('clear').addEventListener('click', async () => { if (confirm('مسح كل الإعلانات المجمّعة؟')) { await new Promise((done) => chrome.storage.local.clear(done)); refresh() } })
 refresh()
 setInterval(refresh, 1000)
+// popup.html opened as a tab with a hash acts without a click (an automation script's way in): #export downloads the
+// export; #run=S,W,N,E;S,W,N,E… starts a fast run over those boxes in an open Aqar tab, or opens one
+;(async () => {
+  const hash = decodeURIComponent(location.hash)
+  if (hash === '#export') $('export').click()
+  else if (hash === '#stop') {
+    const { fast } = await get({ fast: null })
+    if (fast?.active) await set({ fast: { ...fast, active: false, status: 'paused' } })
+    exportStatus = 'STOPPED'
+  }
+  else if (hash === '#reload') chrome.runtime.reload()
+  else if (hash === '#phones') {
+    const tabs = await chrome.tabs.query({ url: 'https://sa.aqar.fm/*' })
+    const tab = tabs.sort((a, b) => b.id - a.id)[0]
+    if (tab) { await startPhones(tab); exportStatus = 'PHONES STARTED' } else exportStatus = 'NO AQAR TAB'
+  }
+  else if (hash === '#ping') {
+    const tabs = await chrome.tabs.query({ url: 'https://sa.aqar.fm/*' })
+    const answers = await Promise.all(tabs.map((t) => new Promise((done) => chrome.tabs.sendMessage(t.id, { cmd: 'ping' }, (r) => done({ id: t.id, active: t.active, discarded: t.discarded, status: t.status, r: r || chrome.runtime.lastError?.message })))))
+    exportStatus = 'PING ' + JSON.stringify(answers)
+  }
+  else if (hash === '#template') {
+    const { findTemplate } = await get({ findTemplate: null })
+    exportStatus = 'TEMPLATE ' + (findTemplate?.request || '').slice(0, 2500)
+  }
+  else if (hash === '#resume') {
+    const { fast } = await get({ fast: null })
+    if (fast && !fast.active && (fast.current || fast.queue?.length)) {
+      const tabs = await chrome.tabs.query({ url: 'https://sa.aqar.fm/*' })
+      const tab = tabs.sort((a, b) => b.id - a.id)[0]
+      const next = { ...fast, strikes: 0, slow: Math.max(1.5, Math.min(fast.slow || 1, 2)) }
+      if (tab) await launch(tab, next)
+      exportStatus = 'RESUMED'
+    } else exportStatus = 'NOTHING TO RESUME'
+  }
+  else if (hash === '#sample') {
+    const keys = (await chrome.storage.local.getKeys()).filter((k) => k.startsWith('m:'))
+    const pick = keys.filter((_, i) => i % Math.ceil(keys.length / 4000) === 0)
+    const got = await get(pick)
+    const rows = Object.values(got)
+    const n = (f) => rows.filter(f).length
+    exportStatus = 'SAMPLE ' + JSON.stringify({ total: keys.length, sampled: rows.length, withAge: n((r) => 'age' in r), ageKnown: n((r) => typeof r.age === 'number' && r.age > 0), withRooms: n((r) => typeof r.rooms === 'number'), withWidth: n((r) => typeof r.width === 'number' && r.width > 0), withCreateTime: n((r) => !!r.create_time), withLicense: n((r) => !!r.ad_license_number), updatedToday: n((r) => (r.updated_at || r.collected_at || '') > '2026-10-29T17:38'), newToday: n((r) => (r.collected_at || '') > '2026-10-29T17:38') })
+  }
+  else if (hash.startsWith('#push=')) {
+    // sends the store to a local receiver in parts of 2,000 listings, for an export too large for a browser download
+    // only to this computer: the manifest grants the extension loopback hosts and nothing else outside Aqar
+    const base = hash.slice(6)
+    const loopback = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(base)
+    const BATCH = 2000
+    const keys = (await chrome.storage.local.getKeys()).filter((key) => key.startsWith('m:'))
+    const send = (path, body) => fetch(base + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status) })
+    try {
+      if (!loopback) throw new Error('the receiver must be http://127.0.0.1:<port>/ or http://localhost:<port>/')
+      let sent = 0
+      for (let i = 0; i < keys.length; i += BATCH) {
+        const chunk = await get(keys.slice(i, i + BATCH))
+        await send(`part?name=m&i=${i / BATCH}`, JSON.stringify(Object.values(chunk)))
+        sent += Object.keys(chunk).length
+        exportStatus = `PUSH ${fmt.format(sent)} / ${fmt.format(keys.length)}`
+      }
+      const { findTemplate = null } = await get({ findTemplate: null })
+      await send('done', JSON.stringify({ exported: new Date().toISOString(), total: sent, findTemplate }))
+      exportStatus = `PUSHED ${fmt.format(sent)}`
+    } catch (error) { exportStatus = `PUSH FAILED ${error?.message || error}` }
+  }
+  else if (hash === '#state') {
+    const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
+    const { queue, ...rest } = fast || {}
+    exportStatus = 'STATE v' + chrome.runtime.getManifest().version + ' ' + JSON.stringify({ ...rest, queueLength: queue?.length, templateAt: findTemplate?.at, templateUrl: findTemplate?.url, templatePage: findTemplate?.page, templateWide: /listings\{age /.test(findTemplate?.request || '') }).slice(0, 1500)
+  }
+  else if (hash.startsWith('#peek=')) {
+    const id = hash.slice(6)
+    const found = await get(`m:${id}`)
+    exportStatus = found[`m:${id}`] ? 'PEEK ' + JSON.stringify(found[`m:${id}`]).slice(0, 1200) : 'PEEK none'
+  }
+  else if (hash.startsWith('#run=')) {
+    const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
+    if (!findTemplate || fast?.active) return
+    const queue = hash.slice(5).split(';').map((box) => box.split(',').map(Number)).filter((box) => box.length === 4 && box.every(Number.isFinite)).map((bbox) => ({ bbox, depth: 0 }))
+    if (!queue.length) return
+    const tabs = await chrome.tabs.query({ url: 'https://sa.aqar.fm/*' })
+    const tab = tabs.sort((a, b) => b.id - a.id)[0]
+    const next = { queue, current: null, stats: { requests: 0, listings: 0, tiles: 0 } }
+    if (tab) await launch(tab, next)
+    else { await set({ fast: { ...next, active: true, status: 'running', error: null, beat: 0 } }); chrome.tabs.create({ url: 'https://sa.aqar.fm/الخريطة', active: false }) }
+  }
+})()

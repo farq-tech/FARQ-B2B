@@ -77,8 +77,21 @@ def estimate(city, query, cards_path=None, rules_path=None):
         comparables += [c for c in same if c.get('district_id') == key and low <= c['area_sqm'] <= high]
         if len(comparables) >= MIN_COMPARABLES:
             break
+    names = {c['district_id']: c.get('district_ar') for c in same if c.get('district_id')}
+
+    def scope_rows():
+        return [{'district_id': key, 'district_ar': names.get(key), 'comparables': sum(1 for c in comparables if c.get('district_id') == key)}
+                for key in scope]
+
+    def example_rows():
+        ranked = sorted(comparables, key=lambda c: (c.get('district_id') != query['district_id'], abs(c['area_sqm'] - area)))[:EXAMPLES]
+        return [{key: c.get(key) for key in ('id', 'url', 'photo', 'district_ar', 'type', 'price_sar', 'area_sqm', 'beds', 'age')} for c in ranked]
+
     if len(comparables) < MIN_COMPARABLES:
-        return {'available': False, 'reason': 'too_few_comparables', 'comparables': len(comparables)}
+        # no price, but what was found is real: the districts tried (nearest first) with what each held, and the few
+        # listings themselves, so the person sees why and can open them; never a range drawn from them
+        return {'available': False, 'reason': 'too_few_comparables', 'comparables': len(comparables), 'needed': MIN_COMPARABLES,
+                'scope': scope_rows(), 'examples': example_rows()}
     q1, median, q3 = _quartiles([c['price_sar'] / c['area_sqm'] for c in comparables])
     adjustments = []
     for key in ('age', 'streets', 'street_width', 'furnished'):
@@ -87,19 +100,16 @@ def estimate(city, query, cards_path=None, rules_path=None):
         if pct:
             adjustments.append({'factor': key, 'value': value, 'label': LABELS[key][value], 'pct': pct})
     factor = math.prod(1 + a['pct'] / 100 for a in adjustments)
-    names = {c['district_id']: c.get('district_ar') for c in comparables}
-    examples = sorted(comparables, key=lambda c: (c.get('district_id') != query['district_id'], abs(c['area_sqm'] - area)))[:EXAMPLES]
     return {
         'available': True,
         'deal': deal, 'type': kind, 'area_sqm': area,
         'comparables': len(comparables),
-        'scope': [{'district_id': key, 'district_ar': names.get(key) or next((c.get('district_ar') for c in same if c.get('district_id') == key), None),
-                   'comparables': sum(1 for c in comparables if c.get('district_id') == key)} for key in scope],
+        'scope': scope_rows(),
         'per_sqm': {'low': round(q1 * factor), 'mid': round(median * factor), 'high': round(q3 * factor)},
         'price': {'low': round(q1 * factor * area, -3), 'mid': round(median * factor * area, -3), 'high': round(q3 * factor * area, -3)},
         'comparables_per_sqm': {'low': round(q1), 'mid': round(median), 'high': round(q3)},
         'adjustments': adjustments,
-        'examples': [{key: c.get(key) for key in ('id', 'url', 'photo', 'district_ar', 'type', 'price_sar', 'area_sqm', 'beds', 'age')} for c in examples],
+        'examples': example_rows(),
         'rules_source': rules.get('source'), 'rules_retrieved': rules.get('retrieved'),
         'listings_retrieved': table.get('retrieved'),
     }

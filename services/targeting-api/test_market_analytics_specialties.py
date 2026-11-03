@@ -172,6 +172,13 @@ class MarketAnalyticsSpecialtyTests(unittest.TestCase):
         self.assertEqual(summary["total"], 1)
         self.assertEqual(summary["n_whatsapp"], 0)
 
+    def test_typed_activity_reports_what_it_was_read_as(self):
+        typed = self.analytics.district_counts({"city": "Riyadh", "q": "استهدف شركات مقاولات", "objective": "marketing"})
+        self.assertEqual(typed["understood"], {"labels": ["أدوات سباكة"], "more": 0})
+        # a main activity picked from the list names itself
+        picked = self.analytics.district_counts({"city": "Riyadh", "main_id": "plumbing"})
+        self.assertIsNone(picked["understood"])
+
     def test_missing_specialty_column_fails_closed(self):
         missing_column = self.root / "targets-without-specialties.parquet"
         self._write_targets(missing_column, include_specialty=False)
@@ -225,6 +232,37 @@ class MarketAnalyticsSpecialtyTests(unittest.TestCase):
     def test_rejects_invalid_viewport_bounds(self):
         with self.assertRaisesRegex(ValueError, "bounds"):
             self.analytics.market_summary({"city": "Riyadh", "bounds": [46.0, 24.0, 45.0, 25.0]})
+
+    def test_concurrent_requests_each_get_their_own_answer(self):
+        # production 2026-11-03: queries sharing one connection swapped result sets («No open result set»)
+        bodies = [{"city": "Riyadh"}, {"city": "Jeddah"}] * 6
+        expected = {b["city"]: self.analytics._district_counts(b)["districts"] for b in bodies[:2]}
+        expected_summary = self.analytics._market_summary({"city": "Riyadh"})["summary"]["total"]
+        results, errors = [], []
+
+        def ask(body):
+            try:
+                results.append((body["city"], self.analytics._district_counts(body)["districts"]))
+                self.assertEqual(self.analytics._market_summary({"city": "Riyadh"})["summary"]["total"], expected_summary)
+            except Exception as error:  # collected so the main thread reports it
+                errors.append(error)
+
+        threads = [threading.Thread(target=ask, args=(body,)) for body in bodies]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(errors, [])
+        self.assertEqual(len(results), len(bodies))
+        for city, districts in results:
+            self.assertEqual(districts, expected[city])
+
+    def test_a_remembered_answer_is_a_copy(self):
+        first = self.analytics.district_counts({"city": "Riyadh"})
+        first["districts"].clear()   # server.enrich_district_counts edits the answer it gets
+        again = self.analytics.district_counts({"city": "Riyadh"})
+        self.assertTrue(again["districts"])
+        self.assertEqual(again, self.analytics._district_counts({"city": "Riyadh"}))
 
 
 if __name__ == "__main__":

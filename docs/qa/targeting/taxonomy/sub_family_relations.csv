@@ -1272,7 +1272,6 @@ contract.handyman,buys,mep_lighting,common
 contract.handyman,buys,tool_fasteners,common
 contract.handyman,buys,tool_adhesives_tapes,common
 contract.handyman,buys,tool_ladders_storage,common
-contract.handyman,buys,vpt_spare_parts,common
 contract.handyman,buys,it_mobile_phones,common
 contract.interior_design,sells,tsv_interior_design,core
 contract.interior_design,sells,tsv_fitout,common
@@ -4754,7 +4753,6 @@ sports.sports_equipment_rental,buys,veh_boats,core
 sports.sports_equipment_rental,buys,cons_sports_goods,common
 sports.sports_equipment_rental,buys,cons_amusement,common
 sports.sports_equipment_rental,buys,cons_camping,common
-sports.sports_equipment_rental,buys,vpt_spare_parts,common
 sports.sports_equipment_rental,buys,nrg_gasoline,common
 sports.sports_equipment_rental,buys,tsv_vehicle_repair,common
 sports.sports_equipment_rental,buys,fsv_general_insurance,common

@@ -10,6 +10,8 @@ relations, and the row-level classification `poi_taxonomy.parquet` (poi_key -> s
 Nothing here contacts anyone or reads contact details beyond what the existing search already returns.
 """
 import csv, json, os, re, threading, urllib.request
+import activity_groups
+import classification_layer
 
 TR = str.maketrans('أإآةىؤئ', 'اااهيوي')
 PFX = ('وال', 'بال', 'لل', 'ال')          # multi-letter only: «بورد» must not become «ورد»
@@ -32,6 +34,93 @@ ALIASES = {
     'تجهيزات مطابخ': 'kit_cooking', 'restaurant equipment': 'kit_cooking',
     'خشب': 'bld_timber', 'اخشاب': 'bld_timber', 'جمله خشب': 'bld_timber', 'timber': 'bld_timber',
 }
+# Everyday Saudi names of a trade (singular, colloquial plural, with/without «ال»; normalized by norm()). Each names its own
+# business type exactly, like saudi_market_terms.csv, and wins over a product or specialty that shares the word: «حلاق» is a
+# barber, not salon supplies; «ورش سيارات» a car workshop, not workshop equipment. Measured by query_eval.json.
+TRADE_TERMS = {
+    # food
+    'مطعم شعبي': ('food.buffet_popular',), 'مطاعم شعبيه': ('food.buffet_popular',), 'بوفيه': ('food.buffet_popular',), 'بوفيهات': ('food.buffet_popular',),
+    'شاورما': ('food.fast_food',), 'برجر': ('food.fast_food',), 'بيتزا': ('food.fast_food',), 'وجبات سريعه': ('food.fast_food',),
+    'مخبز': ('food.bakery',), 'مخابز': ('food.bakery',), 'فرن': ('food.bakery',), 'افران': ('food.bakery',),
+    'عصيرات': ('food.juice_icecream',), 'محل عصيرات': ('food.juice_icecream',), 'ايس كريم': ('food.juice_icecream',), 'ايسكريم': ('food.juice_icecream',),
+    'مقهي شيشه': ('food.hookah',), 'مقاهي شيشه': ('food.hookah',), 'شيشه': ('food.hookah',),
+    'سمك': ('food.fish_market',), 'اسماك': ('food.fish_market',), 'محل سمك': ('food.fish_market',), 'سماك': ('food.fish_market',),
+    'عربه طعام': ('food.food_truck',), 'عربات طعام': ('food.food_truck',), 'فود ترك': ('food.food_truck',), 'فود تراك': ('food.food_truck',),
+    'سوبرماركت': ('food.supermarket',), 'سوبر ماركت': ('food.supermarket',), 'هايبر ماركت': ('food.supermarket',), 'هايبرماركت': ('food.supermarket',),
+    'ملحمه': ('food.butcher',), 'ملاحم': ('food.butcher',), 'جزار': ('food.butcher',), 'جزارين': ('food.butcher',), 'قصاب': ('food.butcher',),
+    # cars
+    'ورش سيارات': ('auto.workshop',), 'ورشه سيارات': ('auto.workshop',), 'ورشات سيارات': ('auto.workshop',), 'ميكانيكي': ('auto.workshop',),
+    'ميكانيك': ('auto.workshop',), 'ميكانيكا': ('auto.workshop',), 'ميكانيكا سيارات': ('auto.workshop',), 'ميكانيكي سيارات': ('auto.workshop',),
+    'كهربائي سيارات': ('auto.workshop',), 'كهرباء سيارات': ('auto.workshop',),
+    'سمكره': ('auto.body_paint',), 'سمكري': ('auto.body_paint',), 'دهان سيارات': ('auto.body_paint',),
+    'تغيير زيت': ('auto.oil_change',), 'تغيير زيوت': ('auto.oil_change',), 'غيار زيت': ('auto.oil_change',),
+    'مغسله سيارات': ('auto.car_wash',), 'مغاسل سيارات': ('auto.car_wash',), 'غسيل سيارات': ('auto.car_wash',),
+    'بنشر': ('auto.tires',), 'بناشر': ('auto.tires',), 'بنشري': ('auto.tires',), 'كفرات': ('auto.tires',), 'تواير': ('auto.tires',),
+    'تشليح': ('auto.spare_parts',),
+    'معرض سيارات': ('auto.used_cars', 'auto.dealership'), 'معارض سيارات': ('auto.used_cars', 'auto.dealership'),
+    'وكاله سيارات': ('auto.dealership',), 'وكالات سيارات': ('auto.dealership',),
+    'فحص دوري': ('auto.inspection',), 'دباب': ('auto.motorcycles',), 'دبابات': ('auto.motorcycles',), 'دراجات ناريه': ('auto.motorcycles',),
+    'سطحه': ('auto.towing',), 'سطحات': ('auto.towing',), 'تظليل': ('auto.accessories_tint',),
+    # beauty and personal care
+    'حلاق': ('beauty.barber',), 'حلاقين': ('beauty.barber',), 'حلاقه': ('beauty.barber',), 'حلاق رجالي': ('beauty.barber',),
+    'حلاقه رجالي': ('beauty.barber',), 'حلاقه رجاليه': ('beauty.barber',), 'صالون رجالي': ('beauty.barber',), 'صالونات رجاليه': ('beauty.barber',),
+    'محل حلاقه': ('beauty.barber',), 'محلات حلاقه': ('beauty.barber',), 'باربر': ('beauty.barber',), 'barber': ('beauty.barber',),
+    'مشغل': ('beauty.salon_women',), 'مشاغل': ('beauty.salon_women',), 'مشغل نسائي': ('beauty.salon_women',), 'مشاغل نسائيه': ('beauty.salon_women',),
+    'صالون نسائي': ('beauty.salon_women',), 'صالونات نسائيه': ('beauty.salon_women',), 'كوافير': ('beauty.salon_women',),
+    'سبا': ('beauty.spa_massage',), 'مساج': ('beauty.spa_massage',),
+    'عطور': ('fashion.perfume',), 'محل عطور': ('fashion.perfume',), 'عود وبخور': ('fashion.perfume',), 'بخور': ('fashion.perfume',),
+    'مغسله ملابس': ('personal.laundry',), 'مغاسل ملابس': ('personal.laundry',), 'مكوجي': ('personal.laundry',), 'كوي ملابس': ('personal.laundry',),
+    'مصبغه': ('personal.laundry',),
+    # fashion
+    'خياط': ('fashion.tailoring',), 'خياطين': ('fashion.tailoring',), 'خياطه': ('fashion.tailoring',), 'خياط نسائي': ('fashion.tailoring',),
+    'خياط رجالي': ('fashion.tailoring',), 'تفصيل ثياب': ('fashion.tailoring',),
+    'عبايات': ('fashion.abaya',), 'عبايه': ('fashion.abaya',), 'محلات عبايات': ('fashion.abaya',),
+    'احذيه': ('fashion.shoes',), 'جزم': ('fashion.shoes',), 'ساعات': ('fashion.watches',),
+    'محلات ذهب': ('fashion.jewelry_gold',), 'محل ذهب': ('fashion.jewelry_gold',), 'مجوهرات': ('fashion.jewelry_gold',),
+    'ملابس رياضيه': ('fashion.sportswear',), 'شنط': ('fashion.bags_accessories',), 'حقائب': ('fashion.bags_accessories',),
+    # children and schooling
+    'ملابس اطفال': ('fashion.kids',), 'العاب اطفال': ('retail.toys',), 'محل العاب': ('retail.toys',),
+    'حضانه': ('edu.nursery',), 'حضانات': ('edu.nursery',), 'روضه': ('edu.kindergarten',), 'روضه اطفال': ('edu.kindergarten',), 'رياض اطفال': ('edu.kindergarten',),
+    # health
+    'نظارات': ('health.optics',), 'بصريات': ('health.optics',), 'علاج طبيعي': ('health.physio',),
+    'مستوصف': ('health.clinic',), 'مستوصفات': ('health.clinic',), 'مجمع طبي': ('health.clinic',),
+    # home
+    'نجف': ('home.decor_lighting',), 'ثريات': ('home.decor_lighting',), 'مفارش': ('home.bedding_linen',),
+    'جلسات عربيه': ('home.tents_majlis',), 'مجالس عربيه': ('home.tents_majlis',), 'اثاث مستعمل': ('home.used_furniture',),
+    # electronics
+    'جوالات': ('elec.mobile_shop',), 'محلات جوالات': ('elec.mobile_shop',),
+    'تصليح جوالات': ('elec.repair',), 'صيانه جوالات': ('elec.repair',), 'صيانه جوال': ('elec.repair',), 'تصليح جوال': ('elec.repair',),
+    'اجهزه كهربائيه': ('elec.appliances_store',), 'اجهزه كهربائيه بالجمله': ('elec.appliances_wholesale',),
+    'بلايستيشن': ('elec.gaming',), 'العاب فيديو': ('elec.gaming',),
+    # building trades
+    'مواد كهربائيه': ('build.electrical_supply',), 'دهانات': ('build.paint',), 'بويات': ('build.paint',), 'محلات دهانات': ('build.paint',),
+    'محلات سباكه': ('build.plumbing_supply',), 'محل سباكه': ('build.plumbing_supply',), 'ادوات سباكه': ('build.plumbing_supply',),
+    'محلات كهرباء': ('build.electrical_supply',), 'محل كهرباء': ('build.electrical_supply',),
+    'سباك': ('contract.plumbing', 'contract.handyman'), 'سباكين': ('contract.plumbing', 'contract.handyman'),
+    'كهربائي': ('contract.electrical', 'contract.handyman'), 'كهربائي منازل': ('contract.electrical', 'contract.handyman'),
+    'كهربائيين': ('contract.electrical', 'contract.handyman'),
+    # services
+    'مكتب عقار': ('re.office',), 'مكاتب عقار': ('re.office',), 'مكتب عقاري': ('re.office',), 'مكاتب عقاريه': ('re.office',),
+    'استوديو تصوير': ('biz.photography',), 'استديو تصوير': ('biz.photography',),
+    'محطه بنزين': ('energy.fuel_station',), 'محطات بنزين': ('energy.fuel_station',), 'محطه وقود': ('energy.fuel_station',),
+    'محطات وقود': ('energy.fuel_station',), 'بنزينه': ('energy.fuel_station',),
+    'فندق': ('hosp.hotel',), 'فنادق': ('hosp.hotel',), 'شقق مفروشه': ('hosp.furnished_apartments',),
+    'استراحه': ('hosp.istiraha',), 'استراحات': ('hosp.istiraha',), 'شاليه': ('hosp.istiraha',), 'شاليهات': ('hosp.istiraha',),
+    'قاعه افراح': ('hosp.wedding_hall',), 'قاعات افراح': ('hosp.wedding_hall',), 'قصر افراح': ('hosp.wedding_hall',), 'قصور افراح': ('hosp.wedding_hall',),
+    'وكاله سفر': ('hosp.travel_agency',), 'وكالات سفر': ('hosp.travel_agency',), 'مكتب سياحه': ('hosp.travel_agency',), 'سفر وسياحه': ('hosp.travel_agency',),
+    'جيم': ('sports.gym',), 'نادي رياضي': ('sports.gym',), 'صاله رياضيه': ('sports.gym',),
+    'محل ورد': ('retail.flowers',), 'محلات ورد': ('retail.flowers',), 'زهور': ('retail.flowers',), 'محل زهور': ('retail.flowers',),
+    'هدايا': ('retail.gifts',), 'محل هدايا': ('retail.gifts',), 'فيب': ('retail.tobacco_vape',),
+    'صرافه': ('fin.exchange',), 'سينما': ('sports.cinema',),
+}
+# a generic head that names a trade only when it is all the request says («ورشة» alone is a car workshop; «ورشة نجارة» is not)
+HEAD_ONLY = {'ورش': 'auto.workshop', 'ورشه': 'auto.workshop', 'ورشات': 'auto.workshop', 'مغسله': 'personal.laundry', 'مغاسل': 'personal.laundry',
+             'عياده': 'health.clinic', 'عيادات': 'health.clinic'}
+# words that ask for goods to buy, not for the trade that uses them: «مستلزمات حلاقين» are salon supplies, not barbers
+SERVICE_TRADE_PREFIXES = ('contract.', 'food.', 'hosp.', 'edu.', 'sports.', 'beauty.', 'personal.')
+SERVICE_TRADES = {'auto.workshop', 'auto.body_paint', 'auto.oil_change', 'auto.car_wash', 'fashion.tailoring', 'health.clinic',
+                  'health.physio', 'elec.repair', 'biz.photography'}
+SUPPLY_CUES = {'مستلزمات', 'معدات', 'ادوات', 'اجهزه', 'مواد', 'قطع', 'مكائن', 'ماكينات', 'خامات', 'supplies', 'equipment', 'tools', 'parts'}
 # words after which a seller names the customer type: «أستهدف محلات النجارة», «عملائي المطاعم»
 TARGET_CUES = ('استهدف', 'نستهدف', 'اسوق', 'نسوق', 'عملائي', 'عملاءنا', 'زبائني', 'target', 'targeting')
 SELL_CUES = ('ابيع', 'نبيع', 'بيع', 'عندي', 'عندنا', 'توريد', 'نورد', 'اورد', 'مشترين', 'مشتري', 'عملاء', 'زبائن', 'يشتري', 'يشترون', 'تشتري', 'sell', 'selling', 'supply', 'buyers', 'customers')
@@ -43,6 +132,12 @@ def norm(s):
     s = re.sub('[ً-ْـ]', '', s)
     s = re.sub(r"[_/\-–|(),.&{}\[\]\"'’:;!؟?،+*#]+", ' ', s)
     return re.sub(r'\s+', ' ', s).strip()
+
+
+# the cues as norm() leaves a request: «عملائي» reaches the code as «عملايي», so the raw spelling never matched
+TARGET_CUES = tuple(dict.fromkeys(norm(c) for c in TARGET_CUES))
+SELL_CUES = tuple(dict.fromkeys(norm(c) for c in SELL_CUES))
+BUY_CUES = tuple(dict.fromkeys(norm(c) for c in BUY_CUES))
 
 
 def strip_pfx(t):
@@ -78,7 +173,7 @@ class Taxonomy:
         self.poi_taxonomy = poi_taxonomy_path
         # optional: one extra number per business found from free sources (duplicate rows, the business's own website)
         self.overlay = contacts_overlay if contacts_overlay and os.path.isfile(contacts_overlay) else None
-        # HudHud surveyors deleted these POIs (latest approved log = delete). They stay visible, ranked last, flagged, and never selected for a send.
+        # SPD surveyors deleted these POIs (latest approved log = delete). They stay visible, ranked last, flagged, and never selected for a send.
         hd = os.environ.get('HUDHUD_STATUS', os.path.join(os.path.dirname(poi_taxonomy_path), 'enrich', 'hudhud_logs_status.parquet'))
         self.hudhud = hd if os.path.isfile(hd) else None
         tax = json.load(open(os.path.join(tax_dir, 'farq_taxonomy.json'), encoding='utf-8'))
@@ -116,7 +211,7 @@ class Taxonomy:
                     for v in plural_variants(t):
                         self.sub_terms.setdefault(v, set()).add(sid)
         # market vocabulary: hand-written Saudi terms (saudi_market_terms.csv) and the mined lexicon (search_lexicon.csv: activity labels,
-        # HudHud keywords, Google/Urbi categories, words frequent in the names of one subcategory). Mined name-only words must be
+        # SPD keywords, Google/Urbi categories, words frequent in the names of one subcategory). Mined name-only words must be
         # specific (share >= 0.6, support >= 5) and never a family-name style word («الحربي»).
         # specialty layer (specialties.csv): what a buyer may name exactly («شريط بيوتيل») under a subcategory («مواد عزل»)
         self.specs, self.spec_rx = {}, []
@@ -140,6 +235,17 @@ class Taxonomy:
                         self.spec_terms.setdefault(v, set()).add(sid)
             for bought in filter(None, (r.get('buys_material_specialties') or '').split('|')):
                 self.spec_buyers.setdefault(bought.strip(), set()).add(r['sub_id'])
+        # an everyday trade name (TRADE_TERMS) names its own trade only: «سباك» is the plumber, not every subcategory whose words contain it
+        self.trade_terms = {}
+        # trades that use supplies rather than sell them: under a supply word their name says who the supplies are for.
+        # A shop that sells the goods (paints, plumbing supplies, lighting) keeps its match («مواد سباكة», «محلات مواد دهانات»)
+        self.trade_subs = {sid for sids in TRADE_TERMS.values() for sid in sids
+                           if sid.startswith(SERVICE_TRADE_PREFIXES) or sid in SERVICE_TRADES}
+        for t, sids in TRADE_TERMS.items():
+            for v in plural_variants(norm(t)) | {norm(t)}:
+                for sid in sids:
+                    if sid in self.subs:
+                        self.trade_terms.setdefault(v, set()).add(sid)
         self.market_terms = set()
         for fn, mined in (('saudi_market_terms.csv', False), ('search_lexicon.csv', True)):
             path = os.path.join(tax_dir, fn)
@@ -154,7 +260,7 @@ class Taxonomy:
                 for v in plural_variants(t) | {t}:
                     self.sub_terms.setdefault(v, set()).add(sid)
                     if not mined: self.market_terms.add(v)
-        self.max_n = max(len(t.split()) for t in list(self.terms) + list(self.sub_terms) + list(self.spec_terms))
+        self.max_n = max(len(t.split()) for t in list(self.terms) + list(self.sub_terms) + list(self.trade_terms) + list(self.spec_terms))
 
     def _grams(self, q):
         raw = norm(q).split()
@@ -179,14 +285,54 @@ class Taxonomy:
         # keep families close to the best match (a query can name two products)
         return [fid for fid, sc in sorted(scores.items(), key=lambda x: -x[1]) if sc >= top - 1][:3], top
 
-    def subs_in(self, q):
+    def subs_in(self, q, trades=True):
+        """Business types the words name, best first. A Saudi market word names its trade exactly (+20). An everyday trade name
+        (TRADE_TERMS: «حلاق», «ورش سيارات», «بنشر») names its own trade only, unless the request asks for supplies («مستلزمات
+        حلاقين»): then the trade word names who the supplies are for, and a specialty or product family decides. A bare generic
+        head («ورشة», «مغسلة») counts only when it is all the request says, so «ورشة نجارة» stays carpentry. trades=False reads
+        the request without the everyday trade names (a seller's own words, see understand)."""
+        raw = [strip_pfx(t) for t in norm(q).split()]
+        content = [t for t in raw if t not in GENERIC]
+        supply = set(raw) & SUPPLY_CUES
+        if trades and content and not supply and all(t in HEAD_ONLY for t in content) and len(set(HEAD_ONLY[t] for t in content)) == 1:
+            sid = HEAD_ONLY[content[0]]
+            if sid in self.subs: return [sid], 30 + len(content[0]) / 100
+        lead = [t for t in content if t not in BUY_CUES and t not in SELL_CUES and t not in TARGET_CUES]
+        head = unigram_variants(lead[0]) | {lead[0]} if lead else set()
         best, subs = 0, set()
         for g, n in self._grams(q):
-            if g in self.sub_terms:
-                sc = n * 10 + len(g) / 100 + (20 if g in self.market_terms else 0)   # a Saudi market word names the trade exactly
-                if sc > best: best, subs = sc, set(self.sub_terms[g])
-                elif sc == best: subs |= self.sub_terms[g]
+            base, trade = self.sub_terms.get(g), self.trade_terms.get(g) if trades else None
+            if not base and not trade: continue
+            # under a supply word a trade's own name says who the supplies are for («معدات حلاقين», «مستلزمات ورش سيارات»):
+            # it names no business type, so the product family or specialty decides
+            if supply and not set(g.split()) & supply:
+                base, trade = (base or set()) - self.trade_subs, (trade or set()) - self.trade_subs
+                if not base and not trade: continue
+            found, bonus = (base or set()) | (trade or set()), 0
+            # under a supply word only a trade phrase that holds it («مواد كهربائية», «أدوات سباكة») still names the trade exactly
+            if trade and (not supply or set(g.split()) & supply):
+                # one everyday word (+5) beats a product or specialty named by one word, not a phrase of two («أسماك زينة»)
+                # a market word (saudi_market_terms.csv) keeps its +20 as the head of the request («سمكرة ودهان»), not as a
+                # describing word after another noun («منشار كهربائي», «مصنع دهانات»)
+                found, bonus = trade, 20 if n > 1 or (g in self.market_terms and g in head) else 5
+            elif base and g in self.market_terms:
+                bonus = 20   # a Saudi market word names the trade exactly
+            sc = n * 10 + len(g) / 100 + bonus
+            if sc > best: best, subs = sc, set(found)
+            elif sc == best: subs |= found
         return sorted(subs)[:4], best
+
+    def group_in(self, q, named=None, score=0):
+        """An activity group the words name («أغراض مواليد», «أطفال»), see activity_groups.group_named. A business outside the
+        group that the other words name is what the shopper asks for («عيادة أطفال», «مستشفى أطفال», «صالون أطفال»)."""
+        words = norm(q).split()
+        for group in activity_groups.GROUPS.values():
+            rest = [w for w in words if w not in group['words']]
+            if len(rest) < len(words) and rest:
+                other, other_score = self.subs_in(' '.join(rest))
+                if other and not set(other) & set(group['subs']) and other_score >= 10:
+                    return None
+        return activity_groups.group_named(words, [s for s in (named or []) if s in self.subs], score)
 
     def spec_hits(self, q):
         """Specialties named in the request, scored like families_in/subs_in (tokens*10 + length) so the three levels compare."""
@@ -234,17 +380,17 @@ class Taxonomy:
                 head = t[2:] if t.startswith('لل') else t[1:]
                 for text in [head] + ([head + ' ' + raw[i + 1]] if i + 1 < len(raw) else []):
                     for v in plural_variants(text) | {text}:
-                        found |= self.sub_terms.get(v, set())
+                        found |= self.sub_terms.get(v, set()) | self.trade_terms.get(v, set())
                     if head in GENERIC and i + 1 < len(raw):   # «لمحلات الحلاقة» -> the next word names the type
                         for v in unigram_variants(strip_pfx(raw[i + 1])):
-                            found |= self.sub_terms.get(v, set())
+                            found |= self.sub_terms.get(v, set()) | self.trade_terms.get(v, set())
         for i, t in enumerate(raw):   # «أستهدف محلات النجارة»: the words after a targeting cue name the customer type
             if t in TARGET_CUES or strip_pfx(t) in TARGET_CUES:
                 rest = [w for w in raw[i + 1:i + 4] if w not in GENERIC]
                 for j in range(len(rest)):
                     for text in (rest[j], ' '.join(rest[j:j + 2])):
                         for v in plural_variants(text) | unigram_variants(strip_pfx(text)) | {text}:
-                            found |= self.sub_terms.get(v, set())
+                            found |= self.sub_terms.get(v, set()) | self.trade_terms.get(v, set())
         return sorted(found)
 
     def _sub_ok(self, sub):
@@ -257,8 +403,17 @@ class Taxonomy:
         specs, pscore = self.spec_hits(q)
         specs = [x for x in specs if self._sub_ok(self.specs[x]['sub_id'])]
         fams, fscore = self.families_in(q)
-        named, sscore = self.subs_in(q)
+        # a seller's words keep their old reading: «أبيع أفران» sells ovens, it does not name bakeries; his customers are still
+        # read with the everyday trade names («لمحلات الحلاقة», customer_subs)
+        named, sscore = self.subs_in(q, trades=objective != 'marketing')
         relation = 'buys' if objective == 'marketing' else 'sells'
+        group = self.group_in(q, named, sscore) if objective != 'marketing' else None
+        if group:
+            # «أغراض مواليد», «أطفال»: the shopper asks for the group's trades together (baby goods, kids clothes, toys)
+            members = [s for s in activity_groups.GROUPS[group]['subs'] if s in self.subs and self._sub_ok(s)]
+            sold = [f for f, _ in sorted(((f, w) for f, lst in self.rel['sells'].items() for s, w in lst if s in members), key=lambda x: -x[1])]
+            return {'families': list(dict.fromkeys(sold))[:2], 'named_subs': members, 'relation': relation, 'targets': {s: 2.0 for s in members},
+                    'source': 'taxonomy', 'specialties': [], 'anchor': 'subcategory', 'fallback_targets': {}, 'group': group}
         # a specialty wins over a family named by the same or fewer words; a business type named as precisely («سباك», «كاميرات
         # مراقبة») keeps the lead and the specialty only refines ranking inside it (market terms carry +20 in subs_in)
         if specs and pscore + 5 >= fscore and (not named or pscore > sscore):
@@ -380,6 +535,21 @@ class Taxonomy:
             f"{source_expr('urbi_makani','makani')} makani",
             f"{source_expr('farq_atlas_id')} farq_atlas_id",
         ])
+        # v7 directory content shown as Farq (no source): official description + non-contact delivery signals; each
+        # column only when the release carries it, else NULL so older releases keep working
+        v7_attrs = ', '.join([f"{source_expr('description_ar')} description"]
+            + [f"t.{c} {c}" if c in self._dir_cols else f"null {c}"
+               for c in ('delivery_rating','delivery_rate_count','delivery_fee','delivery_min_order','delivery_eta')])
+        # v13 enrichment baked into the live release: operating-status vote + freshness, canonical weekly hours, WhatsApp
+        # state. Each column only when the release carries it, else NULL so older releases keep working.
+        enrich_attrs = ', '.join([f"t.{c} {c}" if c in self._dir_cols else f"null {c}"
+            for c in ('status_voted','status_voted_confidence','last_seen_at','is_stale','hours_week','whatsapp_state')])
+        # listing content already carried by the release: website, socials, menu/order/reservation links, review count,
+        # full address, national address/postal code, English description, extra phones. Each column only when the release
+        # carries it, else NULL so older releases keep working. JSON keys match sanitizeLiveDirectoryEntity; shown as Farq
+        # (no provider named), never a ranking or filter input.
+        content_attrs = ', '.join([f"t.{c} {c}" if c in self._dir_cols else f"null {c}"
+            for c in ('website','instagram','facebook','snapchat','tiktok','x_link','linkedin','menu_link','order_link','reservation_link','reviews_count','full_address_ar','full_address_en','national_address','postal_code','description_en','extra_phones')])
         legal_expr = source_expr('legal_name','urbi_legal_name')
         brand_expr = source_expr('brand_name','urbi_brand_name')
         rows = db.execute(f"""
@@ -387,11 +557,11 @@ class Taxonomy:
                    coalesce(t.district_ar,t.district_en,'') district, coalesce(t.completeness_pct,0) completeness,
                    t.latitude, t.longitude, t.city_en, t.region_ar, t.region_en, t.name_en, t.phone_norm, t.phone_kind, t.has_whatsapp,
                    t.email, t.source_count, t.category, {legal_expr} legal_name, {brand_expr} brand_name, t.secondary_category, t.category_l3,
-                   t.company_status, t.lifecycle_state, c.sub_id, c.confidence, {overlay_cols}, {spec_col}, {source_attrs}
+                   t.company_status, t.lifecycle_state, c.sub_id, c.confidence, {overlay_cols}, {spec_col}, {source_attrs}, {v7_attrs}, {enrich_attrs}, {content_attrs}
             from read_parquet(?) t join read_parquet(?) c using (poi_key) {overlay_join}
             where t.city_en=? and coalesce(t.name_ar,t.name_en) is not null and c.confidence in ('high','medium')
               and c.sub_id in (select unnest(?::varchar[])) and {search_sql}""",
-            [directory_path, self.poi_taxonomy] + ([self.overlay] if self.overlay else []) + ([self.hudhud] if self.hudhud else []) + [city, subs]).fetchall()
+            [directory_path, classification_layer.served_taxonomy(self.poi_taxonomy)] + ([self.overlay] if self.overlay else []) + ([self.hudhud] if self.hudhud else []) + [city, subs]).fetchall()
         qn = norm(q).split()
         qwords = [w for w in (strip_pfx(t) for t in qn) if len(w) >= 3 and w not in GENERIC and w not in BUY_CUES and w not in SELL_CUES and w not in TARGET_CUES]
         wholesale = bool(set(qn) & {'جمله', 'بالجمله', 'wholesale', 'موزع', 'موزعين', 'مصنع', 'مصانع'})
@@ -407,7 +577,11 @@ class Taxonomy:
             (key, name, cat_ar, district, complete, lat, lon, city_en, region_ar, region_en, name_en, phone, phone_kind, wa, email,
              source_count, category, legal, brand, secondary, l3, company_status, lifecycle, sub, conf, o_phone, o_kind, o_wa, o_src, o_src_name, hh_deleted, row_specs,
              street, is_ws, loc_precision, district_ok, role_badges, concepts, has_licence, rating, n_sources,
-             branch_count, employee_count, payment_methods, service_languages, operating_hours, floor, building_use, makani, farq_atlas_id) = r
+             branch_count, employee_count, payment_methods, service_languages, operating_hours, floor, building_use, makani, farq_atlas_id,
+             description, delivery_rating, delivery_rate_count, delivery_fee, delivery_min_order, delivery_eta,
+             status_voted, status_voted_confidence, last_seen_at, is_stale, hours_week, whatsapp_state,
+             website, instagram, facebook, snapchat, tiktok, x_link, linkedin, menu_link, order_link, reservation_link,
+             reviews_count, full_address_ar, full_address_en, national_address, postal_code, description_en, extra_phones) = r
             extra = {}
             if not phone and o_phone:   # fill only a missing number, and say where it came from
                 phone, phone_kind, wa = o_phone, o_kind, bool(o_wa)
@@ -448,7 +622,7 @@ class Taxonomy:
                     reason = f'مورد عام في «{sub_ar}»؛ ما تأكدنا أنه يوفّر «{self.specs[asked_specs[0]]["specialty_ar"]}» بالذات'
             if hh_deleted:
                 extra = {**extra, 'hudhud_deleted': True, 'sendable': False,
-                         'warning': 'حذفها مسّاحو هدهد بعد زيارة ميدانية (قد تكون مغلقة أو مكررة)؛ لا تُضاف لقائمة الإرسال'}
+                         'warning': 'حذفها مسّاحو SPD بعد زيارة ميدانية (قد تكون مغلقة أو مكررة)؛ لا تُضاف لقائمة الإرسال'}
             out.append((weight + (0.3 if wa else 0) + float(complete or 0) / 1000 - (100 if hh_deleted else 0), {
                 'poi_key': key, 'name_ar': display_name(name), 'category_ar': cat_ar, 'district_ar': district if district_ok else '',
                 'latitude': lat if loc_precision == 'point' else None, 'longitude': lon if loc_precision == 'point' else None,
@@ -461,6 +635,15 @@ class Taxonomy:
                 'branch_count': branch_count, 'employee_count': employee_count, 'payment_methods': payment_methods,
                 'service_languages': service_languages, 'operating_hours': operating_hours, 'floor': floor,
                 'building_use': building_use, 'makani': makani, 'farq_atlas_id': farq_atlas_id,
+                'description': description, 'delivery_rating': delivery_rating, 'delivery_rate_count': delivery_rate_count,
+                'delivery_fee': delivery_fee, 'delivery_min_order': delivery_min_order, 'delivery_eta': delivery_eta,
+                'status_voted': status_voted, 'status_voted_confidence': status_voted_confidence, 'last_seen_at': last_seen_at,
+                'is_stale': is_stale, 'hours_week': hours_week, 'whatsapp_state': whatsapp_state,
+                'website': website, 'instagram': instagram, 'facebook': facebook, 'snapchat': snapchat, 'tiktok': tiktok,
+                'x_link': x_link, 'linkedin': linkedin, 'menu_link': menu_link, 'order_link': order_link,
+                'reservation_link': reservation_link, 'reviews_count': reviews_count, 'full_address_ar': full_address_ar,
+                'full_address_en': full_address_en, 'national_address': national_address, 'postal_code': postal_code,
+                'description_en': description_en, 'extra_phones': extra_phones,
                 'match': 'seller' if objective != 'marketing' else None, 'ai': None, 'reason': reason,
                 'target_role': 'buyer' if objective == 'marketing' else 'seller', 'taxonomy_sub': sub, 'taxonomy_confidence': conf,
                 'evidence': {'source': 'farq_taxonomy', 'text': sub_ar, 'confidence': 'activity_inference' if objective == 'marketing' else 'business_evidence'},

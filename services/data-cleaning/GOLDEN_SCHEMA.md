@@ -8,7 +8,7 @@ Targetable rows (`in_golden`): **2,271,487**.
 
 | Column | Type | Filled (in_golden) | Meaning | Source priority |
 |---|---|---|---|---|
-| `poi_key` | VARCHAR | 2,271,487 (100%) | Unique key. hh:<HudHud id>, new:<n> (merged new sources), ov:<Overture id>, gm:<Google cid>, farq:<Farq supplier id>, urbi_coords:… etc. | pipeline |
+| `poi_key` | VARCHAR | 2,271,487 (100%) | Unique key. hh:<SPD id>, new:<n> (merged new sources), ov:<Overture id>, gm:<Google cid>, farq:<Farq supplier id>, urbi_coords:… etc. | pipeline |
 | `origin` | VARCHAR | 2,271,487 (100%) | directory (live targeting directory) or new (added by the golden pipeline). | pipeline |
 | `name_ar` | VARCHAR | 1,289,885 (57%) | Arabic name (cleaned; placeholders and links removed). | surveyor CR → source → same business in other sources → name dictionary → Google Maps |
 | `name_en` | VARCHAR | 2,039,226 (90%) | English name. | surveyor CR → source → same business in other sources → name dictionary → Google Maps |
@@ -64,7 +64,7 @@ Targetable rows (`in_golden`): **2,271,487**.
 | `license_expired` | BOOLEAN | 29,205 (1%) | Licence end date before today. |  |
 | `legal_form` | VARCHAR | 0 (0%) | Legal form. | 2GIS |
 | `national_address` | VARCHAR | 25,663 (1%) | Saudi national short address. | surveyor CR |
-| `surveyor_verified_at` | VARCHAR | 50,174 (2%) | Date of the latest approved surveyor change request. | HudHud CRS |
+| `surveyor_verified_at` | VARCHAR | 50,174 (2%) | Date of the latest approved surveyor change request. | SPD CRS |
 | `building_no` | VARCHAR | 2,744 (0%) | Building number. | surveyor CR |
 | `postal_code` | VARCHAR | 9,632 (0%) | Postal code. | surveyor CR |
 | `floor_no` | VARCHAR | 150 (0%) | Floor. | surveyor CR |
@@ -85,10 +85,10 @@ Targetable rows (`in_golden`): **2,271,487**.
 | `description_ar` | VARCHAR | 119,211 (5%) | Description (Arabic). | surveyor CR → directory |
 | `description_en` | VARCHAR | 41,875 (2%) | Description (English). |  |
 | `tradename` | VARCHAR | 10,717 (0%) | Trade name. | surveyor CR |
-| `amenities_ids` | VARCHAR | 9,131 (0%) | HudHud amenity ids. | surveyor CR |
-| `hh_brand_id` | VARCHAR | 1,308 (0%) | HudHud brand id. | surveyor CR |
+| `amenities_ids` | VARCHAR | 9,131 (0%) | SPD amenity ids. | surveyor CR |
+| `hh_brand_id` | VARCHAR | 1,308 (0%) | SPD brand id. | surveyor CR |
 | `hh_status` | VARCHAR | 46,358 (2%) | Surveyor status: open / temporary closed / permanently closed. | surveyor CR |
-| `hh_duplicate_of` | VARCHAR | 0 (0%) | Surveyor says this is a duplicate of another HudHud POI. | surveyor CR |
+| `hh_duplicate_of` | VARCHAR | 0 (0%) | Surveyor says this is a duplicate of another SPD POI. | surveyor CR |
 | `google_place_id` | VARCHAR | 78,967 (3%) | Google place id. | surveyor CR → GMB match |
 | `reviews_count` | INTEGER | 140,384 (6%) | Number of reviews. | directory → surveyor CR → GMB → Drive sheet → Google Maps |
 | `google_cid` | VARCHAR | 24,332 (1%) | Google Maps cid (Serper). | Serper |
@@ -109,8 +109,8 @@ Targetable rows (`in_golden`): **2,271,487**.
 | `google_reviews` | VARCHAR | 51,026 (2%) | Reviews (GMB, text). | GMB |
 | `google_perm_closed` | BOOLEAN | 2,271,487 (100%) | Google says permanently closed. | GMB |
 | `google_temp_closed` | BOOLEAN | 2,271,487 (100%) | Google says temporarily closed. | GMB |
-| `hudhud_deleted` | BOOLEAN | 2,271,487 (100%) | Deleted by HudHud surveyors (logs, TRX state or CR). | HudHud |
-| `hudhud_state` | VARCHAR | 388,050 (17%) | HudHud TRX state. | HudHud |
+| `hudhud_deleted` | BOOLEAN | 2,271,487 (100%) | Deleted by SPD surveyors (logs, TRX state or CR). | SPD |
+| `hudhud_state` | VARCHAR | 388,050 (17%) | SPD TRX state. | SPD |
 | `curated_contracting_supplier` | BOOLEAN | 2,271,487 (100%) | In the owner's curated contracting-supplier list. | Archive 11 |
 | `qualified_distributor` | BOOLEAN | 2,271,487 (100%) | Qualified distributor in that list. | Archive 11 |
 | `dup_group` | VARCHAR | 1,313,551 (58%) | Directory duplicate group (first pass). |  |

@@ -5,10 +5,13 @@ import glob
 import json
 import math
 import os
+import re
+import statistics
 
 import canonical_data
 import district_reference
 import market_signals
+import parse_aqar_list
 
 EARTH_M = 6_371_000.0
 
@@ -128,6 +131,24 @@ def _inside(x, y, polygons):
     return False
 
 
+def _inside_mask(xs, ys, polygons):
+    """For each point (xs[i], ys[i]), whether it is inside the polygons: the same answer as _inside, in one vectorised
+    GEOS call. A drive-time area has thousands of vertices and its box tens of thousands of buildings, so the Python
+    ray cast took tens of seconds, all of it under the service's one database lock (every other request waited).
+    Self-crossing outlines are made valid first, which keeps every lobe and every hole as the even-odd test reads them.
+    Without shapely, or for an outline it cannot read, the plain ray cast answers instead."""
+    if not len(xs):
+        return []
+    try:
+        import numpy
+        import shapely
+        parts = [shapely.Polygon(rings[0], rings[1:]) for rings in polygons if rings]
+        shape = shapely.make_valid(shapely.MultiPolygon(parts) if len(parts) > 1 else parts[0])
+        return shapely.contains_xy(shape, numpy.asarray(xs, dtype=float), numpy.asarray(ys, dtype=float)).tolist()
+    except Exception:   # no shapely, or a ring too short to be a polygon
+        return [_inside(x, y, polygons) for x, y in zip(xs, ys)]
+
+
 def population_within(db, points_path, targets_path, search_sql, geometry, household_size):
     """Homes, people and directory businesses inside a polygon, such as a drive-time area. Same layers and the same
     people figure as population_around; only the boundary differs. Points are pre-filtered by the polygon's box in
@@ -145,14 +166,16 @@ def population_within(db, points_path, targets_path, search_sql, geometry, house
         rows = db.execute(f"""select longitude, latitude, dwellings, {people} from read_parquet(?)
                               where longitude between ? and ? and latitude between ? and ?""",
                           [points_path, west, east, south, north]).fetchall()
-        inside = [row for row in rows if _inside(row[0], row[1], polygons)]
+        mask = _inside_mask([row[0] for row in rows], [row[1] for row in rows], polygons)
+        inside = [row for row, keep in zip(rows, mask) if keep]
         result.update(home_buildings=len(inside), dwellings=round(sum(float(r[2] or 0) for r in inside), 1),
                       population=round(sum(float(r[3] or 0) for r in inside)), people_per_district=has_people)
     if targets_path:
         rows = db.execute(f"""select p.longitude, p.latitude, coalesce(nullif(p.category_ar, ''), p.category) from read_parquet(?) p
                               where {search_sql} and p.longitude between ? and ? and p.latitude between ? and ?""",
                           [targets_path, west, east, south, north]).fetchall()
-        inside = [row for row in rows if _inside(row[0], row[1], polygons)]
+        mask = _inside_mask([row[0] for row in rows], [row[1] for row in rows], polygons)
+        inside = [row for row, keep in zip(rows, mask) if keep]
         result['businesses'] = len(inside)
         counts = {}
         for row in inside:
@@ -264,7 +287,50 @@ BEST_DISCOUNT_FLOOR = -30
 LISTING_TYPES = ('apartment', 'studio', 'floor', 'villa', 'house', 'building', 'room', 'store', 'showroom', 'office', 'warehouse',
                  'land', 'rest_house', 'chalet', 'farm', 'factory', 'workshop', 'compound', 'other')
 LISTINGS_MAX = 1500
+# commercial units a shop can open in: what «محلات متاحة على هذا الشارع» lists along an activity street
+COMMERCIAL_TYPES = ('store', 'showroom', 'office')
+# a listing's type is matched by its canonical token, however the source spelt it (parse_aqar_list.canonical_type)
+canonical_type = parse_aqar_list.canonical_type
+NEAR_DEFAULT_M, NEAR_MAX_M, NEAR_MAX_VERTICES = 60, 200, 5000
 _listings_cache = {}
+
+
+def near_lines(geometry):
+    """The coordinate runs of a LineString or MultiLineString inside the kingdom's box, for `near`; ValueError otherwise."""
+    if not isinstance(geometry, dict) or geometry.get('type') not in ('LineString', 'MultiLineString'):
+        raise ValueError('near')
+    runs = [geometry.get('coordinates')] if geometry['type'] == 'LineString' else geometry.get('coordinates')
+    if not isinstance(runs, list) or not runs:
+        raise ValueError('near')
+    total = 0
+    for run in runs:
+        if not isinstance(run, list) or not run:
+            raise ValueError('near')
+        total += len(run)
+        for point in run:
+            if not (isinstance(point, list) and len(point) >= 2 and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in point[:2])
+                    and 34 <= point[0] <= 56 and 16 <= point[1] <= 33):
+                raise ValueError('near')
+    if total > NEAR_MAX_VERTICES:
+        raise ValueError('near')
+    return [[(float(p[0]), float(p[1])) for p in run] for run in runs]
+
+
+def distance_to_lines_m(lon, lat, runs):
+    """Metres from a point to the nearest segment of the runs, on a flat projection around the point (exact enough
+    within a few hundred metres)."""
+    kx, ky = 111320 * math.cos(math.radians(lat)), 110540
+    best = math.inf
+    for run in runs:
+        points = [((x - lon) * kx, (y - lat) * ky) for x, y in run]
+        if len(points) == 1:
+            best = min(best, math.hypot(*points[0]))
+        for (ax, ay), (bx, by) in zip(points, points[1:]):
+            dx, dy = bx - ax, by - ay
+            length = dx * dx + dy * dy
+            t = 0 if not length else max(0.0, min(1.0, -(ax * dx + ay * dy) / length))
+            best = min(best, math.hypot(ax + t * dx, ay + t * dy))
+    return best
 
 
 def _listing_cards(path):
@@ -279,42 +345,216 @@ def _listing_cards(path):
     return table
 
 
+# a yearly rent below this is a month's rent marked wrongly (build_real_estate_reference.MIN_YEARLY_RENT)
+MIN_YEARLY_RENT = 6_000
+
+
+def _suspect(card):
+    """Whether a card's figures need checking. A card built before 2026-11-02 is marked for checking whenever it has
+    no price per m², so an ad that states no area was hidden although it has no figure to doubt; such a card is
+    suspect only when its yearly rent is too low to be one."""
+    if not card.get('check'):
+        return False
+    if card.get('area_sqm') is None and card.get('sar_per_sqm') is None and card.get('price_sar') is not None:
+        return card.get('deal') == 'rent_year' and card['price_sar'] < MIN_YEARLY_RENT
+    return True
+
+
+def _hidden_reason(card):
+    """Why a card is not served ('check' | 'no_price' | 'rent_unstated' | 'no_photo'), or None when it is."""
+    if _suspect(card):
+        return 'check'
+    if card.get('price_sar') is None:
+        return 'no_price'
+    if card.get('deal') == 'rent_unstated':
+        return 'rent_unstated'
+    if not (card.get('photos') or card.get('photo')):
+        return 'no_photo'
+    return None
+
+
+def _publishable(card):
+    """A listing Atlas shows: a price, a stated period, at least one photo, and figures that need no checking."""
+    return _hidden_reason(card) is None
+
+
+# the surroundings a street's rent is set against: units this far from its line, beyond the street's own buffer
+RENT_AROUND_M = 500
+# a median rests on at least this many units, else «غير متاح»
+RENT_MIN_UNITS = 3
+
+
+def annual_rent(card):
+    """A rent card's price for a year: a yearly rent as it is, a monthly one twelve times; None for a sale or a rent
+    whose period the ad does not state."""
+    price = card.get('price_sar')
+    if price is None:
+        return None
+    return {'rent_year': price, 'rent_month': 12 * price}.get(card.get('deal'))
+
+
+def rent_level(cards):
+    """{units, median_annual_sar, per_sqm_units, median_annual_sar_per_sqm} of the rents among cards; a median is None
+    below RENT_MIN_UNITS. The rent per m² counts only the ads that state an area."""
+    rents = [(rent, card.get('area_sqm')) for card in cards if (rent := annual_rent(card)) is not None]
+    per_sqm = [rent / area for rent, area in rents if area]
+    median = lambda values: round(statistics.median(values)) if len(values) >= RENT_MIN_UNITS else None
+    return {'units': len(rents), 'median_annual_sar': median([rent for rent, _ in rents]),
+            'per_sqm_units': len(per_sqm), 'median_annual_sar_per_sqm': median(per_sqm)}
+
+
+def rent_summary(street, around):
+    """The street's rent level against its surroundings', and the gap in % where both medians exist."""
+    here, there = rent_level(street), rent_level(around)
+    gap = lambda key: round(100 * (here[key] / there[key] - 1)) if here[key] and there[key] else None
+    return {'street': here, 'around': there, 'around_m': RENT_AROUND_M, 'min_units': RENT_MIN_UNITS,
+            'vs_around_pct': {'annual': gap('median_annual_sar'), 'per_sqm': gap('median_annual_sar_per_sqm')}}
+
+
 def real_estate_listings(city, filters, path=None, deals_path=None):
     """Current listings of a city for the map and the side panel, from build_real_estate_reference.py
     --listings-out: within a box or in chosen districts, of one deal (rent | sale) and optional property types,
-    optionally one deal with its rent period (rent_year | rent_month | rent_unstated | sale), a price range as
+    optionally one deal with its rent period (rent_year | rent_month | rent_unstated | sale), optionally within `near`
+    {'runs': near_lines(geometry), 'meters': m} of a street (sorted nearest first, each card with `distance_m`), a price range as
     advertised, an area range and a building no older than `max_age` years. An ad that does not state the figure a range asks about is left out of that range,
     never counted as zero. Only a publishable listing is served: one with a price, a stated period, at least one photo,
-    and figures that do not need checking. Sorted with the listings
-    furthest under their district's median price per m² first, then those without a comparison, then those marked
-    for checking; capped at `limit`, while `total` counts every match. Each served card carries `signal`, its district's
-    market signal for its type (market_signals.tag), or None. None when there is no file yet."""
+    and figures that do not need checking. Sorted by best_order (under the district's median first, then the freshest
+    ad inside each band; without a comparison and marked for checking last); capped at `limit`, while `total` counts
+    every match. With `group_similar` near-identical ads (similar_key) come as one card carrying the others in
+    `similar`, and `limit` counts the ads in them. Each served card carries `signal`, its district's
+    market signal for its type (market_signals.tag), or None. With `near` the answer also carries `rent_summary`, the
+    street's rent level against the units within RENT_AROUND_M of its line (rent_summary), and `hidden`, the matching
+    ads on the street left out, by reason. None when there is no file yet."""
     try:
         table = _listing_cards(path or REAL_ESTATE_LISTINGS_PATH)
     except (OSError, ValueError):
         return None
     box, districts = filters.get('bbox'), set(filters.get('district_ids') or [])
-    types, kind, deal = set(filters.get('types') or []), filters.get('kind'), filters.get('deal')
+    # match a type by its canonical token on both sides, so a card whose source spelt the type differently (case,
+    # Arabic, 'shop') still matches a request for 'store'/'showroom'/'office'
+    types, kind, deal = {canonical_type(t) for t in (filters.get('types') or [])}, filters.get('kind'), filters.get('deal')
+    near = filters.get('near')
+    if near:
+        # a corridor's buffer: first the line's box widened by the surroundings' reach, then the exact distance to its segments
+        runs, metres = near['runs'], near.get('meters') or NEAR_DEFAULT_M
+        reach = max(metres, RENT_AROUND_M)
+        pad_lat = reach / 110540
+        pad_lon = reach / (111320 * math.cos(math.radians(sum(y for run in runs for _, y in run) / sum(len(run) for run in runs))))
+        xs, ys = [x for run in runs for x, _ in run], [y for run in runs for _, y in run]
+        near_box = (min(xs) - pad_lon, min(ys) - pad_lat, max(xs) + pad_lon, max(ys) + pad_lat)
     within = lambda value, low, high: (low is None and high is None) or (value is not None and (low is None or value >= low) and (high is None or value <= high))
-    publishable = lambda card: (not card.get('check') and card.get('price_sar') is not None and card.get('deal') != 'rent_unstated'
-                                and bool(card.get('photos') or card.get('photo')))
-    found = [card for card in table.get('listings', []) if card['city'] == city and publishable(card)
-             and (not kind or card['kind'] == kind) and (not deal or card.get('deal') == deal) and (not types or card['type'] in types)
-             and (not districts or card['district_id'] in districts)
-             and (not box or (box[0] <= card['lon'] <= box[2] and box[1] <= card['lat'] <= box[3]))
-             and within(card.get('price_sar'), filters.get('min_price'), filters.get('max_price'))
-             and within(card.get('area_sqm'), filters.get('min_area'), filters.get('max_area'))
-             and within(card.get('age'), None, filters.get('max_age'))]
-    # a card to check (its figures look wrong) goes after every other, then those without a district comparison
-    # best value first among believable prices: a discount past BEST_DISCOUNT_FLOOR is more often a typo than a bargain,
-    # so those follow the rest; an ad with photos goes before one without at the same price standing
-    floor = lambda card: (card.get('vs_district_pct') or 0) < BEST_DISCOUNT_FLOOR
-    found.sort(key=lambda card: (bool(card.get('check')), card.get('vs_district_pct') is None, floor(card), not card.get('photo'),
-                                 card.get('vs_district_pct') or 0))
-    shown = found[:filters.get('limit') or LISTINGS_MAX]
+    matches = [card for card in table.get('listings', []) if card['city'] == city
+               and (not kind or card['kind'] == kind) and (not deal or card.get('deal') == deal) and (not types or canonical_type(card['type']) in types)
+               and (not districts or card['district_id'] in districts)
+               and (not box or (box[0] <= card['lon'] <= box[2] and box[1] <= card['lat'] <= box[3]))
+               and within(card.get('price_sar'), filters.get('min_price'), filters.get('max_price'))
+               and within(card.get('area_sqm'), filters.get('min_area'), filters.get('max_area'))
+               and within(card.get('age'), None, filters.get('max_age'))]
+    found = [card for card in matches if _publishable(card)]
+    found.sort(key=best_order)
+    extra = {}
+    if near:
+        inside = lambda card: near_box[0] <= card['lon'] <= near_box[2] and near_box[1] <= card['lat'] <= near_box[3]
+        measured = [(distance_to_lines_m(card['lon'], card['lat'], runs), card) for card in found if inside(card)]
+        # the street's rent against the units around it (beyond its own buffer, within RENT_AROUND_M of its line)
+        extra['rent_summary'] = rent_summary([card for d, card in measured if d <= metres],
+                                             [card for d, card in measured if metres < d <= RENT_AROUND_M])
+        # the matching ads on the street that are not served, by reason: a street with none served shows why
+        hidden = {}
+        for card in matches:
+            reason = _hidden_reason(card)
+            if reason and inside(card) and distance_to_lines_m(card['lon'], card['lat'], runs) <= metres:
+                hidden[reason] = hidden.get(reason, 0) + 1
+        extra['hidden'] = hidden
+        # along a street the nearest unit comes first; the stable sort keeps the best-value order among equals
+        measured = sorted([(d, card) for d, card in measured if d <= metres], key=lambda pair: round(pair[0]))
+        found = [dict(card, distance_m=round(d)) for d, card in measured]
+    limit = filters.get('limit') or LISTINGS_MAX
     signals = _market_signals(city, table, path or REAL_ESTATE_LISTINGS_PATH, deals_path)
-    shown = [{**card, 'signal': market_signals.tag(card, signals)} for card in shown]
-    return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': shown}
+    # the number stays out of a list of listings: a signed-in person asks for one listing's number (listing_phone);
+    # a served card needs no checking, whatever an older file marked on it (_suspect)
+    serve = lambda card: {**{key: value for key, value in card.items() if key != 'phone'}, 'check': False, 'has_phone': bool(card.get('phone')),
+                          'signal': market_signals.tag(card, signals)}
+    if filters.get('group_similar'):
+        # one card per set of near-identical ads (similar_groups); `limit` still counts ads, so the answer is no larger
+        shown, count = [], 0
+        for lead, others in similar_groups(found):
+            if count >= limit:
+                break
+            others = others[:max(0, limit - count - 1)]
+            shown.append({**serve(lead), 'similar': [serve(card) for card in others]})
+            count += 1 + len(others)
+        return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': shown, **extra}
+    shown = [serve(card) for card in found[:limit]]
+    return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': shown, **extra}
+
+
+# how far under its district's median a listing must be to rank as clearly under it, and how close counts as «near»
+BEST_UNDER_PCT, BEST_NEAR_PCT = -10, 5
+
+
+def _day_number(card):
+    """The ad's last update (else its listing day) as a sortable number, 0 without one."""
+    day = card.get('updated_on') or card.get('listed_on') or ''
+    return int(day.replace('-', '')) if re.fullmatch(r'\d{4}-\d{2}-\d{2}', day) else 0
+
+
+def best_order(card):
+    """The «أنسب» rank of a listing. A card to check (its figures look wrong) goes after every other, then those
+    without a district comparison, then those under BEST_DISCOUNT_FLOOR (more often a typo than a bargain). The rest go
+    in three bands by their price per m² against the district's median: clearly under it (BEST_UNDER_PCT or lower), near
+    it, then over it; inside a band the most recently updated ad first, a licensed one before one without, more photos
+    before fewer, and only then the larger discount. Ranking by the discount alone put every top card on the floor
+    itself, so the first screen read «30% under» on every card."""
+    pct = card.get('vs_district_pct')
+    band = 0 if pct is not None and pct <= BEST_UNDER_PCT else 1 if pct is not None and pct < BEST_NEAR_PCT else 2
+    return (bool(card.get('check')), pct is None, (pct or 0) < BEST_DISCOUNT_FLOOR, band, -_day_number(card),
+            not card.get('licensed'), -len(card.get('photos') or ([card['photo']] if card.get('photo') else [])), pct or 0)
+
+
+def similar_key(card):
+    """What makes two ads the same offer to a reader: city, deal, district, type, area, rooms and price, and the same
+    advertiser's number when the file has one. None for an ad without a district, an area or a price: it stays alone."""
+    if card.get('district_id') is None or card.get('area_sqm') is None or card.get('price_sar') is None:
+        return None
+    return (card.get('city'), card.get('deal') or card.get('kind'), card['district_id'], canonical_type(card.get('type')),
+            card['area_sqm'], card.get('beds'), card['price_sar'], card.get('phone'))
+
+
+def similar_groups(cards):
+    """The cards in their order, near-identical ads (similar_key) folded into the first of them: [(lead, others)]."""
+    groups, at = [], {}
+    for card in cards:
+        key = similar_key(card)
+        if key is not None and key in at:
+            groups[at[key]][1].append(card)
+            continue
+        if key is not None:
+            at[key] = len(groups)
+        groups.append((card, []))
+    return groups
+
+
+def listing_phone(listing_id, path=None):
+    """One listing's advertiser number (05XXXXXXXX), or None when it has none or there is no file."""
+    try:
+        table = _listing_cards(path or REAL_ESTATE_LISTINGS_PATH)
+    except (OSError, ValueError):
+        return None
+    index = _phone_index(table)
+    return index.get(str(listing_id))
+
+
+_phone_indexes = {}
+
+
+def _phone_index(table):
+    key = id(table)
+    if key not in _phone_indexes:
+        _phone_indexes.clear()
+        # only a listing Atlas shows gives its number: a hidden one cannot be reached by guessing its id
+        _phone_indexes[key] = {str(card['id']): card['phone'] for card in table.get('listings', []) if card.get('phone') and _publishable(card)}
+    return _phone_indexes[key]
 
 
 def _market_signals(city, table, cards_path, deals_path=None):

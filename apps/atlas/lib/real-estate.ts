@@ -1,5 +1,6 @@
-import { numberFormat } from './insights-api'
-import { PALETTE } from '@/lib/palette'
+// with extensions, so node --test can load this file for lib/real-estate.test.ts
+import { numberFormat, percent } from './insights-api.ts'
+import { PALETTE } from './palette.ts'
 
 /** A deal as the ad states it: a sale, or a rent with its own period. Nothing is converted between periods. */
 export type Deal = 'sale' | 'rent_year' | 'rent_month' | 'rent_unstated'
@@ -50,17 +51,108 @@ export type Listing = {
   age?: number
   /** Where the age came from: Aqar's own field, or read from the ad's description. */
   age_source?: 'aqar' | 'text'
+  /** Who may live there, for a rental that states it (Aqar's field, the ad's text where it names a side). */
+  tenants?: Tenants
+  /** What the property has as the ad's form records it: 1 has, 0 lacks; an unstated feature is absent. */
+  features?: Partial<Record<Feature, 0 | 1>>
+  /** When the ad went up and when it was last updated (YYYY-MM-DD). */
+  listed_on?: string
+  updated_on?: string
+  /** The ad carries the real-estate authority's advertising licence. */
+  licensed?: boolean
+  /** The advertiser's number is on file; a signed-in person asks for it per listing (/api/market/listing-phone). */
+  has_phone?: boolean
   /** Its district's market signal for its type (market_signals.py), or null: rent against the nearest districts read
    * with the prices paid there. Only yearly rent carries one. */
   signal?: MarketSignal | null
+  /** Near-identical ads the service folded into this one (same district, type, area, rooms, price and advertiser),
+   * in rank order; sent only when asked with group_similar. */
+  similar?: Listing[]
+  /** Set by flattenSimilar on each folded ad: the id of the card it was folded into. */
+  similar_of?: string
+}
+
+/** A served list with each card's folded ads laid out after it, each marked with the card it belongs to, so every
+ * filter, sort and count reads one ad at a time; groupSimilar puts them back together for the cards. */
+export function flattenSimilar(listings: Listing[]): Listing[] {
+  return listings.flatMap(({ similar, ...lead }) => [lead, ...(similar ?? []).map((item) => ({ ...item, similar_of: lead.id }))])
+}
+
+/** The ads in their order as one entry per set of near-identical ads: the first of the set that survived the filters
+ * leads, the rest follow it. An ad the service did not fold stands alone. */
+export function groupSimilar(listings: Listing[]): { lead: Listing; others: Listing[] }[] {
+  const groups: { lead: Listing; others: Listing[] }[] = []
+  const at = new Map<string, number>()
+  for (const listing of listings) {
+    const key = listing.similar_of ?? listing.id
+    const index = at.get(key)
+    if (index != null) groups[index].others.push(listing)
+    else { at.set(key, groups.length); groups.push({ lead: listing, others: [] }) }
+  }
+  return groups
+}
+
+/** «عرضان متشابهان»، «6 عروض متشابهة»: a set of near-identical ads, counted the way it is said. */
+export function similarLabel(count: number): string {
+  if (count === 2) return 'عرضان متشابهان'
+  return `${numberFormat.format(count)} ${count % 100 >= 3 && count % 100 <= 10 ? 'عروض متشابهة' : 'عرضاً متشابهاً'}`
+}
+
+/** The one price tag a results card carries: the ad's own price against its district's median when there is one,
+ * else its district's market signal. Two tags read as a contradiction («أقل من وسيط الحي» beside «إيجار مرتفع مقابل
+ * سعر الحي»), though one measures the ad and the other the district; the signal stays in the listing's own card. */
+export function priceTag(listing: Pick<Listing, 'vs_district_pct' | 'district_ar' | 'signal'>):
+  { text: string; tone: 'good' | 'even' | 'high' | 'signal' } | null {
+  const versus = versusDistrict(listing)
+  if (versus) return versus
+  return listing.signal?.label ? { text: listing.signal.label, tone: 'signal' } : null
 }
 
 export type ListingKind = 'rent' | 'sale'
+
+export type Tenants = 'families' | 'singles' | 'both'
+export const TENANTS_LABEL: Record<Tenants, string> = { families: 'للعوائل', singles: 'للعزاب', both: 'عوائل وعزاب' }
+
+/** The features a card lists, in the order a person reads them. */
+export const FEATURES = [
+  ['furnished', 'مفروش'], ['ketchen', 'مطبخ'], ['ac', 'مكيفات'], ['lift', 'مصعد'], ['car_entrance', 'مدخل سيارة'],
+  ['extra_unit', 'ملحق'], ['two_entrances', 'مدخلان'], ['private_roof', 'سطح خاص'], ['stairs', 'درج داخلي'],
+  ['maid', 'غرفة خادمة'], ['driver', 'غرفة سائق'], ['backyard', 'حوش'], ['pool', 'مسبح'], ['basement', 'قبو'], ['tent', 'خيمة'],
+] as const
+export type Feature = (typeof FEATURES)[number][0]
+
+/** «منذ 3 أيام» for a YYYY-MM-DD date, counted in whole days; null without one. */
+export function daysAgo(day: string | undefined, now = new Date()) {
+  if (!day) return null
+  const days = Math.floor((now.getTime() - Date.parse(`${day}T00:00:00Z`)) / 86400000)
+  if (!Number.isFinite(days) || days < 0) return null
+  if (days === 0) return 'اليوم'
+  if (days === 1) return 'أمس'
+  if (days < 30) return `منذ ${counted(days, 'يوم', 'يومين', 'أيام', 'يوماً')}`
+  // 345 days and up round to twelve months, which is said as a year
+  if (days < 345) return `منذ ${counted(Math.max(1, Math.round(days / 30)), 'شهر', 'شهرين', 'أشهر', 'شهراً')}`
+  return `منذ ${counted(Math.round(days / 365), 'سنة', 'سنتين', 'سنوات', 'سنة')}`
+}
+
+/** «شهر»، «شهرين»، «3 أشهر»، «11 شهراً»: a count the way it is said. */
+function counted(n: number, one: string, two: string, few: string, many: string) {
+  if (n === 1) return one
+  if (n === 2) return two
+  return `${numberFormat.format(n)} ${n % 100 >= 3 && n % 100 <= 10 ? few : many}`
+}
 
 /** What Atlas shows of a listing: a price, a stated period, at least one photo, and figures that need no checking.
  * The service serves only these; the same test here keeps an older service answer to the same standard. */
 export const isPublishable = (listing: Listing) =>
   !listing.check && listing.price_sar != null && listing.deal !== 'rent_unstated' && ((listing.photos?.length ?? 0) > 0 || !!listing.photo)
+
+/** Whether Atlas shows the ads' own photos. The owner turned them off on 2026-11-02 (they carry the ad site's
+ * logo) and back on the same day; this one switch covers every screen that shows them. */
+export const SHOW_LISTING_PHOTOS = true
+
+/** The photos Atlas shows of a listing: none while SHOW_LISTING_PHOTOS is off. */
+export const shownPhotos = (listing: Pick<Listing, 'photos' | 'photo'>): string[] =>
+  !SHOW_LISTING_PHOTOS ? [] : listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
 
 export const PERIOD_WORD: Record<Deal, string> = { sale: '', rent_year: 'سنوياً', rent_month: 'شهرياً', rent_unstated: '' }
 export const RENT_DEALS: { id: Deal; label: string }[] = [
@@ -88,7 +180,9 @@ export const LISTING_TYPES: { id: string; label: string; kinds: ListingKind[] }[
   { id: 'land', label: 'أرض', kinds: ['sale'] },
 ]
 
-export const typeLabel = (type: string) => LISTING_TYPES.find((item) => item.id === type)?.label ?? 'عقار'
+// types served but not offered as a filter in the homes list, named where they appear (a street's commercial units)
+const OTHER_TYPE_LABELS: Record<string, string> = { showroom: 'معرض' }
+export const typeLabel = (type: string) => LISTING_TYPES.find((item) => item.id === type)?.label ?? OTHER_TYPE_LABELS[type] ?? 'عقار'
 
 /** Budget steps by deal, in the ad's own period. */
 export const BUDGETS: Record<Deal, number[]> = {
@@ -117,14 +211,16 @@ export function priceLine(listing: Pick<Listing, 'deal' | 'price_sar'>): string 
 export const perSqmLine = (listing: Pick<Listing, 'deal' | 'sar_per_sqm'>) =>
   listing.sar_per_sqm == null ? null : `${sar(listing.sar_per_sqm)} للمتر${listing.deal && PERIOD_WORD[listing.deal] ? ` ${PERIOD_WORD[listing.deal]}` : ''}`
 
-/** «أقل من وسيط الحي بـ 12%» / «أعلى …» / «قريب من …», or null when the district has no median. */
+/** «أقل من وسيط الحي بـ 12%» / «أعلى …» / «قريب من …», or null when the district has no median. The figure is the
+ * service's own (the ad's price per m² against the district's median for the same deal, period and group, rounded),
+ * never capped here. */
 export function versusDistrict(listing: Pick<Listing, 'vs_district_pct' | 'district_ar'>): { text: string; tone: 'good' | 'even' | 'high' } | null {
   const pct = listing.vs_district_pct
   if (pct == null) return null
   if (Math.abs(pct) < 5) return { text: `قريب من وسيط ${listing.district_ar}`, tone: 'even' }
   return pct < 0
-    ? { text: `أقل من وسيط ${listing.district_ar} بـ ${numberFormat.format(-pct)}%`, tone: 'good' }
-    : { text: `أعلى من وسيط ${listing.district_ar} بـ ${numberFormat.format(pct)}%`, tone: 'high' }
+    ? { text: `أقل من وسيط ${listing.district_ar} بـ ${percent(-pct)}`, tone: 'good' }
+    : { text: `أعلى من وسيط ${listing.district_ar} بـ ${percent(pct)}`, tone: 'high' }
 }
 
 /** Map dot colour by price against the district: green under, grey near, amber over, blue without a median, dark
@@ -132,7 +228,7 @@ export function versusDistrict(listing: Pick<Listing, 'vs_district_pct' | 'distr
 export const toneColor = { good: PALETTE.leaf, even: PALETTE.stone, high: PALETTE.ochre, none: PALETTE.slate, check: PALETTE.bark } as const
 
 // in words, not a sign: «+22%» flips to «22%+» inside an Arabic line
-const versusWords = (pct: number) => pct === 0 ? 'مثل' : `${pct < 0 ? 'أقل' : 'أعلى'} بـ ${numberFormat.format(Math.abs(pct))}% من`
+const versusWords = (pct: number) => pct === 0 ? 'مثل' : `${pct < 0 ? 'أقل' : 'أعلى'} بـ ${percent(Math.abs(pct))} من`
 /** What the signal rests on, for its explanation: the two figures and the districts they are measured against. */
 export function signalLines(signal: MarketSignal, type: string): string[] {
   // a service from before deal_neighbours compared the deals with the rent neighbours' list
@@ -140,8 +236,8 @@ export function signalLines(signal: MarketSignal, type: string): string[] {
   return [
     `إيجار ${typeLabel(type)} المعروض في الحي ${versusWords(signal.rent_pct)} أقرب ${numberFormat.format(signal.neighbours.length)} أحياء: ${signal.neighbours.join('، ')}.`,
     dealNeighbours.join() === signal.neighbours.join()
-      ? `سعر المتر في صفقات البيع السكنية المسجلة (وزارة العدل) ${versusWords(signal.deal_pct)} نفس الجيران.`
-      : `سعر المتر في صفقات البيع السكنية المسجلة (وزارة العدل) ${versusWords(signal.deal_pct)} أقرب ${numberFormat.format(dealNeighbours.length)} أحياء لها صفقات: ${dealNeighbours.join('، ')}.`,
+      ? `سعر المتر في صفقات البيع السكنية المسجلة رسمياً ${versusWords(signal.deal_pct)} نفس الجيران.`
+      : `سعر المتر في صفقات البيع السكنية المسجلة رسمياً ${versusWords(signal.deal_pct)} أقرب ${numberFormat.format(dealNeighbours.length)} أحياء لها صفقات: ${dealNeighbours.join('، ')}.`,
     {
       cheaper_area: 'الإيجار والبيع كلاهما أقل: الحي نفسه أرخص، لا الإعلانات وحدها.',
       rent_under_value: 'الإيجار أقل مما يباع به الحي: مكسب للمستأجر، وعائد أقل لمن يشتري ليؤجر. قد يعني أيضاً مباني أقدم.',

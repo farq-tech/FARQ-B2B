@@ -47,6 +47,28 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Radius scale: three steps, one per kind of surface. Every primitive in components/ui follows it.
+       control  rounded-lg   (--radius-control)  inputs, buttons, chips, badges, select triggers, tab lists
+       card     rounded-2xl  (--radius-card)     cards, popovers, select menus
+       panel    rounded-3xl  (--radius-panel)    sheets, dialogs, map panels and windows
+     Two derived rules, not new steps: an element nested inside a control (a tab trigger, a menu item) uses
+     rounded-md so the curves stay concentric; a compact control (h-7 or less) clamps the control radius with
+     rounded-[min(var(--radius-control),10px)] so it does not turn into a pill.
+     Write the t-shirt class (rounded-lg / rounded-2xl / rounded-3xl) in markup, not rounded-control: cn() and
+     tailwind-merge only recognise t-shirt names, so a caller's className override merges cleanly.
+     rounded-full is kept for round things only: avatars, dots, icon discs, progress tracks. */
+  --radius-control: var(--radius-lg);
+  --radius-card: var(--radius-2xl);
+  --radius-panel: var(--radius-3xl);
+
+  /* Type scale: five steps, Tailwind's own sizes with a fixed role each (no new utility names, for the same
+     tailwind-merge reason: text-caption would be mistaken for a colour and dropped).
+       caption      text-xs    labels, units, sources, counts, helper lines
+       body         text-sm    default UI text, descriptions, inputs on desktop
+       body-strong  text-base  card titles, emphasised values, inputs on phones (16px stops iOS zooming)
+       title        text-lg    dialog and sheet titles, section headers
+       heading      text-xl    page headings; larger sizes (2xl+) are for hero numbers only */
 }
 
 :root {
@@ -71,8 +93,11 @@
   --destructive: #b3261e;
   --warning: #8f6304;
   --border: #e6e0d6;
+  /* the edge of anything typed into or picked from: 3.3:1 on a card, the 3:1 WCAG 1.4.11 asks of a control's
+     boundary. --border (1.3:1) is for dividers and cards only, never for a field */
   --input: #968c7e;
-  --ring: #a3b80f;
+  /* focus rings: moss, 4.9:1 on the ground (apple #a3b80f was 2.1:1, under WCAG 2.2's 3:1 for a focus indicator) */
+  --ring: #5c7318;
   --chart-1: #3e573b;
   --chart-2: #c48a0a;
   --chart-3: #6f8796;
@@ -86,7 +111,7 @@
   --sidebar-accent: #e7f0de;
   --sidebar-accent-foreground: #3e573b;
   --sidebar-border: #e6e0d6;
-  --sidebar-ring: #a3b80f;
+  --sidebar-ring: #5c7318;
   --map-land: #efebe4;
   --map-road: #ffffff;
   /* the Farq page wash and its pulsing hex dots (farq ui/glass.css .nx-wash / .nx-dots), in a warm stone grey (owner) */
@@ -172,12 +197,57 @@ body::before {
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
   }
   body {
     @apply text-foreground;
     background: transparent;
   }
+  /* Focus ring: one look everywhere, a 2px moss (--ring, 4.9:1 on the ground) line 2px off the element. Primitives
+     draw it as `focus-visible:ring-2 focus-visible:ring-ring` (never a faded ring-ring/50: half-opaque moss is under
+     WCAG 2.2's 3:1). This rule is the floor for anything that sets no ring of its own (a plain link, a native select,
+     a summary): it sits in the base layer, so an element with `outline-none` and its own ring keeps that ring. */
+  :where(a, button, select, summary, [tabindex]:not([tabindex='-1'])):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  /* a search field's clear button in Atlas's own ink, not the browser's blue «×», and big enough to hit */
+  input[type='search']::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 1rem;
+    height: 1rem;
+    margin-inline-start: 0.5rem;
+    cursor: pointer;
+    background-color: var(--muted-foreground);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M18 6 6 18M6 6l12 12'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M18 6 6 18M6 6l12 12'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  input[type='search']::-webkit-search-cancel-button:hover { background-color: var(--foreground); }
+}
+
+/* Motion: two durations, both under the 200ms people read as instant feedback.
+     100ms  things that appear in place: popovers, menus, select lists, dialogs, tooltips
+     200ms  things that travel: sheets and their backdrop, map windows, the photo strip
+   With «reduce motion» on, every animation and transition collapses to a single frame and smooth scrolling stops,
+   so nothing slides, zooms or pulses; the state still changes, only the movement goes. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* a picked business's row flashes once the moment its draft is prepared: an inset olive fill that fades, as a quiet
+   «got it» before the request page opens. Motion reduced: no flash (the request opens at once instead). */
+@media (prefers-reduced-motion: no-preference) {
+  .atlas-confirm-flash { animation: atlas-confirm 0.26s ease-out; }
+}
+@keyframes atlas-confirm {
+  40% { box-shadow: inset 0 0 0 9999px color-mix(in oklab, var(--primary) 16%, transparent); }
+  100% { box-shadow: inset 0 0 0 9999px transparent; }
 }
 
 /* the onboarding hint's target: a soft olive ring that breathes, still when motion is reduced */

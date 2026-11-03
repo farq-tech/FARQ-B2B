@@ -157,5 +157,115 @@ class DirectoryTilesFocusTests(unittest.TestCase):
             db.close()
 
 
+ENRICH_COLS = (
+    "status_voted",
+    "status_voted_confidence",
+    "last_seen_at",
+    "is_stale",
+    "hours_week",
+    "whatsapp_state",
+)
+
+
+class DirectoryTilesEnrichmentTests(unittest.TestCase):
+    """browse() and profile() must emit the v13 enrichment fields (same names as the
+    search/taxonomy paths) when the release carries them, and degrade to a safe NULL —
+    never a crash, never a fabricated value — when an older asset lacks the columns."""
+
+    # Base/v7 columns that every release carries; enrichment columns are added only
+    # in the "current release" fixture so the guard can be exercised in isolation.
+    BASE_COLS = [
+        ("poi_key", "varchar"), ("name_ar", "varchar"), ("name_en", "varchar"),
+        ("category", "varchar"), ("category_ar", "varchar"), ("secondary_category", "varchar"),
+        ("category_l3", "varchar"), ("city_en", "varchar"), ("region_en", "varchar"),
+        ("region_ar", "varchar"), ("district_ar", "varchar"), ("district_en", "varchar"),
+        ("street_ar", "varchar"), ("district_reliable", "boolean"), ("latitude", "double"),
+        ("longitude", "double"), ("location_precision", "varchar"), ("phone_norm", "varchar"),
+        ("phone_kind", "varchar"), ("has_whatsapp", "boolean"), ("is_wholesale", "boolean"),
+        ("role_badges", "varchar"), ("specialty_concepts_ar", "varchar"), ("email", "varchar"),
+        ("sources", "varchar"), ("source_count", "integer"), ("legal_name", "varchar"),
+        ("brand_name", "varchar"), ("company_status", "varchar"), ("lifecycle_state", "varchar"),
+        ("completeness_pct", "double"),
+    ]
+    BASE_ROW = {
+        "poi_key": "FA-1", "name_ar": "مؤسسة السباكة", "name_en": "Plumbing Est",
+        "category": "Home Goods", "category_ar": "تجهيزات المنزل", "secondary_category": "سباكة",
+        "category_l3": "مغاسل", "city_en": "Riyadh", "region_en": "Riyadh", "region_ar": "الرياض",
+        "district_ar": "السويدي", "district_en": "Suwaidi", "street_ar": "شارع الملك فهد",
+        "district_reliable": True, "latitude": 24.7, "longitude": 46.7, "location_precision": "point",
+        "phone_norm": "966551234567", "phone_kind": "mobile", "has_whatsapp": True,
+        "is_wholesale": False, "role_badges": "", "specialty_concepts_ar": "", "email": "a@b.co",
+        "sources": "farq", "source_count": 1, "legal_name": "", "brand_name": "",
+        "company_status": None, "lifecycle_state": None, "completeness_pct": 90.0,
+    }
+    ENRICH_ROW = {
+        "status_voted": "open", "status_voted_confidence": "high", "last_seen_at": "2026-10-01",
+        "is_stale": False, "hours_week": '{"sun":[["09:00","21:00"]]}', "whatsapp_state": "verified",
+    }
+
+    def _build(self, with_enrichment):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        path = str(pathlib.Path(temp.name) / "directory.parquet")
+        cols = list(self.BASE_COLS) + ([(c, "varchar" if c != "is_stale" else "boolean") for c in ENRICH_COLS] if with_enrichment else [])
+        row = dict(self.BASE_ROW)
+        if with_enrichment:
+            row.update(self.ENRICH_ROW)
+        db = duckdb.connect()
+        db.execute("create table d(" + ",".join(f"{n} {t}" for n, t in cols) + ")")
+        db.execute("insert into d values (" + ",".join("?" for _ in cols) + ")", [row[n] for n, _ in cols])
+        db.execute("copy d to ? (format parquet)", [path])
+        db.close()
+        tiles = DirectoryTiles(path)
+        tiles.register = lambda rows=None, city=None, filters=None: "tok"
+        return tiles
+
+    def test_browse_emits_enrichment_when_release_carries_it(self):
+        tiles = self._build(with_enrichment=True)
+        result = tiles.browse("Riyadh", {})
+        self.assertEqual(len(result["rows"]), 1)
+        row = result["rows"][0]
+        for col in ENRICH_COLS:
+            self.assertIn(col, row, f"{col} missing from browse row")
+        self.assertEqual(row["status_voted"], "open")
+        self.assertEqual(row["status_voted_confidence"], "high")
+        self.assertEqual(row["last_seen_at"], "2026-10-01")
+        self.assertIs(row["is_stale"], False)
+        self.assertEqual(row["hours_week"], '{"sun":[["09:00","21:00"]]}')
+        self.assertEqual(row["whatsapp_state"], "verified")
+
+    def test_browse_degrades_safely_when_columns_absent(self):
+        tiles = self._build(with_enrichment=False)
+        result = tiles.browse("Riyadh", {})
+        self.assertEqual(len(result["rows"]), 1)
+        row = result["rows"][0]
+        # Older asset: keys are still emitted (stable client contract) but hold NULL —
+        # the UI renders «غير متاح». Nothing is fabricated and browse does not crash.
+        for col in ENRICH_COLS:
+            self.assertIn(col, row)
+            self.assertIsNone(row[col])
+
+    def test_profile_emits_enrichment_when_release_carries_it(self):
+        tiles = self._build(with_enrichment=True)
+        tiles.context = lambda _key: (9999999999, None, "Riyadh", {})
+        row = tiles.profile("tok", "FA-1")
+        self.assertIsNotNone(row)
+        for col in ENRICH_COLS:
+            self.assertIn(col, row, f"{col} missing from profile row")
+        self.assertEqual(row["status_voted"], "open")
+        self.assertEqual(row["whatsapp_state"], "verified")
+        self.assertEqual(row["hours_week"], '{"sun":[["09:00","21:00"]]}')
+
+    def test_profile_degrades_safely_when_columns_absent(self):
+        tiles = self._build(with_enrichment=False)
+        tiles.context = lambda _key: (9999999999, None, "Riyadh", {})
+        row = tiles.profile("tok", "FA-1")
+        self.assertIsNotNone(row)
+        # Older asset via select p.*: the columns simply are not present; profile must
+        # not invent them. Absent key (or None) both read as «غير متاح» downstream.
+        for col in ENRICH_COLS:
+            self.assertIsNone(row.get(col))
+
+
 if __name__ == "__main__":
     unittest.main()

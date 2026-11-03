@@ -21,8 +21,8 @@ Evidence levels, strongest first; a level counts only from an explicit field, ea
 - unit: a unit or shop number inside a building. No source carries one (`secondary_no` of the national address names
   the building, not the unit), so the level is reported and stays empty until a source adds it.
 - floor: a valid floor value together with an explicit building identifier from the same source.
-- building: an explicit building identifier: Urbi building id, HudHud building id, national short address, building
-  number with postal code, Makani, or a HudHud physical parent (mall or complex). A release row whose key is a 2GIS card
+- building: an explicit building identifier: Urbi building id, SPD building id, national short address, building
+  number with postal code, Makani, or a SPD physical parent (mall or complex). A release row whose key is a 2GIS card
   (urbi_coords:, urbi_allsaudi:, firms_shp:) takes that card's building from the vendor crosswalk (card -> BuildSynco).
 - conflict: two different explicit building identifiers of one kind (across sources or within one); unresolved, so
   not counted as building evidence. Two different floors keep the building level only.

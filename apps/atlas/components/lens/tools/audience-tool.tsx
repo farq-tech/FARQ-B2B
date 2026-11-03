@@ -1,22 +1,30 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { useEffect, useMemo } from 'react'
 import { Explained } from '@/components/shared/explained'
+import { LoadError } from '@/components/shared/load-error'
+import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
+import { NotAvailable } from '@/components/shared/empty-state'
+import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
-import { nationalityAudience, sexAudience, type DistrictShare, type Nationality, type Sex } from '@/lib/audience'
-import { cn } from '@/lib/utils'
+import { counted, ltr, numberFormat, postMarket } from '@/lib/insights-api'
+import { type DistrictShare, type Nationality, type Sex } from '@/lib/audience'
 import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
+import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
+import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { audienceMissing, audienceSummary, audienceWhere } from './tool-answers'
+import { useAnswer } from './use-answer'
+import { Choice } from './choice'
+import { useMainActivities } from '@/lib/main-activities'
 
 type Mode = 'people' | 'businesses'
-type Share = DistrictShare & { district_ar: string }
+// the measured shares plus the segment sizes the service derives from them (population × share): read, never recomputed
+type Share = DistrictShare & { district_ar: string; men: number | null; women: number | null; saudi: number | null; non_saudi: number | null }
 /** Which measured segment a figure rests on; two segments are shown side by side, never multiplied. */
 type Segment = 'none' | 'sex' | 'nationality'
-type Activity = { main_id: string; main_ar: string }
 type Count = { district_ar: string; n: number }
 type Scored = { row: DistrictRow; size: number; score: number }
 
@@ -24,19 +32,7 @@ const INCOMES = [0, 8000, 12000, 16000]
 const SEX_WORD: Record<Exclude<Sex, 'all'>, string> = { men: 'رجال', women: 'نساء' }
 const NATIONALITY_WORD: Record<Exclude<Nationality, 'all'>, string> = { saudi: 'سعوديون', non_saudi: 'غير سعوديين' }
 const show = (value: number) => numberFormat.format(Math.round(value))
-
-function Choice<T extends string | number>({ value, options, onChange }: { value: T; options: { id: T; label: string }[]; onChange: (id: T) => void }) {
-  return (
-    <div className="flex gap-1.5">
-      {options.map((option) => (
-        <button key={String(option.id)} onClick={() => onChange(option.id)} aria-pressed={value === option.id}
-          className={cn('flex-1 rounded-lg border py-2 text-sm', value === option.id ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>
-          {option.label}
-        </button>
-      ))}
-    </div>
-  )
-}
+const NO_SHARES = new Map<string, Share>()
 
 /** Rank districts 0–100 by the audience in each, shade the map by it, and keep a district whose figure is unknown out. */
 function score(rows: DistrictRow[], size: (row: DistrictRow) => number | null): { scored: Scored[]; unknown: number } {
@@ -53,43 +49,42 @@ function score(rows: DistrictRow[], size: (row: DistrictRow) => number | null): 
  * nationality and income; a business marketer filters businesses by activity and WhatsApp reach. The map turns into
  * the best-matching districts and the card gives the audience size in the selected districts, or the whole city.
  */
-export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
+export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHover }: {
   city: string
   rows: DistrictRow[]
   selected: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
   onSelect: (id: string) => void
+  /** The district a row points at (pointer or keyboard), outlined on the map; null when it leaves. */
+  onHover?: (id: string | null) => void
 }) {
-  const [mode, setMode] = useState<Mode>('people')
-  const [sex, setSex] = useState<Sex>('all')
-  const [nationality, setNationality] = useState<Nationality>('all')
-  const [minIncome, setMinIncome] = useState(0)
-  const [rankBy, setRankBy] = useState<'sex' | 'nationality'>('sex')
-  const [shares, setShares] = useState<Map<string, Share> | null>(null)
-  const [activities, setActivities] = useState<Activity[]>([])
-  const [mainId, setMainId] = useState('')
-  const [counts, setCounts] = useState<Map<string, Count> | null>(null)
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [mode, setMode] = useStickyState<Mode>('audience.mode', 'people')
+  const [sex, setSex] = useStickyState<Sex>('audience.sex', 'all')
+  const [nationality, setNationality] = useStickyState<Nationality>('audience.nationality', 'all')
+  const [minIncome, setMinIncome] = useStickyState('audience.minIncome', 0)
+  const [rankBy, setRankBy] = useStickyState<'sex' | 'nationality'>('audience.rankBy', 'sex')
+  const activities = useMainActivities(city)
+  const [mainId, setMainId] = useStudiedMainId(activities)
 
-  useEffect(() => {
-    setShares(null)
-    postMarket<{ districts?: Share[] }>('district-audience', { city })
-      .then((data) => setShares(new Map((data.districts ?? []).map((row) => [row.district_ar, row]))))
-      .catch(() => setShares(new Map()))
-    postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
-      .then((data) => setActivities(data.summary?.main_activities ?? []))
-      .catch(() => setActivities([]))
-  }, [city])
+  // the measured shares of the city; those of a city left behind never land on the next one. null while they load;
+  // a failure leaves none (a sex or nationality figure then says so, with a retry, instead of «غير متاح»)
+  const sharesAnswer = useAnswer(city, () => postMarket<{ districts?: Share[] }>('district-audience', { city })
+    .then((data) => new Map((data.districts ?? []).map((row) => [row.district_ar, row]))))
+  const shares = sharesAnswer.status === 'error' ? NO_SHARES : sharesAnswer.data
+  const sharesFailed = sharesAnswer.status === 'error'
 
-  useEffect(() => {
-    if (mode !== 'businesses') return
-    let active = true
-    setStatus('loading')
-    postMarket<{ districts?: Count[] }>('district-counts', { city, ...(mainId ? { main_id: mainId } : {}) })
-      .then((data) => { if (active) { setCounts(new Map((data.districts ?? []).map((row) => [row.district_ar, row]))); setStatus('idle') } })
-      .catch(() => { if (active) setStatus('error') })
-    return () => { active = false }
-  }, [city, mode, mainId])
+  // the activity's counts, asked only in «منشآت»: leaving it drops them, so the people card never waits on them, and a
+  // new activity clears the last one's at once, so the map never shades districts for a different activity
+  const countsAnswer = useAnswer(mode === 'businesses' ? `${city}|${mainId}` : null, () =>
+    postMarket<{ districts?: Count[]; total?: number; located?: number }>('district-counts', { city, ...(mainId ? { main_id: mainId } : {}) })
+      .then((data) => ({
+        counts: new Map((data.districts ?? []).map((row) => [row.district_ar, row])),
+        // the city's own count of the activity (district-counts total), and how many of it fell in a known district
+        cityCount: { total: typeof data.total === 'number' ? data.total : null, located: typeof data.located === 'number' ? data.located : null },
+      })))
+  const counts = countsAnswer.data?.counts ?? null
+  const cityCount = countsAnswer.data?.cityCount ?? null
+  const status = countsAnswer.status === 'loading' ? 'loading' : countsAnswer.status === 'error' ? 'error' : 'idle'
 
   const both = sex !== 'all' && nationality !== 'all'
   const ranked: Segment = both ? rankBy : sex !== 'all' ? 'sex' : nationality !== 'all' ? 'nationality' : 'none'
@@ -101,7 +96,8 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
     if (minIncome > 0 && row.income! < minIncome) return 0
     if (segment === 'none') return row.population
     const share = shares?.get(row.name)
-    return segment === 'sex' ? sexAudience(row.population, share, sex) : nationalityAudience(row.population, share, nationality)
+    if (segment === 'sex') return sex === 'all' ? row.population : share ? (sex === 'men' ? share.men : share.women) : null
+    return nationality === 'all' ? row.population : share ? (nationality === 'saudi' ? share.saudi : share.non_saudi) : null
   }, [shares, sex, nationality, minIncome])
 
   const { scored, unknown } = useMemo(() => {
@@ -119,12 +115,29 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
   const other = useMemo(() => (mode === 'people' && both ? score(rows, people(ranked === 'sex' ? 'nationality' : 'sex')) : null),
     [mode, both, rows, people, ranked])
 
+  // the map hands a new array of the same districts on every render, so the overlay follows their ids, not the array
+  const selectedKey = selected.map((row) => row.id).join('|')
+  // the people figures of one segment wait for the measured shares; until then the map has no answer to give
+  const pending = status === 'loading' || (mode === 'people' && (sex !== 'all' || nationality !== 'all') && shares == null)
   useEffect(() => {
     const colors = new Map<string, string>()
     for (const item of scored) colors.set(item.row.id, item.score > 0 ? SHADES[Math.min(4, Math.floor(item.score / 20))] : PALETTE.pebble)
-    onOverlay({ colors })
-  }, [scored, onOverlay])
+    // the card's first figure in one line for the peeking sheet: the same sum of the service's figures, and the top district
+    const ids = new Set(selectedKey ? selectedKey.split('|') : [])
+    const list = ids.size ? scored.filter((item) => ids.has(item.row.id)) : scored
+    const segment = both ? (ranked === 'sex' ? SEX_WORD[sex] : NATIONALITY_WORD[nationality]) : ''
+    const summary = pending ? null
+      : audienceSummary({ selected: ids.size, scope: ids.size || rows.length, segment, sizes: list.map((item) => item.size), unit: mode === 'people' ? 'شخص' : 'منشأة', top: scored[0]?.row.name ?? null,
+        ...(mode === 'businesses' ? { cityTotal: cityCount?.total ?? null } : {}) })
+    // «أرني الأعلى» opens the best-matching district, the first of the ranking
+    // a district's own figure, as its row in the ranking shows it; one without a measured figure is left out («غير متاح»)
+    const facts = pending ? null : new Map(scored.map((item) => [item.row.id, `${show(item.size)} ${mode === 'people' ? 'شخص' : 'منشأة'} · ${numberFormat.format(item.score)}/100`] as [string, string]))
+    // the key the map corner draws: the same five shades by score, and the grey of a district the filters leave empty
+    const legend = scored.length ? { from: 'تطابق أقل', to: 'تطابق أكثر', shades: SHADES, extra: { color: PALETTE.pebble, label: 'لا جمهور بهذه الفلاتر' } } : null
+    onOverlay({ colors, facts, summary, legend, lead: pending ? null : scored[0]?.row.id ?? null })
+  }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, pending, rows.length, cityCount])
 
+  const [limit, showMore] = useShowMore(10, `${city}|${mode}|${sex}|${nationality}|${minIncome}|${rankBy}|${mainId}`)
   const inScope = (list: Scored[]) => (selected.length ? list.filter((item) => selected.some((row) => row.id === item.row.id)) : list)
   const scope = inScope(scored)
   const unit = mode === 'people' ? 'شخص' : 'منشأة'
@@ -140,59 +153,92 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
         : [{ key: 'sex', list: inScope(other.scored), unknown: other.unknown }, { key: 'nationality', list: scope, unknown }]
       ).map((item) => ({ ...item, label: segmentWord(item.key as Segment) }))
 
+  const segmented = mode === 'people' && (sex !== 'all' || nationality !== 'all')
+  const sharesError = segmented && sharesFailed
+  // a sex or nationality figure waits for the measured shares, so it never reads «غير متاح» while they load
+  const busy = pending
+  // asked, and no district has the figure measured (a city without sex and nationality shares, or without income):
+  // said once with what is missing and what still works, never a card of «غير متاح» over an empty ranking
+  const gap = mode === 'people' && !busy && !sharesError ? audienceMissing({ rows, scored: scored.length, sex, nationality, minIncome }) : null
+
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">أين جمهوري؟</h2>
-      <Choice value={mode} onChange={setMode} options={[{ id: 'people', label: 'أستهدف أفراداً' }, { id: 'businesses', label: 'أستهدف منشآت' }]} />
+      <Choice label="من تستهدف" value={mode} onChange={setMode} options={[{ id: 'people', label: 'أستهدف أفراداً' }, { id: 'businesses', label: 'أستهدف منشآت' }]} />
       {mode === 'people' ? (
         <>
-          <Choice value={sex} onChange={setSex} options={[{ id: 'all', label: 'الكل' }, { id: 'men', label: 'رجال' }, { id: 'women', label: 'نساء' }]} />
-          <Choice value={nationality} onChange={setNationality} options={[{ id: 'all', label: 'كل الجنسيات' }, { id: 'saudi', label: 'سعوديون' }, { id: 'non_saudi', label: 'غير سعوديين' }]} />
+          <Choice label="الجنس" value={sex} onChange={setSex} options={[{ id: 'all', label: 'الكل' }, { id: 'men', label: 'رجال' }, { id: 'women', label: 'نساء' }]} />
+          <Choice label="الجنسية" value={nationality} onChange={setNationality} options={[{ id: 'all', label: 'كل الجنسيات' }, { id: 'saudi', label: 'سعوديون' }, { id: 'non_saudi', label: 'غير سعوديين' }]} />
           {both && (
             <div>
               <p className="mb-1 text-sm text-muted-foreground">رتّب الأحياء ولوّن الخريطة حسب</p>
-              <Choice value={rankBy} onChange={setRankBy} options={[{ id: 'sex', label: segmentWord('sex') }, { id: 'nationality', label: segmentWord('nationality') }]} />
+              <Choice label="رتّب حسب" value={rankBy} onChange={setRankBy} options={[{ id: 'sex', label: segmentWord('sex') }, { id: 'nationality', label: segmentWord('nationality') }]} />
             </div>
           )}
           <div>
             <p className="mb-1 text-sm text-muted-foreground">متوسط دخل الحي الشهري</p>
-            <Choice value={minIncome} onChange={setMinIncome} options={INCOMES.map((value) => ({ id: value, label: value ? `${numberFormat.format(value)}+` : 'أي دخل' }))} />
+            <Choice label="متوسط دخل الحي الشهري" value={minIncome} onChange={setMinIncome} options={INCOMES.map((value) => ({ id: value, label: value ? ltr(`${numberFormat.format(value)}+`) : 'أي دخل' }))} />
           </div>
         </>
       ) : (
         <>
-          <select value={mainId} onChange={(event) => setMainId(event.target.value)} className="rounded-lg border bg-background px-3 py-2 text-base">
-            <option value="">كل الأنشطة</option>
-            {activities.map((activity) => <option key={activity.main_id} value={activity.main_id}>{activity.main_ar}</option>)}
-          </select>
+          <MainActivityPicker activities={activities} value={mainId} onChange={setMainId} placeholder="نشاط المنشآت" allLabel="كل الأنشطة" />
         </>
       )}
-      {status === 'loading' && <Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ الحساب" />}
-      {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
-      {status !== 'loading' && (
+      {busy && (
+        <>
+          <SkeletonStatus label="جارٍ الحساب" className="flex flex-col gap-2 rounded-xl bg-muted/40 px-3 py-2.5">
+            <Skeleton className="h-4 w-40" />
+            {figures.map((figure) => <Skeleton key={figure.key} className="h-7 w-36" />)}
+          </SkeletonStatus>
+          <ResultRowsSkeleton label="جارٍ الحساب" rows={5} valueSub />
+        </>
+      )}
+      {status === 'error' && <LoadError what="منشآت الأحياء" onRetry={countsAnswer.retry} />}
+      {sharesError && <LoadError what="نسب الجنس والجنسية" onRetry={sharesAnswer.retry} />}
+      {gap && <NotAvailable what={gap.what} where="هذه المدينة" body={gap.body} />}
+      {!busy && status === 'idle' && mode === 'businesses' && !selected.length && (
+        // the whole city: the service's city count (with the businesses no district holds), the same as «المنافسون»
         <div className="rounded-xl bg-muted/40 px-3 py-2.5">
-          <p className="text-sm text-muted-foreground">حجم الجمهور {selected.length ? `في ${numberFormat.format(selected.length)} أحياء محددة` : 'في المدينة'}</p>
+          <p className="text-sm text-muted-foreground">حجم الجمهور</p>
+          <Explained title="حجم الجمهور" lines={[...explain, ...unknownLine(unknown)]} className="mt-0.5 text-xl font-bold tabular-nums">
+            <span>{cityCount?.total == null ? 'غير متاح' : `${numberFormat.format(cityCount.total)} ${unit}`}</span>
+          </Explained>
+          {cityCount?.total != null && (
+            <p className="text-sm text-muted-foreground">
+              في المدينة{cityCount.located != null && cityCount.located < cityCount.total ? ` · ${numberFormat.format(cityCount.located)} منها بحي معروف` : ''}
+            </p>
+          )}
+        </div>
+      )}
+      {!busy && status === 'idle' && !sharesError && !gap && !(mode === 'businesses' && !selected.length) && (
+        <div className="rounded-xl bg-muted/40 px-3 py-2.5">
+          <p className="text-sm text-muted-foreground">حجم الجمهور</p>
           {figures.map((figure) => (
-            <Explained key={figure.key} title={figure.label ? `حجم الجمهور: ${figure.label}` : 'حجم الجمهور'} lines={[...explain, ...unknownLine(figure.unknown)]} className="mt-0.5 text-xl font-bold">
-              {figure.label && <span className="font-normal text-muted-foreground">{figure.label}: </span>}
-              {figure.list.length ? `${show(figure.list.reduce((sum, item) => sum + item.size, 0))} ${unit}` : 'غير متاح'}
+            <div key={figure.key}>
+            <Explained title={figure.label ? `حجم الجمهور: ${figure.label}` : 'حجم الجمهور'} lines={[...explain, ...unknownLine(figure.unknown)]} className="mt-0.5 text-xl font-bold tabular-nums">
+              <span>
+                {figure.label && <span className="font-normal text-muted-foreground">{figure.label}: </span>}
+                {figure.list.length ? `${show(figure.list.reduce((sum, item) => sum + item.size, 0))} ${unit}` : 'غير متاح'}
+              </span>
             </Explained>
+            {/* the same scope words as the peek summary: a sum over part of the districts says so */}
+            {figure.list.length > 0 && <p className="text-sm text-muted-foreground">{audienceWhere({ selected: selected.length, measured: figure.list.length, scope: selected.length || rows.length })}</p>}
+            </div>
           ))}
         </div>
       )}
-      {scored.length > 0 && status !== 'loading' && (
+      {scored.length > 0 && !busy && status === 'idle' && !sharesError && (
         <div>
           <Explained title="درجة الحي" lines={EXPLAIN.audienceScore} className="mb-1 text-sm font-semibold text-muted-foreground">أعلى الأحياء مطابقةً</Explained>
           <ol className="divide-y text-base">
-            {scored.slice(0, 10).map((item) => (
-              <li key={item.row.id}>
-                <button onClick={() => onSelect(item.row.id)} className="flex w-full items-center justify-between py-2 text-start hover:text-primary">
-                  <span className="font-medium">{item.row.name}</span>
-                  <span className="text-sm text-muted-foreground">{show(item.size)} {unit} · <span className="font-bold text-foreground">{numberFormat.format(item.score)}</span>/100</span>
-                </button>
-              </li>
+            {scored.slice(0, limit).map((item) => (
+              <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={(on) => onHover?.(on ? item.row.id : null)} title={item.row.name}
+                active={selected.some((row) => row.id === item.row.id)}
+                value={`${numberFormat.format(item.score)}/100`} valueSub={`${show(item.size)} ${unit}`} />
             ))}
           </ol>
+          <MoreRows shown={Math.min(limit, scored.length)} total={scored.length} noun="district" onMore={showMore} />
         </div>
       )}
     </section>

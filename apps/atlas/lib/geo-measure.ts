@@ -16,6 +16,34 @@ export function areaKm2(geometry: DistrictFeature['geometry']): number {
   return total
 }
 
+/** Crossings of a ray east from (x, y) over one ring's edges — the ray-casting parity test, counted per polygon. */
+function ringCrossings(ring: number[][], x: number, y: number): number {
+  let crossings = 0
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]
+    const [xj, yj] = ring[j]
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) crossings++
+  }
+  return crossings
+}
+
+/** Whether the point falls inside the outline. Odd crossings across a polygon's rings = inside (holes subtract). */
+export function containsPoint(geometry: DistrictFeature['geometry'], point: { lon: number; lat: number }): boolean {
+  const polygons: number[][][][] = geometry?.type === 'Polygon' ? [geometry.coordinates as number[][][]] : geometry?.type === 'MultiPolygon' ? geometry.coordinates as number[][][][] : []
+  for (const polygon of polygons) {
+    let crossings = 0
+    for (const ring of polygon) crossings += ringCrossings(ring, point.lon, point.lat)
+    if (crossings % 2 === 1) return true
+  }
+  return false
+}
+
+/** The id of the district whose outline contains the point, or null — the honest join from a dropped pin to its حي. */
+export function districtAt(point: { lon: number; lat: number }, features: DistrictFeature[]): string | null {
+  for (const feature of features) if (containsPoint(feature.geometry, point)) return String(feature.properties.id)
+  return null
+}
+
 /** Straight-line distance in km between two points. */
 export function distanceKm(a: { lon: number; lat: number }, b: { lon: number; lat: number }): number {
   const rad = Math.PI / 180

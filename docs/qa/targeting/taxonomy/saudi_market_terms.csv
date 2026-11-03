@@ -350,3 +350,8 @@ cctv,elec.cctv_security
 حراسات,biz.security_services
 تعقيب,biz.pro_services
 معقب,biz.pro_services
+مغسلة,personal.laundry
+مغسلة ملابس,personal.laundry
+غسيل ملابس,personal.laundry
+كوي ملابس,personal.laundry
+مغسلة شعر,beauty.salon_supplies

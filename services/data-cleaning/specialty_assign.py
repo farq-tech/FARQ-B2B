@@ -1,7 +1,7 @@
 """Specialty layer (owner-approved list docs/qa/targeting/taxonomy/specialties.csv, 4,073 specialties under the 431 subcategories).
 A row gets every specialty of ITS OWN subcategory for which there is evidence, never a guess:
   1. supplier items (Farq construction DB items of the row or of suppliers merged into it)  -> confidence high
-  2. a source label that the specialty list maps explicitly (`source_labels`: HudHud subcategory, Google/Foursquare/2GIS/Overture/OSM
+  2. a source label that the specialty list maps explicitly (`source_labels`: SPD subcategory, Google/Foursquare/2GIS/Overture/OSM
      categories, directory categories)                                                         -> high
   3. a match term in the business name (whole words; Arabic article/prefixes allowed)        -> medium
 Output: /Users/m4pro/farq-taxonomy-data/enrich/specialty_assign.parquet (poi_key, specialty_ids, specialties_ar, specialty_sources, specialty_confidence)"""

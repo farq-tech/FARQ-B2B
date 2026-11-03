@@ -18,7 +18,7 @@ import json
 import statistics
 import sys
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import canonical_data
@@ -137,7 +137,25 @@ PHOTO_URL = 'https://images.aqar.fm/webp/350x0/props/{}'
 GALLERY_URL = 'https://images.aqar.fm/webp/750x0/props/{}'
 AD_URL = 'https://sa.aqar.fm/ad/{}/ar'
 # the fields a listing card shows; nothing about who placed the ad
-CARD_FIELDS = ('beds', 'livings', 'wc', 'street_width', 'age', 'age_source')
+CARD_FIELDS = ('beds', 'livings', 'wc', 'street_width', 'age', 'age_source', 'tenants')
+# what the property has, as Aqar's form records it (1 has, 0 lacks; unstated stays out). Filled for a fifth to two
+# thirds of Riyadh's ads (2026-10-30); the plot's width and length, duplex and playground are too rare to show
+FEATURE_FIELDS = ('furnished', 'ketchen', 'ac', 'lift', 'car_entrance', 'extra_unit', 'two_entrances', 'private_roof',
+                  'stairs', 'maid', 'driver', 'backyard', 'pool', 'basement', 'tent')
+
+
+def _features(listing):
+    return {key: int(bool(value)) for key in FEATURE_FIELDS
+            if isinstance(value := listing.get(key), (bool, int)) and not isinstance(value, float) and value in (0, 1)}
+
+
+def _day(stamp):
+    """A Unix time as its date (YYYY-MM-DD), else None."""
+    if isinstance(stamp, bool) or not isinstance(stamp, (int, float)) or stamp <= 0:
+        return None
+    return datetime.fromtimestamp(stamp, tz=timezone.utc).date().isoformat()
+
+
 # a building this many years old or less counts as new when a district's prices are split by age
 NEW_MAX_AGE = 2
 
@@ -145,6 +163,16 @@ NEW_MAX_AGE = 2
 def _rounded(value):
     number = _number(value)
     return round(number) if number is not None else None
+
+
+def _doubtful(listing, found):
+    """Whether a card's figures need checking (insights._suspect reads older files the same way)."""
+    if found['trusted']:
+        return False
+    if found['per_sqm'] is not None:
+        return True
+    price = _number(listing.get('priceSar'))
+    return price is not None and found['deal'] == 'rent_year' and price < MIN_YEARLY_RENT
 
 
 def _card(listing, city, district_id, district_ar, found):
@@ -162,17 +190,27 @@ def _card(listing, city, district_id, district_ar, found):
         'lon': round(float(listing['longitude']), 6), 'lat': round(float(listing['latitude']), 6),
         'city': city, 'district_id': district_id, 'district_ar': district_ar,
         'kind': {'sale': 'sale', None: None}.get(found['deal'], 'rent'), 'deal': found['deal'],
-        'group': found['group'], 'type': listing.get('propertyType') or 'other',
+        # the canonical type token (insights.LISTING_TYPES), so every reader matches it the same way the medians,
+        # market signals and the «محلات على هذا الشارع» filter do, whatever spelling the source used
+        'group': found['group'], 'type': insights.canonical_type(listing.get('propertyType')) if listing.get('propertyType') else 'other',
         # the price as advertised, in the period the ad states (deal rent_month | rent_year | rent_unstated); None
         # when the ad gives none
         'price_sar': _rounded(listing.get('priceSar')), 'area_sqm': _rounded(listing.get('areaSqm')),
         'sar_per_sqm': round(found['per_sqm']) if found['per_sqm'] is not None else None,
-        'check': not found['trusted'],
+        # figures to doubt: a price per m² that cannot be trusted, or a yearly rent too low to be one. An ad that states
+        # no area (or no price) has nothing to doubt: it stays off the medians, and a card without a price stays hidden
+        'check': _doubtful(listing, found),
         'photo': (PHOTO_URL.format(photos[0]) if not photos[0].startswith('http') else photos[0]) if photos else None,
         'photos': full,
         # the street address only: «في شارع …, حي …»
         'address': title.split(' في ', 1)[1] if ' في ' in title else None,
         **{key: listing.get(key) for key in CARD_FIELDS if listing.get(key) is not None},
+        **({'features': features} if (features := _features(listing)) else {}),
+        # when the ad went up and when it was last touched, and whether it carries the real-estate authority's licence
+        **{key: day for key, day in (('listed_on', _day(listing.get('create_time'))), ('updated_on', _day(listing.get('last_update')))) if day},
+        **({'licensed': listing['rega_licensed']} if isinstance(listing.get('rega_licensed'), bool) else {}),
+        # the advertiser's number: kept in the file, never in a listings answer (insights.listing_phone serves it one at a time)
+        **({'phone': listing['phone']} if listing.get('phone') else {}),
     }
 
 

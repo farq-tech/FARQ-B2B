@@ -1,4 +1,4 @@
-"""Arabic <-> English name pairs from HudHud («ALL_translated_poi_names_20250816_233419.csv», 118,890 rows; copy on /Volumes/Archive/Names).
+"""Arabic <-> English name pairs from SPD («ALL_translated_poi_names_20250816_233419.csv», 118,890 rows; copy on /Volumes/Archive/Names).
 Only `arabic_name` + `original_english` are used (the `translated_english` column is a word-by-word machine output and is ignored).
 A missing Arabic name is filled from a row's exact English name, and vice versa, only when the name maps to ONE counterpart in the
 file and is not a common name (used by > 5 golden rows). Read-only.

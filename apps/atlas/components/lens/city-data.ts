@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { districtName, postMarket, type DistrictFeature } from '@/lib/insights-api'
 
 /**
@@ -14,6 +14,12 @@ export type DistrictRow = {
   population: number | null
   populationSource: string | null
   businesses: number | null
+  /** District area in km², the one authoritative figure from the service (server.py _area_km2). */
+  areaKm2: number | null
+  /** Derived in the service, read here verbatim: residents ÷ businesses, businesses ÷ km², residents ÷ km². */
+  residentsPerBusiness: number | null
+  businessesPerKm2: number | null
+  density: number | null
   restaurants: number | null
   /** Median menu-item price of the district's restaurants, and how many restaurants it rests on. */
   menuPrice: number | null
@@ -38,17 +44,31 @@ export type DistrictRow = {
  * own median, in its own period (lib/real-estate.ts groupLabel names them). */
 export type RealEstateGroup = string
 
+/** The tables a city's rows are joined from, besides the district outlines the map cannot open without. */
+export type CityTable = 'population' | 'counts' | 'income' | 'growth' | 'housing' | 'realEstate' | 'deals' | 'restaurants' | 'menuPrices' | 'demand'
+
 export type CityData = {
+  /** `loading` may already carry the city's outlines (`features`), drawn while the figures still load; `rows` come with `ready`. */
   status: 'loading' | 'ready' | 'error'
   features: DistrictFeature[]
   rows: DistrictRow[]
+  /** The rows joined from the tables in so far, while the rest load: for the map's shading only (a panel or a tool
+   * reading them would take a table not yet in for a district without the figure). */
+  early: DistrictRow[]
+  /** Tables not in yet: being asked, or waiting until the page is idle (a retry asks only the failed ones). */
+  pending: CityTable[]
   total: number | null
-  /** Load the city again after a failure. */
+  /** Tables that failed to load this time: their figures are null in every row because they did not arrive, not
+   * because the district lacks them, so the page says «تعذّر التحميل» with a retry instead of «غير متاح». */
+  failed: CityTable[]
+  /** After a failed table, ask the failed tables again; after a failed city, load it again. */
   reload?: () => void
 }
 
 type PopulationRow = { district_id: string | number; district_ar: string; population: number | null; source?: string | null }
-type CountRow = { district_ar: string; n: number }
+/** Counts plus the derived per-district figures, each computed once in the service (server.py enrich_district_counts):
+ * area, residents per business, businesses per km², density. The map reads these; it never recomputes them. */
+type CountRow = { district_ar: string; n: number; area_km2?: number | null; residents_per?: number | null; per_km2?: number | null; density?: number | null }
 type IncomeRow = { district_ar: string; income_all?: number | null }
 type GrowthRow = { district_ar: string; under_construction: number; new_buildings: number }
 type HousingRow = { district_ar: string; villa_share_pct: number }
@@ -72,81 +92,230 @@ async function getJson<T>(url: string): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export function useCityData(city: string): CityData {
-  const [data, setData] = useState<CityData>({ status: 'loading', features: [], rows: [], total: null })
+/** The district shapes are the one source the map cannot open without: a brief upstream hiccup (5xx or a dropped
+ * connection) gets one quiet retry before the visitor sees «تعذر تحميل بيانات المدينة». */
+async function getRequired<T>(url: string): Promise<T> {
+  try {
+    return await getJson<T>(url)
+  } catch (error) {
+    const status = Number((error as Error).message)
+    if (status && status < 500) throw error
+    await new Promise((resolve) => setTimeout(resolve, 800))
+    return getJson<T>(url)
+  }
+}
+
+type Tables = {
+  population?: { districts?: PopulationRow[] } | null
+  counts?: { districts?: CountRow[]; total?: number } | null
+  income?: { districts?: IncomeRow[] } | null
+  growth?: { districts?: GrowthRow[] } | null
+  housing?: { districts?: HousingRow[] } | null
+  realEstate?: { districts?: RealEstateRow[] } | null
+  deals?: { districts?: DealRow[] } | null
+  restaurants?: { districts?: RestaurantRow[] } | null
+  menuPrices?: { districts?: MenuPriceRow[] } | null
+  demand?: { districts?: DemandRow[] } | null
+}
+
+/** Where each table comes from. A table in `Tables` is `undefined` while asked, `null` once it failed. */
+const SOURCES: { [K in CityTable]: (city: string) => Promise<NonNullable<Tables[K]>> } = {
+  population: (city) => getJson(`/api/market/population-districts?city=${encodeURIComponent(city)}`),
+  counts: (city) => postMarket('district-counts', { city }),
+  income: (city) => postMarket('district-income', { city }),
+  growth: (city) => postMarket('growth', { city }),
+  housing: (city) => postMarket('housing-level', { city }),
+  realEstate: (city) => postMarket('real-estate', { city }),
+  deals: (city) => postMarket('registered-deals', { city }),
+  restaurants: (city) => getJson(`/api/farq/restaurants?city=${encodeURIComponent(city)}`),
+  menuPrices: (city) => getJson(`/api/farq/menu-prices?city=${encodeURIComponent(city)}`),
+  demand: (city) => getJson(`/api/farq/demand?city=${encodeURIComponent(city)}`),
+}
+export const CITY_TABLES = Object.keys(SOURCES) as CityTable[]
+
+/** One row per district outline, joined from the tables in so far; a table not in (or failed) leaves its figures null. */
+export function joinRows(features: DistrictFeature[], tables: Tables): DistrictRow[] {
+  const people = new Map((tables.population?.districts ?? []).map((row) => [String(row.district_id), row]))
+  const eateries = new Map((tables.restaurants?.districts ?? []).map((row) => [row.district_id, row.restaurants]))
+  const paid = new Map((tables.deals?.districts ?? []).map((row) => [districtKey(row.district_ar), row]))
+  const menus = new Map((tables.menuPrices?.districts ?? []).map((row) => [row.district_id, row]))
+  const wanted = new Map((tables.demand?.districts ?? []).map((row) => [row.district_id, row]))
+  const byName = <R extends { district_ar: string }>(list?: R[]) => new Map((list ?? []).map((row) => [row.district_ar, row]))
+  const count = byName(tables.counts?.districts)
+  const pay = byName(tables.income?.districts)
+  const built = byName(tables.growth?.districts)
+  const homes = byName(tables.housing?.districts)
+  const listings = new Map((tables.realEstate?.districts ?? []).map((row) => [String(row.district_id), row.groups]))
+  return features.map((feature): DistrictRow => {
+    const id = String(feature.properties.id)
+    const name = districtName(feature)
+    const c = count.get(name)
+    const g = built.get(name)
+    return {
+      id,
+      name,
+      population: people.get(id)?.population ?? null,
+      populationSource: people.get(id)?.source ?? null,
+      businesses: c ? c.n : null,
+      areaKm2: c?.area_km2 ?? null,
+      residentsPerBusiness: c?.residents_per ?? null,
+      businessesPerKm2: c?.per_km2 ?? null,
+      density: c?.density ?? null,
+      restaurants: eateries.get(id) ?? null,
+      menuPrice: menus.get(id)?.price ?? null,
+      menuPricePlaces: menus.get(id)?.places ?? null,
+      searches: wanted.get(id)?.searches ?? null,
+      unmetSearches: wanted.get(id)?.unmet ?? null,
+      unmetTerms: wanted.get(id)?.unmetTerms ?? [],
+      income: pay.get(name)?.income_all ?? null,
+      underConstruction: g ? g.under_construction : null,
+      newBuildings: g ? g.new_buildings : null,
+      villaShare: homes.get(name)?.villa_share_pct ?? null,
+      deals: (() => {
+        const row = paid.get(districtKey(name))
+        const pick = (value?: { deals: number; median_sar_per_sqm: number }) => (value ? { median: value.median_sar_per_sqm, deals: value.deals } : null)
+        return { residential: pick(row?.residential), commercial: pick(row?.commercial) }
+      })(),
+      realEstate: Object.fromEntries(Object.entries(listings.get(id) ?? {}).map(([group, value]) => [group, {
+        median: value!.median_sar_per_sqm, listings: value!.listings,
+        ...(value!.by_age ? { byAge: Object.fromEntries(Object.entries(value!.by_age).map(([band, figure]) => [band, { median: figure!.median_sar_per_sqm, listings: figure!.listings }])) } : {}),
+      }])),
+    }
+  })
+}
+
+const EMPTY_CITY: Omit<CityData, 'reload'> = { status: 'loading', features: [], rows: [], early: [], total: null, failed: [], pending: CITY_TABLES }
+
+/** What one city has so far: its outlines (null until they answer), each table (`undefined` while not in, `null`
+ * once failed), which tables were asked, and which are being asked again after failing. */
+type CityStore = {
+  city: string
+  active: boolean
+  features: DistrictFeature[] | null
+  outlinesFailed: boolean
+  tables: Tables
+  asked: Set<CityTable>
+  retrying: Set<CityTable>
+  /** The tables nobody needs yet were scheduled (once the needed ones answered and the page went idle). */
+  rest: boolean
+}
+
+/** Once the page has painted and the main thread is free: a table nobody is looking at must not race the map. */
+function whenIdle(run: () => void): () => void {
+  // Safari has no idle callback: a plain timer stands in
+  const native = typeof window.requestIdleCallback === 'function'
+  let idle: number | null = null
+  const timer = window.setTimeout(() => {
+    idle = native ? window.requestIdleCallback(run, { timeout: 2000 }) : window.setTimeout(run, 0)
+  }, 1000)
+  return () => {
+    window.clearTimeout(timer)
+    if (idle == null) return
+    if (native) window.cancelIdleCallback(idle)
+    else window.clearTimeout(idle)
+  }
+}
+
+/**
+ * A city's outlines and figures, table by table. The outlines reach the map first; each table joins the rows as it
+ * arrives (`early`, for the map's shading). Only the tables in `needed` (the layer in view, the open step's) are asked
+ * at once, the layer's first; `rows` come once those have answered (the panels and tools read only those), and the
+ * city's other tables follow when the page is idle, each joining the rows as it answers (still `pending` until then,
+ * so a figure from one shows its shape, not «غير متاح»). A table `needed` later is asked then. A retry after a failed
+ * table asks only the failed tables again and keeps everything else, the outlines and the camera included.
+ */
+export function useCityData(city: string, needed: readonly CityTable[] = CITY_TABLES): CityData {
+  const [data, setData] = useState<Omit<CityData, 'reload'>>(EMPTY_CITY)
   const [attempt, setAttempt] = useState(0)
+  const want = useRef(needed)
+  want.current = needed
+  const neededKey = needed.join(',')
+  const store = useRef<CityStore | null>(null)
+  const cancelIdle = useRef<(() => void) | null>(null)
+
+  // the store's helpers read only refs and the store they are handed, so one copy serves the page's life
+  const helpers = useRef<{ publish: (held: CityStore) => void; ask: (held: CityStore, tables: readonly CityTable[]) => void } | null>(null)
+  if (!helpers.current) {
+    const publish = (held: CityStore) => {
+      if (!held.active || store.current !== held) return
+      const tables = held.tables as Record<CityTable, unknown>
+      const pending = CITY_TABLES.filter((table) => tables[table] === undefined)
+      const failed = CITY_TABLES.filter((table) => tables[table] === null)
+      if (held.outlinesFailed) { setData({ ...EMPTY_CITY, status: 'error', pending: [] }); return }
+      if (!held.features) { setData({ ...EMPTY_CITY, pending }); return }
+      const joined = joinRows(held.features, held.tables)
+      // a table asked again after failing keeps the page as it stands; its figures show once it answers
+      const ready = want.current.every((table) => tables[table] !== undefined || held.retrying.has(table))
+      setData({ status: ready ? 'ready' : 'loading', features: held.features, rows: ready ? joined : [], early: joined, total: held.tables.counts?.total ?? null, failed, pending })
+    }
+    const ask = (held: CityStore, list: readonly CityTable[]) => {
+      for (const table of list) {
+        if (held.asked.has(table)) continue
+        held.asked.add(table)
+        ;(SOURCES[table](held.city) as Promise<unknown>).then((value) => { held.tables[table] = value as never }, () => { held.tables[table] = null })
+          .then(() => {
+            held.retrying.delete(table)
+            if (!held.active) return
+            publish(held)
+            rest(held)
+          })
+      }
+    }
+    // the tables nobody needs yet, once the needed ones have answered and the page is idle
+    const rest = (held: CityStore) => {
+      if (held.rest || !held.active || want.current.some((table) => held.tables[table] === undefined)) return
+      held.rest = true
+      cancelIdle.current = whenIdle(() => { if (held.active) ask(held, CITY_TABLES) })
+    }
+    helpers.current = { publish, ask }
+  }
 
   useEffect(() => {
-    let active = true
-    setData({ status: 'loading', features: [], rows: [], total: null })
-    const optional = <T,>(promise: Promise<T>) => promise.catch(() => null)
-    Promise.all([
-      getJson<{ features?: DistrictFeature[] }>(`/api/market/districts?city=${encodeURIComponent(city)}`),
-      optional(getJson<{ districts?: PopulationRow[] }>(`/api/market/population-districts?city=${encodeURIComponent(city)}`)),
-      optional(postMarket<{ districts?: CountRow[]; total?: number }>('district-counts', { city })),
-      optional(postMarket<{ districts?: IncomeRow[] }>('district-income', { city })),
-      optional(postMarket<{ districts?: GrowthRow[] }>('growth', { city })),
-      optional(postMarket<{ districts?: HousingRow[] }>('housing-level', { city })),
-      optional(postMarket<{ districts?: RealEstateRow[] }>('real-estate', { city })),
-      optional(postMarket<{ districts?: DealRow[] }>('registered-deals', { city })),
-      optional(getJson<{ districts?: RestaurantRow[] }>(`/api/farq/restaurants?city=${encodeURIComponent(city)}`)),
-      optional(getJson<{ districts?: MenuPriceRow[] }>(`/api/farq/menu-prices?city=${encodeURIComponent(city)}`)),
-      optional(getJson<{ districts?: DemandRow[] }>(`/api/farq/demand?city=${encodeURIComponent(city)}`)),
-    ]).then(([atlas, population, counts, income, growth, housing, property, registered, restaurants, menuPrices, demand]) => {
-      if (!active) return
-      const features = atlas.features ?? []
-      const people = new Map((population?.districts ?? []).map((row) => [String(row.district_id), row]))
-      const eateries = new Map((restaurants?.districts ?? []).map((row) => [row.district_id, row.restaurants]))
-      const paid = new Map((registered?.districts ?? []).map((row) => [districtKey(row.district_ar), row]))
-      const menus = new Map((menuPrices?.districts ?? []).map((row) => [row.district_id, row]))
-      const wanted = new Map((demand?.districts ?? []).map((row) => [row.district_id, row]))
-      const byName = <R extends { district_ar: string }>(list?: R[]) => new Map((list ?? []).map((row) => [row.district_ar, row]))
-      const count = byName(counts?.districts)
-      const pay = byName(income?.districts)
-      const built = byName(growth?.districts)
-      const homes = byName(housing?.districts)
-      const listings = new Map((property?.districts ?? []).map((row) => [String(row.district_id), row.groups]))
-      const rows = features.map((feature): DistrictRow => {
-        const id = String(feature.properties.id)
-        const name = districtName(feature)
-        const c = count.get(name)
-        const g = built.get(name)
-        return {
-          id,
-          name,
-          population: people.get(id)?.population ?? null,
-          populationSource: people.get(id)?.source ?? null,
-          businesses: c ? c.n : null,
-          restaurants: eateries.get(id) ?? null,
-          menuPrice: menus.get(id)?.price ?? null,
-          menuPricePlaces: menus.get(id)?.places ?? null,
-          searches: wanted.get(id)?.searches ?? null,
-          unmetSearches: wanted.get(id)?.unmet ?? null,
-          unmetTerms: wanted.get(id)?.unmetTerms ?? [],
-          income: pay.get(name)?.income_all ?? null,
-          underConstruction: g ? g.under_construction : null,
-          newBuildings: g ? g.new_buildings : null,
-          villaShare: homes.get(name)?.villa_share_pct ?? null,
-          deals: (() => {
-            const row = paid.get(districtKey(name))
-            const pick = (value?: { deals: number; median_sar_per_sqm: number }) => (value ? { median: value.median_sar_per_sqm, deals: value.deals } : null)
-            return { residential: pick(row?.residential), commercial: pick(row?.commercial) }
-          })(),
-          realEstate: Object.fromEntries(Object.entries(listings.get(id) ?? {}).map(([group, value]) => [group, {
-            median: value!.median_sar_per_sqm, listings: value!.listings,
-            ...(value!.by_age ? { byAge: Object.fromEntries(Object.entries(value!.by_age).map(([band, figure]) => [band, { median: figure!.median_sar_per_sqm, listings: figure!.listings }])) } : {}),
-          }])),
-        }
-      })
-      setData({ status: 'ready', features, rows, total: counts?.total ?? null })
-    }).catch(() => { if (active) setData({ status: 'error', features: [], rows: [], total: null }) })
-    return () => { active = false }
+    const { publish, ask } = helpers.current!
+    const held: CityStore = { city, active: true, features: null, outlinesFailed: false, tables: {}, asked: new Set(), retrying: new Set(), rest: false }
+    store.current = held
+    setData(EMPTY_CITY)
+    getRequired<{ features?: DistrictFeature[] }>(`/api/market/districts?city=${encodeURIComponent(city)}`).then((atlas) => {
+      held.features = atlas.features ?? []
+      publish(held)
+    }, () => { held.outlinesFailed = true; publish(held) })
+    ask(held, want.current)
+    return () => { held.active = false; cancelIdle.current?.(); cancelIdle.current = null }
   }, [city, attempt])
 
-  return { ...data, reload: () => setAttempt((n) => n + 1) }
+  // a step or a layer that needs a table not asked yet asks it now; one already in only re-checks the page's state
+  useEffect(() => {
+    const held = store.current
+    if (!held?.active) return
+    helpers.current!.ask(held, want.current)
+    helpers.current!.publish(held)
+  }, [neededKey])
+
+  const reload = () => {
+    const held = store.current
+    // a city whose outlines failed (or are still on their way) loads again whole
+    if (!held?.features) { setAttempt((n) => n + 1); return }
+    const tables = held.tables as Record<CityTable, unknown>
+    const again = CITY_TABLES.filter((table) => tables[table] === null)
+    for (const table of again) { delete tables[table]; held.asked.delete(table); held.retrying.add(table) }
+    helpers.current!.ask(held, again)
+    helpers.current!.publish(held)
+  }
+  return { ...data, reload }
 }
 
 /** Sum of a field over rows; null when any row lacks it, so a partial total is never shown as the whole. */
+/**
+ * The sum over the districts that have the figure, with how many do: a city where a few districts lack a figure still
+ * has a total for the rest, said as such («في 186 من 192 حياً»), instead of «غير متاح» for the whole city. Null when
+ * no district has it.
+ */
+export function sumKnown(rows: DistrictRow[], key: Parameters<typeof sumOf>[1]): { total: number; known: number; of: number } | null {
+  const known = rows.filter((row) => row[key] != null)
+  if (!known.length) return null
+  return { total: known.reduce((sum, row) => sum + (row[key] as number), 0), known: known.length, of: rows.length }
+}
+
 export function sumOf(rows: DistrictRow[], key: keyof Omit<DistrictRow, 'id' | 'name' | 'populationSource' | 'unmetTerms' | 'realEstate' | 'deals'>): number | null {
   if (!rows.length || rows.some((row) => row[key] == null)) return null
   return rows.reduce((total, row) => total + (row[key] as number), 0)

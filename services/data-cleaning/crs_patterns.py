@@ -1,4 +1,4 @@
-"""Value patterns for HudHud change-request fields, shared by import_crs_full.py (crs_export.csv) and unpack_poi_logs.py
+"""Value patterns for SPD change-request fields, shared by import_crs_full.py (crs_export.csv) and unpack_poi_logs.py
 (poi_logs.raw_json). A value that fails its pattern is dropped, never guessed."""
 import re
 

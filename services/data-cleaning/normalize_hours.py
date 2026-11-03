@@ -1,16 +1,16 @@
 """Write every `working_hours` value of a directory snapshot in the one readable form «Sun: 08:30 - 23:30 | Mon: …».
 
-A step after the golden export and before publishing, like chain_consensus.py and hudhud_fill.py. The column holds what
+A step after the golden export and before publishing, like chain_consensus.py and spd_fill.py. The column holds what
 each source gave (build_golden.py takes the surveyor CR first, then the earlier directory, Drive sheets and Google Maps):
-- HudHud JSON, `{"timezone", "regular_hours": [...]}` or the bare list, sometimes as a Python repr (`{'timezone': …}`)
-  or inside a saved API reply (`{"success", "data": {"trx": {"opening_hours": …}}}`), read with hudhud_fill.hours(), so
+- SPD JSON, `{"timezone", "regular_hours": [...]}` or the bare list, sometimes as a Python repr (`{'timezone': …}`)
+  or inside a saved API reply (`{"success", "data": {"trx": {"opening_hours": …}}}`), read with spd_fill.hours(), so
   «00:00 - 00:00» is a day open all day, written «00:00 - 24:00» (owner, 2026-10-29);
 - Urbi, `Sun: 08:00 - 24:00; Mon: {}; …` (`{}` or ` - ` is a day with no hours) and `Mon-Thu 9:00-23:00, break
   13:00-16:00; Fri Holiday; Sat-Sun 9:00-23:00`;
-- Google Maps, `1: 9 AM–5 PM|…|7: Closed`, where 1 is Sunday (on the 188 places that also have HudHud hours and a
+- Google Maps, `1: 9 AM–5 PM|…|7: Closed`, where 1 is Sunday (on the 188 places that also have SPD hours and a
   closed day, 184 match only with 1 = Sunday), the same with day names, and `{"الأحد": "9ص–11م", …}`.
 Days keep the order their source lists them in; a closed day is left out, as hours() leaves it out; a span is written
-as given (a close at midnight stays «00:00») except in HudHud JSON as above and «Open 24 hours» as «00:00 - 24:00».
+as given (a close at midnight stays «00:00») except in SPD JSON as above and «Open 24 hours» as «00:00 - 24:00».
 
 A value is rewritten only when every part of it is read; otherwise it stays exactly as it is, never guessed. A value
 that holds no hours at all (every day empty, «Refused to provide information», `{"regular_hours": []}`, a bare time
@@ -29,7 +29,7 @@ import sys
 
 import duckdb
 
-from hudhud_fill import DAYS, hours, text
+from spd_fill import DAYS, hours, text
 
 SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 URBI = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -78,7 +78,7 @@ def spans(body):
         if m:
             start, end = clock(m[1], m[2], 23), clock(m[3], m[4])
             if start == end:
-                raise Unread  # an equal pair outside HudHud JSON has no stated meaning: none, or all day
+                raise Unread  # an equal pair outside SPD JSON has no stated meaning: none, or all day
             out.append(f'{start} - {end}')
             continue
         m = H12.match(span)
@@ -103,13 +103,13 @@ def join(days):
 
 
 def hudhud(days):
-    """HudHud's list of days through hours(), only when hours() reads every span of it.
+    """SPD's list of days through hours(), only when hours() reads every span of it.
 
     A time written «2:00» or «23:00\\t» is the same time written «02:00» / «23:00»; anything else stays unread."""
     if not isinstance(days, list):
         raise Unread
     if days and all(isinstance(d, dict) and 'media_url' in d for d in days):
-        return None  # a HudHud media list landed in the hours column: it holds no hours
+        return None  # a SPD media list landed in the hours column: it holds no hours
     for day in days:
         if not isinstance(day, dict) or day.get('day') not in DAYS or not isinstance(day.get('hours') or [], list):
             raise Unread

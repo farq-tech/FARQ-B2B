@@ -1,21 +1,29 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { LoadError } from '@/components/shared/load-error'
+import { Skeleton } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { formatDistance, numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 import { circlePolygon, type Area, type Site } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
-import { PALETTE } from '@/lib/palette'
-import { residentsPer } from '@/lib/audience'
+import { PALETTE, readableOn } from '@/lib/palette'
+import { areaKm2, containsPoint, districtAt } from '@/lib/geo-measure'
+import { useStickyState, useStudiedActivity } from '@/lib/sticky-state'
+import { SiteCard, type SiteCardData, type SiteCardState } from './site-card'
+import { placeSite } from './tool-answers'
+import { useSlow } from './use-answer'
+import { Choice, StillWorking } from './choice'
+import type { DistrictRow } from '../city-data'
 
-type Within = { population: number | null; dwellings: number | null; businesses: number | null; top_activities: { activity: string; n: number }[] }
+type Within = { population: number | null; dwellings: number | null; businesses: number | null; residents_per: number | null; top_activities: { activity: string; n: number }[] }
 type Point = { lon: number; lat: number }
 type Geometry = GeoJSON.Polygon | GeoJSON.MultiPolygon
 type Reach = { kind: 'radius'; metres: number } | { kind: 'drive'; minutes: number }
-type Result = { status: 'loading' | 'ready' | 'error'; message?: string; geometry?: Geometry; figures?: Within }
+type Result = { status: 'loading' | 'ready' | 'error'; message?: string; geometry?: Geometry; figures?: Within; card?: SiteCardState }
 
 const REACHES: Reach[] = [
   { kind: 'radius', metres: 500 }, { kind: 'radius', metres: 1000 }, { kind: 'radius', metres: 2000 },
@@ -24,10 +32,36 @@ const REACHES: Reach[] = [
 const COLORS = [PALETTE.olive, PALETTE.ochre, PALETTE.slate]
 const MAX_SITES = 3
 const reachLabel = (reach: Reach) => (reach.kind === 'radius'
-  ? (reach.metres < 1000 ? `${reach.metres} م` : `${reach.metres / 1000} كم`)
-  : `${reach.minutes} د بالسيارة`)
-const sameReach = (a: Reach, b: Reach) => a.kind === b.kind && (a.kind === 'radius' ? a.metres === (b as typeof a).metres : a.minutes === (b as typeof a).minutes)
+  ? formatDistance(reach.metres)
+  : `${numberFormat.format(reach.minutes)} د بالسيارة`)
 const show = (value: number | null | undefined) => (value == null ? 'غير متاح' : numberFormat.format(Math.round(value)))
+
+/** A point inside a district to stand a sample site on: its bounding box's centre, else its outline's mean, else a corner. */
+function insidePoint(geometry: DistrictFeature['geometry']): Point {
+  const ring = geometry.type === 'Polygon' ? geometry.coordinates[0] : geometry.coordinates[0][0]
+  const lons = ring.map((p) => p[0])
+  const lats = ring.map((p) => p[1])
+  const centre = { lon: (Math.min(...lons) + Math.max(...lons)) / 2, lat: (Math.min(...lats) + Math.max(...lats)) / 2 }
+  if (containsPoint(geometry, centre)) return centre
+  const mean = { lon: lons.reduce((a, b) => a + b, 0) / lons.length, lat: lats.reduce((a, b) => a + b, 0) / lats.length }
+  return containsPoint(geometry, mean) ? mean : { lon: ring[0][0], lat: ring[0][1] }
+}
+
+/** The site card for one range (/api/market/site-card, signed-in only because it names competitors). */
+async function cardFor(city: string, point: Point, geometry: Geometry, activity: { q?: string; main_id?: string }): Promise<SiteCardState> {
+  const response = await fetch('/api/market/site-card', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ city, geometry, centre: [point.lon, point.lat], ...(activity.q ? { q: activity.q } : activity.main_id ? { main_id: activity.main_id } : {}) }),
+  })
+  const body = await response.json().catch(() => null)
+  // the card names competitors, so it needs a signed-in, allowed account; retrying would not change that
+  if (response.status === 401 || response.status === 403) {
+    return { status: 'denied', signIn: response.status === 401, message: body?.error || (response.status === 401 ? 'سجّل الدخول لعرض بطاقة الموقع.' : 'حسابك غير مخول لعرض بطاقة الموقع.') }
+  }
+  if (!response.ok || !body) return { status: 'error', message: body?.error || 'تعذر حساب بطاقة الموقع.' }
+  return { status: 'ready', data: body as SiteCardData }
+}
 
 /** The area a site reaches: a circle on the ground, or the roads a car covers in the time (Valhalla isochrone). */
 async function areaFor(point: Point, reach: Reach): Promise<Geometry> {
@@ -49,25 +83,34 @@ async function areaFor(point: Point, reach: Reach): Promise<Geometry> {
  * each, by distance or by drive time on the real road network. Every figure is the same golden count as the rest of
  * Atlas, only the boundary differs.
  */
-export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => void }) {
-  const [sites, setSites] = useState<(Point & { id: number })[]>([])
-  const [reach, setReach] = useState<Reach>(REACHES[1])
+export function AroundTool({ city, onOverlay, districts, features }: { city: string; onOverlay: (overlay: Overlay) => void; districts: DistrictRow[]; features: DistrictFeature[] }) {
+  const [activity] = useStudiedActivity()
+  // each site keeps its slot (its number and colour) while it is on the map; see placeSite
+  const [sites, setSites] = useState<(Point & { id: number; slot: number })[]>([])
+  const [reach, setReach] = useStickyState<Reach>('around.reach', REACHES[1])
   const [results, setResults] = useState<Record<string, Result>>({})
   const nextId = useRef(1)
   const requested = useRef(new Set<string>())
   const mounted = useRef(true)
   useEffect(() => () => { mounted.current = false }, [])
 
-  // a fourth tap replaces the oldest site
+  // a new site takes the lowest free number; a fourth tap replaces the oldest site, in its number and colour
   const pick = useCallback((point: Point) => {
     const id = nextId.current++
-    setSites((current) => [...current.slice(-(MAX_SITES - 1)), { ...point, id }])
+    setSites((current) => placeSite(current, { ...point, id }, MAX_SITES))
   }, [])
 
-  const keyOf = useCallback((site: { id: number }) => `${site.id}|${reach.kind}|${reach.kind === 'radius' ? reach.metres : reach.minutes}`, [reach])
+  // keyed by what is asked (the reach and the activity as strings), never by their objects; the objects are read from
+  // refs when a request starts, so a new object for the same reach or activity asks nothing again
+  const reachKey = reach.kind === 'radius' ? `r${reach.metres}` : `d${reach.minutes}`
+  const activityKey = `${activity.q ?? ''}|${activity.main_id ?? ''}`
+  const asking = useRef({ reach, activity })
+  useEffect(() => { asking.current = { reach, activity } })
+  const keyOf = useCallback((site: { id: number }) => `${site.id}|${reachKey}|${city}|${activityKey}`, [reachKey, city, activityKey])
 
   // each site × reach is worked out once; results are keyed by both, so a late answer never lands on the wrong site
   useEffect(() => {
+    const { reach, activity } = asking.current
     for (const site of sites) {
       const key = keyOf(site)
       if (requested.current.has(key)) continue
@@ -75,12 +118,49 @@ export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => voi
       setResults((current) => ({ ...current, [key]: { status: 'loading' } }))
       const settle = (result: Result) => { if (mounted.current) setResults((current) => ({ ...current, [key]: result })) }
       areaFor(site, reach)
-        .then(async (geometry) => settle({ status: 'ready', geometry, figures: await postMarket<Within>('population-within', { geometry }) }))
+        .then(async (geometry) => {
+          // the comparison figures and the card arrive separately, so a card that needs sign-in never blocks the table
+          const card = cardFor(city, site, geometry, activity).catch((): SiteCardState => ({ status: 'error', message: 'تعذر حساب بطاقة الموقع.' }))
+          settle({ status: 'ready', geometry, figures: await postMarket<Within>('population-within', { geometry }), card: { status: 'loading' } })
+          const ready = await card
+          if (mounted.current) setResults((current) => (current[key] ? { ...current, [key]: { ...current[key], card: ready } } : current))
+        })
         .catch((error: Error) => settle({ status: 'error', message: error.message || 'تعذر الحساب.' }))
     }
-  }, [sites, reach, keyOf])
+  }, [sites, keyOf, city])
 
-  const labelled = useMemo(() => sites.map((site, index) => ({ ...site, label: String(index + 1), color: COLORS[index], result: results[keyOf(site)] })), [sites, results, keyOf])
+  // a failed card is asked again on the same area; the comparison figures already on screen stay as they are
+  const retryCard = useCallback((site: Point & { id: number }) => {
+    const key = keyOf(site)
+    const geometry = results[key]?.geometry
+    if (!geometry) return
+    const put = (card: SiteCardState) => { if (mounted.current) setResults((current) => (current[key] ? { ...current, [key]: { ...current[key], card } } : current)) }
+    put({ status: 'loading' })
+    cardFor(city, site, geometry, asking.current.activity).then(put, (): void => put({ status: 'error', message: 'تعذر حساب بطاقة الموقع.' }))
+  }, [keyOf, results, city])
+
+  // «ابدأ من هنا»: a first visit compares the city's two most populous districts in one tap, a site in each
+  const sample = useMemo(() => {
+    const outline = new Map(features.map((feature) => [String(feature.properties.id), feature.geometry]))
+    return districts
+      .filter((row) => row.population != null && outline.has(row.id))
+      .sort((a, b) => (b.population ?? 0) - (a.population ?? 0))
+      .slice(0, 2)
+      .map((row) => ({ name: row.name, point: insidePoint(outline.get(row.id)!) }))
+  }, [districts, features])
+
+  // in slot order, each with the number and colour of its slot
+  const labelled = useMemo(() => [...sites].sort((a, b) => a.slot - b.slot)
+    .map((site) => ({ ...site, label: numberFormat.format(site.slot + 1), color: COLORS[site.slot], result: results[keyOf(site)] })), [sites, results, keyOf])
+  // a drive area or a busy range can take a while: said once, under the table, after a few seconds
+  const slow = useSlow(labelled.some((site) => !site.result || site.result.status === 'loading'))
+  // sites whose area or figures failed: said once above the table, and asked again together (a new list of the same
+  // sites runs the request effect once more; the sites that worked stay as they are)
+  const failed = labelled.filter((site) => site.result?.status === 'error')
+  const retryFailed = () => {
+    for (const site of failed) requested.current.delete(keyOf(site))
+    setSites((current) => [...current])
+  }
 
   useEffect(() => {
     const areas: Area[] = labelled.flatMap((site) => (site.result?.geometry ? [{ id: String(site.id), color: site.color, geometry: site.result.geometry }] : []))
@@ -94,8 +174,8 @@ export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => voi
     { label: 'المنشآت', value: (f) => f.businesses, explain: EXPLAIN.aroundBusinesses },
     {
       label: 'ساكن لكل منشأة',
-      value: (f) => residentsPer(f.population, f.businesses),
-      explain: ['السكان داخل المنطقة ÷ المنشآت داخلها.', 'كلما ارتفع الرقم قلّت المنشآت التي تخدم السكان، أي منافسة أقل.'],
+      value: (f) => f.residents_per,
+      explain: EXPLAIN.aroundResidentsPer,
       higherIsBetter: true,
     },
   ]
@@ -106,33 +186,79 @@ export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => voi
     return values.length ? Math.max(...values) : null
   }
 
+  // «جاذبية الموقع»: a 0–100 score comparing the chosen sites on three equal factors — audience (population in reach),
+  // purchasing power (income where published, else villa share, of the حي the pin sits in), and lightness of
+  // competition (fewest establishments per km²). Each factor is scaled to the best site, and the score is their mean.
+  // A site missing any factor is «غير متاح», and the score needs two complete sites, since it is a comparison.
+  const { scoreById, topScore, byIncome } = useMemo(() => {
+    const byIncome = districts.some((row) => row.income != null)
+    const districtById = new Map(districts.map((row) => [row.id, row]))
+    const spendingOf = (point: Point): number | null => {
+      const row = districtById.get(districtAt(point, features) ?? '')
+      if (!row) return null
+      return byIncome ? row.income : row.villaShare
+    }
+    const factored = labelled
+      .filter((site) => site.result?.status === 'ready' && site.result.figures)
+      .map((site) => {
+        const figures = site.result!.figures!
+        const area = site.result!.geometry ? areaKm2(site.result!.geometry) : 0
+        return {
+          id: site.id,
+          audience: figures.population,
+          spending: spendingOf(site),
+          density: figures.businesses != null && area > 0 ? figures.businesses / area : null,
+        }
+      })
+    const complete = factored.filter((item) => item.audience != null && item.spending != null && item.density != null)
+    const scoreById = new Map<number, number>()
+    if (complete.length >= 2) {
+      const maxAudience = Math.max(...complete.map((item) => item.audience!))
+      const maxSpending = Math.max(...complete.map((item) => item.spending!))
+      const minDensity = Math.min(...complete.map((item) => item.density!))
+      for (const item of complete) {
+        const audience = maxAudience > 0 ? (100 * item.audience!) / maxAudience : 0
+        const spending = maxSpending > 0 ? (100 * item.spending!) / maxSpending : 0
+        const uncrowded = item.density! > 0 ? (100 * minDensity) / item.density! : 100
+        scoreById.set(item.id, Math.round((audience + spending + uncrowded) / 3))
+      }
+    }
+    const scores = [...scoreById.values()]
+    return { scoreById, topScore: scores.length ? Math.max(...scores) : null, byIncome }
+  }, [labelled, districts, features])
+
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">قارن المواقع</h2>
       <p className="text-base text-muted-foreground">اضغط على الخريطة لإضافة موقع، حتى {numberFormat.format(MAX_SITES)} مواقع.</p>
-      <div className="grid grid-cols-3 gap-1.5">
-        {REACHES.map((value) => (
-          <button key={reachLabel(value)} onClick={() => setReach(value)} aria-pressed={sameReach(reach, value)}
-            className={cn('rounded-lg border py-2 text-base', sameReach(reach, value) ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>
-            {reachLabel(value)}
-          </button>
-        ))}
-      </div>
+      <Choice label="نطاق كل موقع" size="base" className="grid grid-cols-3" value={reachKey}
+        onChange={(id) => { const next = REACHES.find((value) => (value.kind === 'radius' ? `r${value.metres}` : `d${value.minutes}`) === id); if (next) setReach(next) }}
+        options={REACHES.map((value) => ({ id: value.kind === 'radius' ? `r${value.metres}` : `d${value.minutes}`, label: reachLabel(value) }))} />
+      {sites.length === 0 && sample.length === 2 && (
+        <button type="button" onClick={() => sample.forEach((item) => pick(item.point))}
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary px-3 py-2 text-base font-semibold text-primary hover:bg-primary/10">
+          ابدأ من هنا: قارن {sample[0].name} و{sample[1].name}
+        </button>
+      )}
       {reach.kind === 'drive' && (
         <Explained title="منطقة الوصول بالسيارة" lines={EXPLAIN.driveArea(reach.minutes)} className="text-sm text-muted-foreground">
           المنطقة: كل ما تصله السيارة في {numberFormat.format(reach.minutes)} دقائق على الطرق.
         </Explained>
       )}
+      {failed.length > 0 && (
+        <LoadError what="المواقع" title={`تعذر حساب ${failed.length === 1 ? 'الموقع' : 'المواقع'} ${failed.map((site) => site.label).join('، ')}.`}
+          detail={failed[0].result?.message} onRetry={retryFailed} />
+      )}
       {labelled.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full text-base">
+          <table className="w-full text-base tabular-nums">
             <thead>
               <tr className="text-sm text-muted-foreground">
                 <th className="py-1.5 text-start font-medium" />
                 {labelled.map((site) => (
                   <th key={site.id} className="py-1.5 text-center font-medium">
                     <span className="inline-flex items-center gap-1">
-                      <span className="inline-flex size-6 items-center justify-center rounded-full text-sm font-bold text-white" style={{ background: site.color }}>{site.label}</span>
+                      <span className="inline-flex size-6 items-center justify-center rounded-full text-sm font-bold" style={{ background: site.color, color: readableOn(site.color) }}>{site.label}</span>
                       <button onClick={() => setSites((current) => current.filter((item) => item.id !== site.id))} aria-label={`إزالة الموقع ${site.label}`} className="text-muted-foreground hover:text-foreground">
                         <X className="size-4" aria-hidden />
                       </button>
@@ -142,6 +268,24 @@ export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => voi
               </tr>
             </thead>
             <tbody className="divide-y">
+              <tr className="bg-muted/40">
+                <th className="py-2.5 text-start text-sm font-semibold">جاذبية الموقع</th>
+                {labelled.map((site) => {
+                  const result = site.result
+                  if (!result || result.status === 'loading') return <td key={site.id} className="py-2.5 text-center" aria-busy="true"><Skeleton className="mx-auto h-5 w-12" aria-hidden /><span className="sr-only">جارٍ الحساب</span></td>
+                  // the reason and the retry are said once, above the table (it was said twice, and read out twice);
+                  // the column only marks that this site failed
+                  if (result.status === 'error') return <td key={site.id} className="py-2.5 text-center text-sm font-semibold text-destructive">تعذر الحساب</td>
+                  const value = scoreById.get(site.id)
+                  return (
+                    <td key={site.id} className="py-2.5 text-center">
+                      <Explained title="جاذبية الموقع" lines={EXPLAIN.siteAttraction(byIncome)} className={cn('text-lg font-bold', topScore != null && value === topScore && 'text-primary')}>
+                        {value == null ? 'غير متاح' : `${numberFormat.format(value)}/100`}
+                      </Explained>
+                    </td>
+                  )
+                })}
+              </tr>
               {rows.map((row) => {
                 const top = best(row)
                 return (
@@ -149,8 +293,8 @@ export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => voi
                     <th className="py-2 text-start text-sm font-medium text-muted-foreground">{row.label}</th>
                     {labelled.map((site) => {
                       const result = site.result
-                      if (!result || result.status === 'loading') return <td key={site.id} className="py-2 text-center"><Loader2 className="mx-auto size-4 animate-spin text-primary" aria-label="جارٍ الحساب" /></td>
-                      if (result.status === 'error') return <td key={site.id} className="py-2 text-center text-sm text-destructive">{result.message}</td>
+                      if (!result || result.status === 'loading') return <td key={site.id} className="py-2 text-center" aria-busy="true"><Skeleton className="mx-auto h-4 w-10" aria-hidden /><span className="sr-only">جارٍ الحساب</span></td>
+                      if (result.status === 'error') return <td key={site.id} className="py-2 text-center text-sm text-muted-foreground">غير متاح</td>
                       const value = row.value(result.figures!)
                       return (
                         <td key={site.id} className="py-2 text-center">
@@ -165,17 +309,11 @@ export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => voi
           </table>
         </div>
       )}
+      {slow && <StillWorking>{reach.kind === 'drive' ? 'منطقة الوصول بالسيارة تُحسب على الطرق وتأخذ وقتاً أطول.' : 'نعدّ السكان والمنشآت داخل كل نطاق.'}</StillWorking>}
       {ready.length > 0 && (
-        <div className="space-y-2">
-          {ready.map((site) => site.result!.figures!.top_activities.length > 0 && (
-            <div key={site.id}>
-              <p className="mb-1 text-sm font-semibold text-muted-foreground">أكثر الأنشطة حول الموقع {site.label}</p>
-              <ul className="space-y-1 text-base">
-                {site.result!.figures!.top_activities.slice(0, 4).map((row) => (
-                  <li key={row.activity} className="flex justify-between"><span>{row.activity}</span><span className="font-semibold">{numberFormat.format(row.n)}</span></li>
-                ))}
-              </ul>
-            </div>
+        <div className="space-y-3">
+          {ready.map((site) => (
+            <SiteCard key={site.id} label={site.label} color={site.color} reach={reachLabel(reach)} activity={activity.label} state={site.result!.card} onRetry={() => retryCard(site)} />
           ))}
         </div>
       )}

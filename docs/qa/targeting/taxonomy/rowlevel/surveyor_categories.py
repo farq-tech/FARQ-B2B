@@ -1,4 +1,4 @@
-"""HudHud surveyor top categories (TRX after cleaning, 25 values) -> which of our subcategories are consistent, and the default sub
+"""SPD surveyor top categories (TRX after cleaning, 25 values) -> which of our subcategories are consistent, and the default sub
 when ours contradicts the surveyor. Learned 2026-10-15: name-based subs agree with the surveyor 88.6 % of the time;
 the misses are context errors such as «صيانة» inside Automotive Services (our building maintenance, really a car workshop)."""
 CONSISTENT = {
