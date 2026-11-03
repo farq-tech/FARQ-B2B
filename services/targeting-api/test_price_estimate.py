@@ -53,6 +53,15 @@ class PriceEstimateTests(unittest.TestCase):
         self.assertEqual(self.run_estimate(type='warehouse')['reason'], 'no_listings')
         self.assertEqual(self.run_estimate(district_id='9')['reason'], 'district_has_no_listings')
 
+    def test_too_few_comparables_still_shows_the_districts_tried_and_what_they_held(self):
+        thin = self.run_estimate(type='villa')
+        self.assertFalse(thin['available'])
+        self.assertNotIn('price', thin, 'no range is drawn from too few listings')
+        self.assertEqual(thin['needed'], price_estimate.MIN_COMPARABLES)
+        self.assertEqual(thin['scope'], [{'district_id': '1', 'district_ar': 'الربيع', 'comparables': 1}], 'every district with the type was tried')
+        self.assertEqual([e['id'] for e in thin['examples']], ['302'])
+        self.assertEqual(thin['comparables'], sum(s['comparables'] for s in thin['scope']))
+
 
 if __name__ == '__main__':
     unittest.main()
