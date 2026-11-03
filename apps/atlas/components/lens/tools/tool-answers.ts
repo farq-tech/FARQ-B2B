@@ -301,9 +301,10 @@ export function attractionScores(sites: SiteFactors[]): Map<number, number> {
 export function sitesVerdict(sites: (SiteFactors & { label: string; population: number | null })[], scores: Map<number, number>, byIncome: boolean): VerdictText | null {
   if (sites.length === 0) return null
   if (sites.length === 1) return { lead: 'أضف موقعاً ثانياً لتعرف أيهما أجذب', why: ['اضغط على الخريطة في مكان آخر، فيُقاس بالنطاق نفسه.'] }
-  const missing = sites.filter((site) => !scores.has(site.id)).map((site) => {
-    const what = site.audience == null ? 'السكان' : site.spending == null ? (byIncome ? 'دخل حيه' : 'حصة الفلل في حيه') : 'كثافة المنشآت'
-    return `الموقع ${site.label} (${what} غير متاح)`
+  // a site with its three factors may still have no score (it needs a second complete site): only a missing factor is named
+  const missing = sites.flatMap((site) => {
+    const what = site.audience == null ? 'السكان' : site.spending == null ? (byIncome ? 'دخل حيه' : 'حصة الفلل في حيه') : site.density == null ? 'كثافة المنشآت' : null
+    return what ? [`الموقع ${site.label} (${what} غير متاح)`] : []
   })
   const caution = missing.length ? `بلا درجة: ${missing.join('، ')}.` : null
   const scored = sites.filter((site) => scores.has(site.id)).sort((a, b) => scores.get(b.id)! - scores.get(a.id)!)

@@ -97,7 +97,9 @@ export function AroundTool({ city, onOverlay, districts, features, next }: {
   const nextId = useRef(1)
   const requested = useRef(new Set<string>())
   const mounted = useRef(true)
-  useEffect(() => () => { mounted.current = false }, [])
+  // set again on every mount: a remount (React's development double mount, or the panel shown again) left it false,
+  // and every site's figures were dropped as if the tool had gone, a table of skeletons for ever
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
 
   // a new site takes the lowest free number; a fourth tap replaces the oldest site, in its number and colour
   const pick = useCallback((point: Point) => {

@@ -96,6 +96,9 @@ test('the sites verdict names the most attractive site and why, or that two are 
   const level = [site(1, 100000, 12000, 10), site(2, 50000, 12000, 5)]
   assert.match(sitesVerdict(level, attractionScores(level), false)!.lead, /^الموقعان 1 و2 متقاربان: 83 و83 من 100$/)
   assert.equal(sitesVerdict([site(1, 1, 1, 1)], new Map(), true)!.lead, 'أضف موقعاً ثانياً لتعرف أيهما أجذب')
+  // one complete site and one without its income: no score for either, and only the missing factor is named
+  const half = [site(1, 90000, null, 3), site(2, 60000, 9000, 6)]
+  assert.deepEqual(sitesVerdict(half, attractionScores(half), true), { lead: 'جاذبية المواقع غير متاحة للمقارنة', why: ['الدرجة تحتاج موقعين لكل منهما عوامله الثلاثة.'], caution: 'بلا درجة: الموقع 1 (دخل حيه غير متاح).' })
   assert.equal(sitesVerdict([], new Map(), true), null)
   // the best site trailing on one factor says so
   const mixed = [site(1, 50000, 20000, 1), site(2, 100000, 8000, 4)]
