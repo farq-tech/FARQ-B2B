@@ -139,8 +139,9 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     }
     if (!table.length) { onOverlay({}); return }
     // the city's count as the service gives it, and the district where the activity is densest per km²
-    const densest = densestDistrict(table)
-    const summary = competitorsSummary(cityTotal, studied.label, densest)
+    // the district the verdict names for the chosen order: the densest, or the lightest populated one
+    const top = order === 'light' ? rankCompetition(table, 'light')[0] ?? null : densestDistrict(table)
+    const summary = competitorsSummary(cityTotal, studied.label, top, order)
     const dense = table.flatMap((item) => (item.competitors > 0 && item.perKm2 != null ? [item.perKm2] : [])).sort((a, b) => a - b)
     const colors = new Map<string, string>()
     for (const item of table) {
@@ -152,8 +153,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     // the same count the district's colour and the list read (a district the service lists no business in is «لا منافس»)
     const facts = new Map(table.map((item) => [item.row.id, item.competitors ? `${counted(item.competitors, 'business')} من «${studied.label}»` : 'لا منافس'] as [string, string]))
     // «أرني الأعلى» opens the district the summary names
-    onOverlay({ colors, facts, summary, lead: densest?.row.id ?? null, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
-  }, [table, brand, rows, onOverlay, cityTotal, studied.label])
+    onOverlay({ colors, facts, summary, lead: top?.row.id ?? null, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
+  }, [table, brand, rows, onOverlay, cityTotal, studied.label, order])
 
   // the service counted the activity and found none: a city total of 0, or no district and no total
   const noneFound = counts != null && (cityTotal === 0 || (cityTotal == null && counts.length === 0))

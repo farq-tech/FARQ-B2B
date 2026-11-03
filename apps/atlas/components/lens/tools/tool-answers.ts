@@ -29,10 +29,13 @@ export function rankCompetition<T extends CompetitorRow & { row: { population: n
     .sort((a, b) => lightness(a) - lightness(b) || (b.row.population ?? 0) - (a.row.population ?? 0))
 }
 
-/** «1,234 منشأة «صيدلية» في المدينة · الأكثر تنافساً: العليا». */
-export function competitorsSummary(cityTotal: number | null, label: string, densest: CompetitorRow | null): string {
+/**
+ * «1,234 منشأة «صيدلية» في المدينة · الأكثر تنافساً: العليا», or (the list ordered by the lightest competition)
+ * «… · الأخف منافسة: وادي لبن», so the peek line names the same district as the verdict over the list.
+ */
+export function competitorsSummary(cityTotal: number | null, label: string, top: CompetitorRow | null, order: 'dense' | 'light' = 'dense'): string {
   const total = cityTotal == null ? `عدد منشآت «${label}» غير متاح` : `${numberFormat.format(cityTotal)} منشأة «${label}» في المدينة`
-  return `${total}${densest ? ` · الأكثر تنافساً: ${densest.row.name}` : ''}`
+  return `${total}${top ? ` · ${order === 'light' ? 'الأخف منافسة' : 'الأكثر تنافساً'}: ${top.row.name}` : ''}`
 }
 
 /** One district's count for each of two activities («قارن بنشاط آخر»). */
