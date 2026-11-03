@@ -169,6 +169,24 @@ export function HomesPage() {
   const homesKey = (listing: string | null | undefined) => JSON.stringify([city, kind, filters.rentDeal, typesKey, districtsKey, listing ?? null])
   // closing a listing opened from the entry before goes Back to it, so «open, close» is undone by one Back, not two
   const closeListing = () => { if (!backIfReturning(homesKey(null))) setActive(null) }
+  // closing a listing (its ✕, Back, or the list button on a phone) puts the list back on that listing's card, with focus
+  // on it, instead of leaving the person to find their place again
+  const returnTo = useRef<string | null>(null)
+  const lastOpenId = useRef<string | null>(null)
+  useEffect(() => {
+    if (active) { lastOpenId.current = active.id; return }
+    if (lastOpenId.current) { returnTo.current = lastOpenId.current; lastOpenId.current = null }
+  }, [active])
+  useEffect(() => {
+    const id = returnTo.current
+    // a phone shows the list only once its map is closed again
+    if (!id || active || (mobileMap && !window.matchMedia('(min-width: 64rem)').matches)) return
+    returnTo.current = null
+    const card = [...document.querySelectorAll<HTMLElement>('[data-listing-ids]')].find((item) => item.dataset.listingIds?.split(' ').includes(id))
+    if (!card) return
+    card.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+    card.querySelector<HTMLElement>('button.mt-2')?.focus({ preventScroll: true })
+  }, [active, mobileMap])
   useEffect(() => {
     if (!hydrated) return
     // a listing still waiting for the listings keeps its place in the address
@@ -451,7 +469,7 @@ const HomeCard = memo(function HomeCard({ listing, others, priority, comparing, 
   const [expanded, setExpanded] = useState(false)
   const facts = [listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.beds ? counted(listing.beds, 'room') : null]
   return (
-    <li onMouseEnter={() => onHover(listing.id)} onMouseLeave={() => onHover(null)} className="group">
+    <li onMouseEnter={() => onHover(listing.id)} onMouseLeave={() => onHover(null)} className="group scroll-my-4" data-listing-ids={[listing.id, ...others.map((item) => item.id)].join(' ')}>
       <div className="relative overflow-hidden rounded-2xl bg-muted">
         {/* an ad without photos keeps the card's shape, so the compare button never lands on the text */}
         {/* a listing with no photo to show (none in the ad, or none that loads) gets its type's face in the same slot */}

@@ -28,7 +28,7 @@ const DEAL_WORD: Record<string, string> = { rent_year: 'للإيجار السن�
  * (type, deal, area, district) and Atlas's expected price, and opens in «الطلبات» for review. Nothing is sent: a quote
  * request is shared by the person after review (docs/atlas-product-foundation.md §1.5), and no contact is shown here.
  */
-export function OfficesRequest({ asked, cityName, price, fromListing = null, to = REAL_ESTATE, className = 'sm:col-span-2', compact = false }: { asked: { city: string; district?: string; districtName?: string; deal: string; kind: string; area: number }; cityName: string; price?: number; fromListing?: { id: string; ask: number | null } | null; to?: Kindred; className?: string; /** A link-sized button, for a card (a listing's). */ compact?: boolean }) {
+export function OfficesRequest({ asked, cityName, price, fromListing = null, to = REAL_ESTATE, className = 'sm:col-span-2', compact = false }: { asked: { city: string; district?: string; districtName?: string; deal: string; kind: string; area?: number | null }; cityName: string; price?: number; fromListing?: { id: string; ask: number | null } | null; to?: Kindred; className?: string; /** A link-sized button, for a card (a listing's). */ compact?: boolean }) {
   const valuation = to.sub_id === VALUERS.sub_id
   const router = useRouter()
   const { createDraft } = useAppStore()
@@ -53,7 +53,7 @@ export function OfficesRequest({ asked, cityName, price, fromListing = null, to 
       query: to.label, categoryHint: to.label, districtHint: name,
       title: valuation ? `طلب تقييم ${property}` : fromListing ? `طلب عروض مثل عرض ${property}` : `طلب عروض ${property}`,
       rfq: {
-        lineItems: [{ id: makeId('l'), name: property, qty: 1, unit: 'عقار', spec: `${numberFormat.format(asked.area)} م²` }],
+        lineItems: [{ id: makeId('l'), name: property, qty: 1, unit: 'عقار', spec: asked.area ? `${numberFormat.format(asked.area)} م²` : '' }],
         deliveryCity: cityName,
         notes: [
           fromListing?.ask != null ? `عرض مثله معروض الآن بـ ${numberFormat.format(fromListing.ask)} ريال${PERIOD[asked.deal] ?? ''}.` : null,
