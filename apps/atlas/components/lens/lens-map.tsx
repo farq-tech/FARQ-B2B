@@ -305,15 +305,22 @@ function DistrictCard({ name, lines, at, top: ceiling, bottom: floor, onDetails,
   onDetails: () => void
   onClose: () => void
 }) {
+  const reduce = useReducedMotion()
   // above the click, centred on it; below it when the controls would cover it; always inside the part in view
   const width = Math.min(256, at.width - 16)
   const left = Math.min(Math.max(8, at.x - width / 2), at.width - width - 8)
   const height = 64 + lines.length * 22 + 36
-  const wanted = at.y - 12 - height >= ceiling ? at.y - 12 - height : at.y + 12
+  const above = at.y - 12 - height >= ceiling
+  const wanted = above ? at.y - 12 - height : at.y + 12
   const top = Math.max(ceiling, Math.min(wanted, floor - height))
   return (
-    <section aria-label={kind === 'district' ? `الحي ${name}` : `المنشأة ${name}`} className="absolute z-[7] flex flex-col gap-1.5 rounded-xl border bg-card/95 p-3 text-sm shadow-lg backdrop-blur"
-      style={{ left, width, top }}>
+    // the card answers the tap: it grows in from the edge nearest the click (scale + fade, so it reads the same in
+    // RTL). It plays once on open; later map moves only reposition it. Motion reduced: it is simply there.
+    <motion.section aria-label={kind === 'district' ? `الحي ${name}` : `المنشأة ${name}`} className="absolute z-[7] flex flex-col gap-1.5 rounded-xl border bg-card/95 p-3 text-sm shadow-lg backdrop-blur"
+      style={{ left, width, top, transformOrigin: above ? 'center bottom' : 'center top' }}
+      initial={reduce ? false : { opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: reduce ? 0 : DURATION.fast, ease: EASE }}>
       <div className="flex items-center gap-2">
         <h2 className="min-w-0 flex-1 truncate text-base font-bold">{name}</h2>
         <button onClick={onClose} aria-label="إغلاق" className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"><X className="size-4" aria-hidden /></button>
@@ -322,7 +329,7 @@ function DistrictCard({ name, lines, at, top: ceiling, bottom: floor, onDetails,
         <p key={line.label} className="text-muted-foreground">{line.label}: <span className="font-semibold text-foreground tabular-nums">{line.value}</span></p>
       ))}
       <button onClick={onDetails} className="mt-1 self-start rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/60">{kind === 'district' ? 'التفاصيل' : 'في القائمة'}</button>
-    </section>
+    </motion.section>
   )
 }
 
