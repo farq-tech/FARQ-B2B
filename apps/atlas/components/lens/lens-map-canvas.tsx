@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { PEEK_PX } from './map-sheet'
 import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
 import { boundsOf } from './map-bounds'
-import { cityFrame, framePadding } from './map-framing'
+import { cityFrame, framePadding, sheetCoverPx } from './map-framing'
 
 const STYLE_URL = 'mapbox://styles/mapbox/light-v11'
 const STYLE_JSON = 'https://api.mapbox.com/styles/v1/mapbox/light-v11'
@@ -87,6 +87,11 @@ export type MapPoint = { id: string; lon: number; lat: number; /** Its own colou
 /** A drawn area (a radius or a drive-time area) and the numbered site it belongs to. */
 export type Area = { id: string; color: string; geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon }
 export type Site = { id: string; label: string; color: string; lon: number; lat: number }
+/** A group of close businesses as a click on it gives it: its first GROUP_NAMES by id, how many, where, and a zoom that splits it. */
+export type BusinessGroup = { ids: string[]; count: number; lon: number; lat: number; expand: () => void }
+/** How many of a group's businesses its card names. */
+export const GROUP_NAMES = 8
+
 /** A business a list shows on the map: named beside its dot, lit while its row is pointed at, olive once it is in the request. */
 export type BusinessDot = { id: string; lon: number; lat: number; name: string; active?: boolean; inRequest?: boolean }
 
@@ -97,7 +102,7 @@ export type ListingDot = { id: string; lon: number; lat: number; color: string; 
 
 export { circlePolygon }
 
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, businesses, onBusiness, onBusinessHover, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName, hover, onPoint, cover = 0, peek = PEEK_PX, onDistrictClick, pin, onPin }: {
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, businesses, onBusiness, onBusinessHover, onBusinessGroup, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName, hover, onPoint, cover = 0, peek = PEEK_PX, onDistrictClick, pin, onPin }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -116,6 +121,8 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   businesses?: BusinessDot[] | null
   onBusiness?: ((id: string) => void) | null
   onBusinessHover?: ((id: string | null) => void) | null
+  /** A group of businesses was clicked: the first of them by id, how many it holds, where it is, and its way to come apart. */
+  onBusinessGroup?: ((group: BusinessGroup) => void) | null
   streets?: StreetLine[] | null
   onStreet?: ((id: string) => void) | null
   focus?: { lon: number; lat: number } | null
@@ -154,6 +161,8 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   openBusiness.current = onBusiness
   const hoverBusiness = useRef(onBusinessHover)
   hoverBusiness.current = onBusinessHover
+  const openGroup = useRef(onBusinessGroup)
+  openGroup.current = onBusinessGroup
   const point = useRef(onPoint)
   point.current = onPoint
   const reportBounds = useRef(onBounds)
@@ -164,11 +173,25 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   reportPin.current = onPin
   const sheetCover = useRef(cover)
   sheetCover.current = cover
+  // what the person can see of the map: on a phone the half sheet hides its foot, so a list that follows the map
+  // keeps only what is above the sheet (west, south, east, north)
+  const reportVisible = useRef(() => {})
+  reportVisible.current = () => {
+    const instance = map.current
+    if (!instance || !reportBounds.current) return
+    const box = instance.getContainer()
+    const hidden = sheetCoverPx({ height: box.clientHeight, phone: !window.matchMedia('(min-width: 64rem)').matches, cover: sheetCover.current, peek: sheetPeek.current })
+    const southWest = instance.unproject([0, Math.max(1, box.clientHeight - hidden)])
+    const northEast = instance.unproject([box.clientWidth, 0])
+    reportBounds.current([southWest.lng, southWest.lat, northEast.lng, northEast.lat])
+  }
   const sheetPeek = useRef(peek)
   sheetPeek.current = peek
   // the first city framing is instant (nothing is on screen yet); a city changed later is flown to
   const framed = useRef(false)
   const [ready, setReady] = useState(false)
+  // the sheet rising or falling changes what is seen without the map moving
+  useEffect(() => { if (ready) reportVisible.current() }, [ready, cover])
   // the map focused from the keyboard, and the district under its centre (the keyboard's pick)
   const [keyed, setKeyed] = useState(false)
   const [centre, setCentre] = useState<string | null>(null)
@@ -314,10 +337,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         }, paint: { 'text-color': PALETTE.ink, 'text-halo-color': PALETTE.white, 'text-halo-width': 2 } })
         instance.on('mousemove', 'business-dot', (event) => { const id = event.features?.[0]?.properties?.id; hoverBusiness.current?.(id == null ? null : String(id)) })
         instance.on('mouseleave', 'business-dot', () => hoverBusiness.current?.(null))
-        instance.on('moveend', () => {
-          const b = instance.getBounds()
-          if (b) reportBounds.current?.([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()])
-        })
+        instance.on('moveend', () => reportVisible.current())
         instance.on('click', (event) => {
           const [business] = instance.queryRenderedFeatures(event.point, { layers: ['business-dot'] })
           if (business && openBusiness.current) { openBusiness.current(String(business.properties?.id)); return }
@@ -326,7 +346,15 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
             // a group of businesses opens at the zoom where it comes apart
             const source = instance.getSource('businesses') as GeoJSONSource
             const centre = (group.geometry as GeoJSON.Point).coordinates as [number, number]
-            source.getClusterExpansionZoom(Number(group.properties?.cluster_id), (error, zoom) => instance.easeTo({ center: centre, zoom: error || zoom == null ? instance.getZoom() + 2 : zoom + 0.5 }))
+            const clusterId = Number(group.properties?.cluster_id)
+            const expand = () => source.getClusterExpansionZoom(clusterId, (error, zoom) => instance.easeTo({ center: centre, zoom: error || zoom == null ? instance.getZoom() + 2 : zoom + 0.5 }))
+            // with a card for groups, the group names its businesses first; without one it comes apart at once
+            if (!openGroup.current) { expand(); return }
+            const count = Number(group.properties?.point_count) || 0
+            source.getClusterLeaves(clusterId, GROUP_NAMES, 0, (error, leaves) => {
+              const ids = error || !leaves ? [] : leaves.map((leaf) => String(leaf.properties?.id))
+              openGroup.current?.({ ids, count, lon: centre[0], lat: centre[1], expand })
+            })
             return
           }
           const [listing] = instance.queryRenderedFeatures(event.point, { layers: ['listing-dot'] })

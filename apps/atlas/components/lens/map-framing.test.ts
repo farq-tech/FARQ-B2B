@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { cityFrame, framePadding } from './map-framing.ts'
+import { cityFrame, framePadding, sheetCoverPx } from './map-framing.ts'
 
 const square = (lon: number, lat: number, size = 0.02) => ({
   geometry: { coordinates: [[[lon, lat], [lon + size, lat], [lon + size, lat + size], [lon, lat + size], [lon, lat]]] },
@@ -39,4 +39,11 @@ test('the phone keeps the floating controls and the sheet clear, the desktop its
   assert.ok(half.top + half.bottom <= 676 * (2 / 3) + 1e-9)
   const desk = framePadding({ height: 836, width: 900, phone: false, cover: 0, peek: 136 })
   assert.deepEqual(desk, { top: 40, bottom: 104, left: 40, right: 40 })
+})
+
+test('a phone\'s half sheet hides the foot of the map; a peeking sheet and a wide screen hide nothing', () => {
+  assert.equal(sheetCoverPx({ height: 600, phone: true, cover: 0.5, peek: 136 }), 0.5 * 736 - 136)
+  assert.equal(sheetCoverPx({ height: 600, phone: true, cover: 0, peek: 136 }), 0)
+  assert.equal(sheetCoverPx({ height: 600, phone: false, cover: 0.5, peek: 136 }), 0)
+  assert.equal(sheetCoverPx({ height: 100, phone: true, cover: 0.1, peek: 136 }), 0, 'never negative')
 })
