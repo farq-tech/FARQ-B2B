@@ -81,6 +81,20 @@ export function priceHref(listing: Priceable): string | null {
   return href('/price', query)
 }
 
+/**
+ * The price estimate's own question for a listing (the same answers priceHref writes), or null where the price page
+ * could not price it: a listing card asks it to read the ad's price against the expected range.
+ */
+export function priceAsk(listing: Priceable): Record<string, string | number> | null {
+  if (!priceHref(listing)) return null
+  const age = ageBucket(listing.age)
+  const width = widthBucket(listing.street_width)
+  return {
+    city: listing.city, district_id: listing.district_id as string, deal: listing.deal as string, type: listing.type, area_sqm: Math.round(listing.area_sqm as number),
+    ...(age ? { age } : {}), ...(width ? { street_width: width } : {}), furnished: listing.features?.furnished === 1 ? 'yes' : 'no',
+  }
+}
+
 const LISTING_REF = /^[A-Za-z0-9_:.-]{1,60}$/
 /**
  * The listing a price page was opened from (`from`) and its asking price (`ask`), each checked; null without a well-formed
@@ -217,7 +231,7 @@ export function rememberView(path: string, search: string) {
 }
 
 /** Address parameters that belong to one visit: the request a map pick is added to, the listing open on «العقار». */
-const ONE_TIME = ['add', 'listing']
+const ONE_TIME = ['add', 'listing', 'close']
 
 const REQUEST_ID = /^[A-Za-z0-9_-]{1,60}$/
 /**

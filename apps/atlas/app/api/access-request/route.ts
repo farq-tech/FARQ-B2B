@@ -1,7 +1,7 @@
-import { createHmac } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { isTrustedAtlasRequest } from '@/lib/same-origin'
 import { accessRequestBody, validateAccessRequest, type AccessRequestInput } from '@/lib/access-request'
+import { allowed, clientAddress, targetingHeaders, targetingOrigin } from '@/lib/access-request-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,34 +12,16 @@ export const dynamic = 'force-dynamic'
  * GET /access-requests behind the console password). No email or message is sent to anyone and no account is created:
  * Farq reviews every request by hand. The contact details go to that store only and are never returned.
  *
+ * The answer is the same «received» whether the request was stored or the same contact already has one open (the
+ * service keeps one): no one can learn from it whether a contact has asked before.
+ *
  * Against spam: a hidden field people never fill (the request is then dropped while answering «received»), at most
- * WINDOW_MAX requests per address per hour on this server, and the service's own daily cap and one-per-contact-a-day.
+ * 5 requests per address per hour on this server (lib/access-request-server.ts), and the service's own daily cap.
  */
-const WINDOW_MS = 60 * 60 * 1000
-const WINDOW_MAX = 5
 const MAX_BODY_BYTES = 4 * 1024
-const hits = new Map<string, number[]>()
-
-function targetingHeaders() {
-  const serviceToken = process.env.TARGETING_SERVICE_TOKEN
-  if (serviceToken) return { 'content-type': 'application/json', 'x-farq-service': serviceToken }
-  const password = process.env.TARGETING_PASSWORD
-  if (!password) return null
-  return { 'content-type': 'application/json', 'x-farq-service': createHmac('sha256', password).update('farq-proxy-v1').digest('hex') }
-}
 
 function answer(body: Record<string, unknown>, status: number) {
   return NextResponse.json(body, { status, headers: { 'cache-control': 'no-store' } })
-}
-
-/** Whether this address may send another request now (and counts this one). */
-function allowed(address: string, now = Date.now()) {
-  const recent = (hits.get(address) ?? []).filter((time) => now - time < WINDOW_MS)
-  if (recent.length >= WINDOW_MAX) { hits.set(address, recent); return false }
-  recent.push(now)
-  hits.set(address, recent)
-  if (hits.size > 5000) for (const [key, times] of hits) if (!times.some((time) => now - time < WINDOW_MS)) hits.delete(key)
-  return true
 }
 
 export async function POST(request: NextRequest) {
@@ -51,12 +33,11 @@ export async function POST(request: NextRequest) {
   if (!body || typeof body !== 'object') return answer({ error: 'بيانات الطلب غير صالحة.' }, 400)
   // the hidden field: a person never sees it, a form-filling script does. It is told «received» and nothing is kept.
   if (typeof body.website === 'string' && body.website.trim()) return answer({ ok: true }, 200)
-  const address = (request.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown'
-  if (!allowed(address)) return answer({ error: 'وصلنا طلبات كثيرة من هذا الجهاز. أعد المحاولة بعد ساعة.' }, 429)
+  if (!allowed(clientAddress(request), 'request')) return answer({ error: 'وصلنا طلبات كثيرة من هذا الجهاز. أعد المحاولة بعد ساعة.' }, 429)
 
   const errors = validateAccessRequest(body)
   if (Object.keys(errors).length) return answer({ error: 'راجع الحقول المعلّمة.', fields: errors }, 400)
-  const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
+  const origin = targetingOrigin()
   const headers = targetingHeaders()
   if (!origin || !headers) return answer({ error: 'استقبال الطلبات غير مهيأ الآن. أعد المحاولة لاحقاً.' }, 503)
   const next = typeof body.next === 'string' ? body.next : null
@@ -67,9 +48,9 @@ export async function POST(request: NextRequest) {
       method: 'POST', headers, cache: 'no-store', signal: controller.signal,
       body: JSON.stringify(accessRequestBody(body as unknown as AccessRequestInput, next)),
     })
-    const result = await upstream.json().catch(() => null) as { ok?: unknown; duplicate?: unknown; fields?: Record<string, unknown> } | null
-    // the same contact with a request still under review: nothing new is stored, and the person is told so
-    if (upstream.ok && result?.ok === true) return answer(result.duplicate === true ? { ok: true, duplicate: true } : { ok: true }, 200)
+    const result = await upstream.json().catch(() => null) as { ok?: unknown; fields?: Record<string, unknown> } | null
+    // stored, or a repeat of an open request: the same answer, nothing else passed on
+    if (upstream.ok && result?.ok === true) return answer({ ok: true }, 200)
     if (upstream.status === 400 && result?.fields && 'city' in result.fields) return answer({ error: 'راجع الحقول المعلّمة.', fields: { city: 'اختر مدينتك من القائمة.' } }, 400)
     if (upstream.status === 429) return answer({ error: 'استقبال الطلبات ممتلئ اليوم. أعد المحاولة غداً.' }, 429)
     return answer({ error: 'تعذر حفظ طلبك الآن. أعد المحاولة بعد قليل.' }, 502)

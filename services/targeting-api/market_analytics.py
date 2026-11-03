@@ -83,14 +83,20 @@ GAP_WORKERS_MALE_PCT = 90.0
 # half of the district's area. Al Khobar's الظهران (242,901 people from 23% of its cells) led every activity's gap
 # list on a guess; الدرة (48%) is the only other district under the line in the cities measured (2026-11-03).
 GAP_LOW_COVERAGE_PCT = 50.0
+# A fourth, from the atlas name: a closed campus with its own services inside («جامعة الملك فهد للبترول» in Al Khobar,
+# 31,805 people and one pharmacy, second in every gap list). Only a name that starts with the word, so a residential
+# district called «الجامعة» (Jeddah) stays ordinary.
+GAP_CAMPUS_PREFIX = ("جامعة ", "قاعدة ")
 
 
 def gap_caveat(district_ar, male_pct, method=None, coverage_pct=None):
-    """«industrial», «workers», «estimated» or None: why a district's shortfall is not a plain residential one."""
+    """«industrial», «workers», «campus», «estimated» or None: why a district's shortfall is not a plain residential one."""
     if any(token in (district_ar or "") for token in GAP_INDUSTRIAL_NAME):
         return "industrial"
     if male_pct is not None and male_pct >= GAP_WORKERS_MALE_PCT:
         return "workers"
+    if (district_ar or "").strip().startswith(GAP_CAMPUS_PREFIX):
+        return "campus"
     if method == "grid" and coverage_pct is not None and coverage_pct < GAP_LOW_COVERAGE_PCT:
         return "estimated"
     return None

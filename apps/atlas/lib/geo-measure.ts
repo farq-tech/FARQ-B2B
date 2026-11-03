@@ -93,6 +93,15 @@ export function neighbourMap(features: { id: string; geometry: DistrictFeature['
   return out
 }
 
+/** The centre of a district's outline (its bounding box's), for the distance between two neighbours. */
+export function outlineCentre(geometry: DistrictFeature['geometry']): { lon: number; lat: number } | null {
+  const points = outerRings(geometry).flat()
+  if (!points.length) return null
+  const lons = points.map((p) => p[0])
+  const lats = points.map((p) => p[1])
+  return { lon: (Math.min(...lons) + Math.max(...lons)) / 2, lat: (Math.min(...lats) + Math.max(...lats)) / 2 }
+}
+
 function outerRings(geometry: DistrictFeature['geometry']): number[][][] {
   if (geometry?.type === 'Polygon') return [geometry.coordinates[0] as number[][]]
   if (geometry?.type === 'MultiPolygon') return (geometry.coordinates as number[][][][]).map((polygon) => polygon[0])

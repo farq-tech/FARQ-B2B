@@ -9,14 +9,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { requestBusiness } from '@/lib/business-name'
 import { formatDateTime, formatSar } from '@/lib/format'
 import { cityKey, mapHref } from '@/lib/handoff'
-import { kindNote, requestFor } from '@/lib/inbox-feed'
+import { kindNote, replyWindow, requestFor } from '@/lib/inbox-feed'
 import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import type { InboxMessage } from '@/lib/types'
 import { SourceLabel } from './source-label'
 
 export function MessageDetail({ message }: { message: InboxMessage }) {
-  const { requests, markRead, updateMessage } = useAppStore()
+  const { requests, inbox, markRead, updateMessage } = useAppStore()
   const [draft, setDraft] = useState(message.replyDraft ?? '')
   const [saved, setSaved] = useState(false)
   const cities = useCities()
@@ -25,6 +25,10 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
   const b = requestBusiness(message.businessId, request)
   const name = b.name ?? 'غير متاح'
   const note = kindNote(message.kind)
+  // WhatsApp's 24 hours for a free reply, from this business's latest message on the request: information only, since
+  // Atlas sends no reply from the inbox
+  const [now] = useState(() => Date.now())
+  const window24 = replyWindow(inbox, message, now)
   const total = message.quote?.lines.reduce((s, l) => s + l.unitPrice * l.qty, 0) ?? 0
 
   return (
@@ -46,6 +50,13 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
         {/* a photo, a voice note or a file is named, not shown: Atlas keeps only the words of a reply */}
         {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
         {message.body.trim() ? <blockquote className="whitespace-pre-line rounded-2xl rounded-ss-sm bg-muted px-4 py-3 text-base leading-7">{message.body}</blockquote> : null}
+        {window24 ? (
+          <p className="text-xs text-muted-foreground">
+            {window24.open
+              ? `يمكن الرد على هذه المنشأة في واتساب حتى ${formatDateTime(window24.until)}. الرد يكون من واتساب، لا من أطلس.`
+              : `انتهت في ${formatDateTime(window24.until)} مدة الـ24 ساعة للرد الحر في واتساب؛ أي رسالة جديدة تحتاج رسالة معتمدة.`}
+          </p>
+        ) : null}
       </figure>
 
       {message.quote ? (

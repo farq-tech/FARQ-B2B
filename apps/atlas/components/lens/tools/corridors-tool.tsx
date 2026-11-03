@@ -19,7 +19,7 @@ import { useMainActivities } from '@/lib/main-activities'
 import { StreetOpportunities } from './street-opportunities'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
-import { corridorVerdict } from './tool-answers'
+import { corridorVerdict, oversizedShop } from './tool-answers'
 import { Examples } from './examples'
 import { Verdict } from './verdict'
 import { corridorFacts } from './district-facts'
@@ -196,7 +196,7 @@ export function CorridorsTool({ city, rows = [], onOverlay, next }: {
                   <Explained title={`${corridor.street_ar} · ${corridor.sub_ar}`} lines={EXPLAIN.corridor(corridor)} className="text-end">
                     <span>
                       <span className="block font-bold text-primary">{counted(corridor.n, 'shop')}</span>
-                      <span className="block text-sm text-muted-foreground">{numberFormat.format(corridor.per_100m)} لكل 100 م</span>
+                      <span className="block text-sm text-muted-foreground">{numberFormat.format(Math.round(corridor.per_100m * 10) / 10)} لكل 100 م</span>
                     </span>
                   </Explained>
                 )} />
@@ -230,7 +230,7 @@ function StreetUnits({ street, units, onOpen, onRetry }: { street: string; units
             {units.listings.slice(0, limit).map((item) => (
               <ResultRow key={item.id} onClick={() => onOpen(item)}
                 title={`${typeLabel(item.type)}${item.kind === 'sale' ? ' للبيع' : item.kind === 'rent' ? ' للإيجار' : ''}`}
-                sub={`${item.area_sqm != null ? `${numberFormat.format(item.area_sqm)} م²` : 'المساحة غير متاحة'}${item.distance_m != null ? ` · ${formatDistance(item.distance_m)} من الشارع` : ''}`}
+                sub={`${item.area_sqm != null ? `${numberFormat.format(item.area_sqm)} م²` : 'المساحة غير متاحة'}${item.distance_m != null ? ` · ${formatDistance(item.distance_m)} من الشارع` : ''}${oversizedShop(item.type, item.area_sqm) ? ` · ${oversizedShop(item.type, item.area_sqm)}` : ''}`}
                 value={<span className="text-sm">{priceLine(item)}</span>} />
             ))}
           </ol>

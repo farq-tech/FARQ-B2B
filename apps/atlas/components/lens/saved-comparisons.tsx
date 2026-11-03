@@ -18,7 +18,7 @@ import { trackComparisonSaved } from '@/lib/commercial-metrics'
  * worked out again from today's numbers. No figure is stored, nothing is exported; a saved comparison is shared by
  * its link inside the platform («انسخ الرابط»).
  */
-export function SavedComparisons({ city, cityName, districts, here, onOpen, sites }: {
+export function SavedComparisons({ city, cityName, districts, here, onOpen, sites, detail }: {
   city: string
   cityName: string
   /** The two districts on screen, by name; fewer than two and there is nothing to save yet. */
@@ -29,10 +29,12 @@ export function SavedComparisons({ city, cityName, districts, here, onOpen, site
   onOpen: (href: string) => void
   /** Saves the shop owner's candidate sites instead (two or three, named «الموقع 1 في …»), with `kind: 'sites'`. */
   sites?: string[]
+  /** What the sites were measured with (their reach, the activity), added to the name offered and shown in the list. */
+  detail?: string
 }) {
   const { views, saveComparison } = useAppStore()
   const names = sites ?? districts
-  const offered = defaultName(names)
+  const offered = detail ? `${defaultName(names)} · ${detail}` : defaultName(names)
   const [name, setName] = useState<string | null>(null)
   const typed = name ?? offered
   const current = safeMapOrigin(here())
@@ -43,7 +45,7 @@ export function SavedComparisons({ city, cityName, districts, here, onOpen, site
     const href = safeMapOrigin(here())
     const clean = cleanName(typed) || offered
     if (!href || !clean) return
-    saveComparison({ id: makeId('cmpv'), name: clean, href, city, cityName, districts: names, createdAt: new Date().toISOString(), ...(sites ? { kind: 'sites' as const } : {}) })
+    saveComparison({ id: makeId('cmpv'), name: clean, href, city, cityName, districts: names, createdAt: new Date().toISOString(), ...(sites ? { kind: 'sites' as const } : {}), ...(detail ? { detail } : {}) })
     setName(null)
     trackComparisonSaved({ city, saved: views.length + (saved ? 0 : 1) })
     toast.success(`حُفظت «${clean}»`, { description: 'تجدها هنا في «المقارنات المحفوظة»، وتُحسب من أرقام اليوم كلما فتحتها.' })
@@ -116,7 +118,7 @@ export function SavedList({ current = null, onOpen, hideEmpty = false, heading =
             const look = 'flex min-w-0 flex-1 flex-col text-start outline-none focus-visible:ring-2 focus-visible:ring-ring'
             const body = <>
               <span className="truncate font-semibold">{view.name}</span>
-              <span className="truncate text-xs text-muted-foreground">{view.cityName} · {view.districts.join('، ')} · {formatDate(view.createdAt)}</span>
+              <span className="truncate text-xs text-muted-foreground">{view.cityName} · {view.districts.join('، ')}{view.detail ? ` · ${view.detail}` : ''} · {formatDate(view.createdAt)}</span>
               {/* where it is kept: in the account (opens on any device once signed in) or on this device only */}
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 {view.synced

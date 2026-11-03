@@ -8,7 +8,14 @@ import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat } from '@/lib/insights-api'
 import { FEATURES, LISTING_TYPES, shownPhotos, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
-import { loginHref, priceHref } from '@/lib/handoff'
+import { loginHref, priceAsk, priceHref } from '@/lib/handoff'
+import { askVsRange } from '@/lib/ask-vs-range'
+import { ESTIMATE_CACHE, estimateKey, keepEstimate } from '@/lib/estimate-key'
+import { postMarket, useCities } from '@/lib/insights-api'
+import { useAnswer } from './tools/use-answer'
+import { OfficesRequest, VALUERS } from '@/components/shared/offices-request'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Chip } from '@/components/ui/chip'
 import { requestAccessHref } from '@/lib/access-request'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
 import { Lightbox } from '@/components/shared/lightbox'
@@ -155,6 +162,14 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
   const photos = shownPhotos(listing)
   // «is this price right?»: the price page with this listing's own facts as the answers (null when it cannot price it)
   const priced = priceHref(listing)
+  // the ad's price read against what Atlas expects for the same answers (the price page's estimate), asked once per listing
+  const ask = listing.check || listing.price_sar == null ? null : priceAsk(listing)
+  // one cache with «سعّر عقارك» (lib/estimate-key.ts): the price page opened from this card shows the same estimate at once
+  const estimate = useAnswer<{ available: boolean; price?: { low: number; mid: number; high: number } }>(ask ? estimateKey(ask) : null,
+    () => postMarket('price-estimate', ask!), { cache: ESTIMATE_CACHE, keep: keepEstimate })
+  const versusExpected = estimate.data?.available && estimate.data.price ? askVsRange(listing.price_sar, estimate.data.price) : null
+  const cities = useCities()
+  const cityName = cities.find((item) => item.en === listing.city)?.ar || listing.city
   // what the property has, as the ad's form records it; what it lacks shows in the comparison
   const has = FEATURES.filter(([key]) => listing.features?.[key] === 1).map(([, label]) => label)
   const listed = daysAgo(listing.listed_on)
@@ -222,13 +237,37 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
           <ChevronDown className={cn('size-4 transition-transform', around && 'rotate-180')} aria-hidden />
         </button>
         {around && <ListingSurroundings listing={listing} myPoint={myPoint} density={density} />}
+        {/* against the expected price: the line from the two figures, «غير متاح» without an estimate, a retry when it failed */}
+        {ask && (
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm" aria-live="polite">
+            <span className="text-muted-foreground">مقارنة بالسعر المتوقع:</span>
+            {estimate.status === 'loading' ? <Skeleton className="h-4 w-28" aria-label="جارٍ حساب السعر المتوقع" />
+              : estimate.status === 'error' ? <>تعذّر التحميل <Chip onClick={estimate.retry}>أعد المحاولة</Chip></>
+                : versusExpected ? <Explained title="مقارنة بالسعر المتوقع" lines={EXPLAIN.listingVersusExpected(estimate.data!.price!.low, estimate.data!.price!.high)}
+                  className={cn('font-semibold', versusExpected.tone === 'inside' ? '' : versusExpected.tone === 'below' ? 'text-primary' : 'text-warning')}>{versusExpected.text}</Explained>
+                  : <span className="text-muted-foreground">غير متاح</span>}
+          </div>
+        )}
         {/* the next questions about this listing, each opening its page on this listing's own facts */}
+        {/* a listing the price page cannot price (a shop, an office): «like this» goes straight to the district's offices,
+            in a reviewed draft that names this listing and its asking price */}
+        {!priced && listing.deal && listing.deal !== 'rent_unstated' && listing.district_ar && (
+          <OfficesRequest compact className="" cityName={cityName}
+            asked={{ city: listing.city, districtName: listing.district_ar, deal: listing.deal, kind: listing.type, area: listing.area_sqm ? Math.round(listing.area_sqm) : null }}
+            fromListing={{ id: listing.id, ask: listing.price_sar }} />
+        )}
         {(priced || districtHref) && (
           <div className="flex flex-wrap gap-x-3 gap-y-1">
             {priced && (
               <Link href={priced} className="inline-flex items-center gap-1.5 rounded-lg py-1 text-sm font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11">
                 <Calculator className="size-4" aria-hidden />سعّر عقاراً مثله
               </Link>
+            )}
+            {/* a sale is valued: the district's valuers, in a draft that names this listing (reviewed, never sent by itself) */}
+            {listing.kind === 'sale' && priced && listing.district_ar && listing.area_sqm && (
+              <OfficesRequest compact to={VALUERS} className="" cityName={cityName}
+                asked={{ city: listing.city, districtName: listing.district_ar, deal: 'sale', kind: listing.type, area: Math.round(listing.area_sqm) }}
+                price={estimate.data?.available ? estimate.data.price?.mid : undefined} fromListing={{ id: listing.id, ask: listing.price_sar }} />
             )}
             {districtHref && listing.district_ar && (
               <Link href={districtHref} className="inline-flex items-center gap-1.5 rounded-lg py-1 text-sm font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11">

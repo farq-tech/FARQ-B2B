@@ -21,6 +21,8 @@ export type SavedView = {
   kind?: 'sites'
   /** Kept in the signed-in account as well (lib/saved-views.ts mergeSavedViews); absent while on this device only. */
   synced?: boolean
+  /** What a site comparison was measured with, in words: its reach and its activity («10 د بالسيارة · صيدلية»). */
+  detail?: string
 }
 
 const MAX_NAME = 80
@@ -44,7 +46,8 @@ export function readView(value: unknown): SavedView | null {
     || !Array.isArray(view.districts) || !view.districts.every((name) => typeof name === 'string') || typeof view.createdAt !== 'string') return null
   const name = cleanName(view.name)
   if (!name) return null
-  const clean: SavedView = { id: view.id, name, href, city: view.city, cityName: view.cityName, districts: view.districts.slice(0, 12), createdAt: view.createdAt, ...(view.kind === 'sites' ? { kind: 'sites' as const } : {}) }
+  const clean: SavedView = { id: view.id, name, href, city: view.city, cityName: view.cityName, districts: view.districts.slice(0, 12), createdAt: view.createdAt, ...(view.kind === 'sites' ? { kind: 'sites' as const } : {}),
+    ...(typeof view.detail === 'string' && cleanName(view.detail) ? { detail: cleanName(view.detail) } : {}) }
   return view.synced === true ? { ...clean, synced: true } : clean
 }
 

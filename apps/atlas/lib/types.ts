@@ -156,6 +156,8 @@ export interface CampaignDetails {
   included: string[]
   /** Per-directory-recipient result from the WhatsApp Cloud API. */
   delivery?: Record<string, 'sent' | 'failed' | 'unknown'>
+  /** Recipients a follow-up left unticked, and why (they answered another campaign); the person may tick them at review. */
+  heldBack?: Record<string, 'replied_elsewhere'>
 }
 
 export interface RequestItem {
@@ -183,6 +185,8 @@ export interface RequestItem {
   origin?: string
   /** Inbox message id of the accepted quote. */
   acceptedQuoteId?: string
+  /** The campaign this draft follows up: made from its recipients who had not replied (reviewed and sent like any other). */
+  followUpOf?: string
 }
 
 export interface Template {

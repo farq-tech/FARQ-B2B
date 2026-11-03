@@ -9,6 +9,10 @@ import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { groupLabel } from '@/lib/real-estate'
 import { RELIABLE_LISTINGS } from './lenses'
+import { THIN } from './tools/tool-answers'
+
+/** «مأهول في 42% من مساحته»: one district its population grid settles under half of (golden settled_pct). */
+const settledNote = (row: DistrictRow | null | undefined) => (row?.settledPct != null && row.settledPct < THIN.sparse ? `مأهول في ${numberFormat.format(row.settledPct)}% من مساحته` : null)
 import { sumKnown, sumOf, type CityTable, type DistrictRow } from './city-data'
 import type { LensId } from './lenses'
 import { Icon3D } from '@/components/shared/icon-3d'
@@ -66,7 +70,7 @@ function Figure({ label, short, value, note, explain, pending }: FigureSpec) {
 }
 
 /** The one summary card: the city when nothing is selected, else the selected districts with every figure once. */
-export function DistrictPanel({ city, cityName, lens, rows, selected, total, onClear, failed = [], pending = [] }: {
+export function DistrictPanel({ city, cityName, lens, rows, selected, total, onClear, failed = [], pending = [], onRentals }: {
   city: string
   cityName: string
   lens: LensId
@@ -77,6 +81,8 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
   /** The city's tables that failed to load, and those being asked again: their figures say so instead of «غير متاح». */
   failed?: readonly CityTable[]
   pending?: readonly CityTable[]
+  /** Opens the journey's own rentals step on a district (shop owners), instead of a link out to «العقار». */
+  onRentals?: (id: string) => void
 }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   // the profile's figures (sex, nationality, ages) are «غير متاح» only once it has answered or failed, not while asked
@@ -127,7 +133,7 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
   const pairedNote = !single && paired.length && paired.length < scope.length ? coverage({ known: paired.length, of: scope.length }) : null
   const asking = Boolean(single) && !profileDone
   const figures: [FigureKey, FigureSpec | false | null][] = [
-    ['population', { label: 'السكان', value: show(people), note: coverage(peopleSum), explain: [...EXPLAIN.population(scope.filter((row) => row.population != null).map((row) => row.populationSource), people), ...coverageLine(peopleSum)] }],
+    ['population', { label: 'السكان', value: show(people), note: coverage(peopleSum) ?? settledNote(single), explain: [...EXPLAIN.population(scope.filter((row) => row.population != null).map((row) => row.populationSource), people), ...coverageLine(peopleSum)] }],
     ['businesses', { label: 'المنشآت', value: show(businesses), explain: EXPLAIN.businesses(scopeKind) }],
     ['perBusiness', lens !== 'distributors' && { label: 'ساكن لكل منشأة', value: show(perBusiness), note: pairedNote,
       explain: single ? EXPLAIN.residentsPerBusiness(people, businesses) : EXPLAIN.residentsPerBusiness(paired.length ? pairedPeople : null, paired.length ? pairedBusinesses : null) }],
@@ -245,7 +251,13 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
         </div>
       )}
       {/* the prices above lead to the listings behind them: «العقار» opens on this district (a shop owner on shops) */}
-      {single && (
+      {single && onRentals && (
+        <button type="button" onClick={() => onRentals(single.id)}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg py-1 text-sm font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11">
+          <Building2 className="size-4" aria-hidden />محلات للإيجار في {single.name}
+        </button>
+      )}
+      {single && !onRentals && (
         <Link href={homesHref({ city, districts: [single.id], ...(lens === 'shops' ? { types: ['store'] } : {}) })}
           className="mt-3 inline-flex items-center gap-1.5 rounded-lg py-1 text-sm font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11">
           <Building2 className="size-4" aria-hidden />{lens === 'shops' ? 'محلات للإيجار' : 'عروض العقار'} في {single.name}

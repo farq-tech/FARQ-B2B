@@ -40,6 +40,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get('FARQ_TARGETING_DATA_DIR', os.path.join(HERE, 'data'))
 RUNTIME_DIR = os.environ.get('FARQ_TARGETING_RUNTIME_DIR', os.path.join(HERE, 'data'))
 AUX_DATA_DIR = os.environ.get('FARQ_TARGETING_AUX_DATA_DIR', DATA_DIR)
+# when the mounted snapshot was built, sent with every answer (X-Data-Version) so a client's kept answers know the
+# data under them changed (snapshot_version.py); fixed while this process serves the snapshot
+from snapshot_version import snapshot_version
+SNAPSHOT_VERSION = snapshot_version(DATA_DIR)
 # The mounted snapshot is served through a canonical copy (one spelling per city and district, see
 # canonical_data.py) written to scratch space; the mounted volume itself is never modified.
 import canonical_data, district_reference, golden, input_upload, price_estimate, tempfile, district_metrics, access_requests
@@ -927,11 +931,21 @@ def _poll_construction_inbox():
     import wa_construction_source
     source = wa_construction_source.postgres_source(DB_URL)
     every = max(30, int(os.environ.get('FARQ_INBOX_POLL_SECONDS') or 60))
+    # a quiet success used to log nothing, so «it works» could not be told from «it never ran»: the first success says
+    # so, then one heartbeat an hour with the polls and rows of that hour
+    beat = {'first': True, 'at': time.time(), 'polls': 0, 'read': 0, 'new': 0}
     while True:
         try:
             result = source.poll(INBOX)
             INBOX.record_poll('construction_db', True, counts=result)
-            if result['new'] or result['statuses']: LOGGER.info('inbox_construction_poll %s', json.dumps(result))
+            beat['polls'] += 1; beat['read'] += result.get('read', 0); beat['new'] += result.get('new', 0)
+            if beat['first']:
+                beat['first'] = False
+                LOGGER.info('inbox_construction_poll first_ok %s', json.dumps(result))
+            elif result['new'] or result['statuses']: LOGGER.info('inbox_construction_poll %s', json.dumps(result))
+            if time.time() - beat['at'] >= 3600:
+                LOGGER.info('inbox_construction_poll heartbeat polls=%s read=%s new=%s', beat['polls'], beat['read'], beat['new'])
+                beat.update(at=time.time(), polls=0, read=0, new=0)
         except Exception as error:
             kind = type(error).__name__
             try: failures = INBOX.record_poll('construction_db', False, kind)
@@ -943,10 +957,34 @@ def _poll_construction_inbox():
         time.sleep(every)
 
 INBOX_SOURCE_STATE = {'running': False}
+def _watch_inbox_source():
+    """Raises `ALERT inbox_source_stale` when the source has had no success for 10 minutes, also when its poll hangs
+    and so records no failure; again every 30 minutes while stale; and says when it recovers. Counts only."""
+    watch = wa_inbox.StalenessWatch(started_at=int(time.time()))
+    while True:
+        time.sleep(60)
+        try:
+            last_ok, failures = INBOX.health_epochs('construction_db')
+            event = watch.check(last_ok, int(time.time()))
+            if event and event['event'] == 'stale':
+                LOGGER.error('ALERT inbox_source_stale source=construction_db age_seconds=%s never_succeeded=%s failures_in_row=%s',
+                             event['age_seconds'], event['never_succeeded'], failures)
+            elif event:
+                LOGGER.info('inbox_source_recovered source=construction_db')
+        except Exception as error:
+            LOGGER.warning('inbox_source_watch failed: %s', type(error).__name__)
+
+def inbox_metric_lines():
+    """The reply source's gauges for /metrics (wa_inbox.prometheus_lines); none when no source reads the database."""
+    if INBOX_SOURCE != 'construction_db': return []
+    last_ok, failures = INBOX.health_epochs('construction_db')
+    return wa_inbox.prometheus_lines('construction_db', last_ok, failures, int(time.time()), INBOX_SOURCE_STATE['running'])
+
 def start_inbox_source():
     if INBOX_SOURCE == 'construction_db' and DB_URL and not read_only_test.enabled():
         INBOX_SOURCE_STATE['running'] = True
         threading.Thread(target=_poll_construction_inbox, daemon=True, name='inbox-construction').start()
+        threading.Thread(target=_watch_inbox_source, daemon=True, name='inbox-watch').start()
         return 'construction_db'
     return 'webhook' if webhook_enabled() else 'off'
 def graph(path, body=None, method=None):
@@ -1023,7 +1061,7 @@ def _send_template(body):
     message_id = (r.get('messages') or [{}])[0].get('id')
     if ok and body.get('atlas_campaign') is True and message_id:
         # the Atlas account and request this message belongs to, so its reply reaches that account's inbox
-        try: INBOX.record_outbound(message_id, body.get('account_id'), body.get('request_id'), row['poi_key'], to, sender_id=body.get('sender_id'), request_title=body.get('request_title'))
+        try: INBOX.record_outbound(message_id, body.get('account_id'), body.get('request_id'), row['poi_key'], to, sender_id=body.get('sender_id'), request_title=body.get('request_title'), follow_up_of=body.get('follow_up_of'))
         except Exception as error: LOGGER.warning('wa_inbox outbound not recorded: %s', type(error).__name__)
     with open(os.path.join(HERE, 'data', 'wa_template_log.jsonl'), 'a', encoding='utf-8') as f:
         f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'to': status_policy.mask(to), 'poi_key': row['poi_key'], 'template': name, 'ok': ok, 'error_code': (r.get('error') or {}).get('code')}, ensure_ascii=False) + '\n')
@@ -1147,7 +1185,9 @@ class H(BaseHTTPRequestHandler):
         return (self.headers.get('X-Forwarded-For') or self.client_address[0]).split(',')[0].strip()
     def _json(self, obj, code=200):
         b = json.dumps(obj, ensure_ascii=False, default=str).encode()
-        self.send_response(code); self.send_header('Content-Type', 'application/json; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+        self.send_response(code); self.send_header('Content-Type', 'application/json; charset=utf-8'); self.send_header('Content-Length', str(len(b)))
+        if SNAPSHOT_VERSION: self.send_header('X-Data-Version', SNAPSHOT_VERSION)
+        self.end_headers(); self.wfile.write(b)
     def log_message(self, *a): pass
     def do_GET(self):
         route=urllib.parse.urlparse(self.path)
@@ -1166,6 +1206,12 @@ class H(BaseHTTPRequestHandler):
         if route.path == '/metrics':
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
             body = METRICS.render_prometheus()
+            try:
+                extra = inbox_metric_lines()
+                if extra: body += ('\n'.join(extra) + '\n').encode()
+            except Exception: pass   # the HTTP metrics stay readable whatever the inbox store does
+            try: body += ('\n'.join(access_requests.metric_lines(RUNTIME_DIR)) + '\n').encode()
+            except Exception: pass   # nor does the account-request store break them
             self.send_response(200); self.send_header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8'); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body); return
         if route.path=="/districts":
             # official district outlines (MOMRAH atlas, 6 cities) for the map's district picker (owner 2026-10-16)
@@ -1242,7 +1288,8 @@ class H(BaseHTTPRequestHandler):
             if not account: self._json({'error': 'INPUT'}, 400); return
             try: since = int(query.get('since', ['0'])[0] or 0)
             except ValueError: self._json({'error': 'INPUT'}, 400); return
-            try: self._json({'ok': True, **INBOX.feed(account, since)})
+            # replies, delivery states, and per request: reached, replied, median reply time; replied elsewhere (wa_inbox)
+            try: self._json({'ok': True, **INBOX.feed(account, since), **INBOX.reply_stats(account)})
             except Exception as error:
                 log_map_api_failure('inbox', error)
                 self._json({'ok': False, 'error': 'UNAVAILABLE'}, 503)
@@ -1254,9 +1301,15 @@ class H(BaseHTTPRequestHandler):
             # the owner's list of «اطلب حساباً» requests (access_requests.py): the console login only, never the service token
             if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
             query = urllib.parse.parse_qs(route.query)
-            saved = 'حُذفت بيانات التواصل.' if query.get('redacted') == ['1'] else 'حُفظ القرار.' if query.get('saved') == ['1'] else ''
+            notices = {'redacted': 'حُذفت بيانات التواصل.', 'person': 'حُذفت كل بيانات هذا الشخص، وحُذف طلب الحذف.',
+                       'confirmed': 'حُفظت علامة التأكد.', 'saved': 'حُفظ القرار.'}
+            saved = next((text for key, text in notices.items() if query.get(key) == ['1']), '')
             access_requests.apply_retention(RUNTIME_DIR)   # details past the retention period are emptied before anyone sees them
-            b = access_requests.render_html(access_requests.with_reviews(RUNTIME_DIR), saved=saved, status=query.get('status', ['all'])[0]).encode()
+            try: names = {row['en']: row['ar'] for row in cities() if row.get('ar')}
+            except Exception: names = {}
+            b = access_requests.render_html(access_requests.with_reviews(RUNTIME_DIR), saved=saved, status=query.get('status', ['all'])[0],
+                                            query=query.get('q', [''])[0], city_names=names, flag=query.get('flag', [''])[0],
+                                            page=query.get('page', ['1'])[0]).encode()
             self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Cache-Control', 'no-store'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
         elif route.path == '/access-requests/count':
             # the console's badge: how many requests wait for a decision (a number only, no contact)
@@ -1317,17 +1370,22 @@ class H(BaseHTTPRequestHandler):
                 'message': 'بيئة الاختبار للقراءة فقط: لا يتم إرسال رسائل أو حفظ تغييرات أو الاتصال بميتا.',
             }, 403)
             return
-        if self.path in ('/access-requests/review', '/access-requests/redact'):
+        if self.path in ('/access-requests/review', '/access-requests/redact', '/access-requests/deletion-confirm', '/access-requests/redact-person'):
             # the owner's decision on a request, or removing its personal details on the person's request, from the
             # list's own forms (console login only; the cookie is SameSite=Strict)
             if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
             form = urllib.parse.parse_qs(raw.decode(errors='replace'), keep_blank_values=True)
             field = lambda name: form.get(name, [''])[0]
-            if self.path.endswith('/review'):
+            action = self.path.rsplit('/', 1)[-1]
+            if action == 'review':
                 status, answer = access_requests.review(RUNTIME_DIR, field('id'), field('status'), field('note')); done = 'saved'
-            else:
+            elif action == 'redact':
                 status, answer = access_requests.redact(RUNTIME_DIR, field('id')); done = 'redacted'
-            LOGGER.info('access_request_%s status=%s', 'review' if done == 'saved' else 'redact', status)
+            elif action == 'deletion-confirm':
+                status, answer = access_requests.confirm_deletion(RUNTIME_DIR, field('id'), field('confirmed') == '1'); done = 'confirmed'
+            else:
+                status, answer = access_requests.redact_person(RUNTIME_DIR, field('id')); done = 'person'
+            LOGGER.info('access_request_%s status=%s', action.replace('-', '_'), status)
             if status != 200: self._json(answer, status); return
             back = field('back') if field('back') in access_requests.FILTERS else 'all'
             self.send_response(303); self.send_header('Location', f'/access-requests?status={back}&{done}=1'); self.end_headers(); return
@@ -1351,6 +1409,11 @@ class H(BaseHTTPRequestHandler):
             except Exception as error:
                 log_map_api_failure('map-context', error)
                 self._json({'error':'UNAVAILABLE'},503)
+        elif self.path == '/access-requests/deletion':
+            # «احذف بياناتي» from Atlas: the contact's hash is kept for the owner, who deletes by hand (nothing revealed)
+            status, answer = access_requests.request_deletion(RUNTIME_DIR, body.get('contact'))
+            LOGGER.info('access_request_deletion status=%s', status)
+            self._json(answer, status)
         elif self.path == '/access-requests':
             # «اطلب حساباً» from Atlas: stored for the owner's review, nothing is sent and no account is created
             try: known = {row['en'] for row in cities()}
@@ -1623,6 +1686,9 @@ if __name__ == '__main__':
     for job in startup_jobs.start(DATA_DIR, AUX_DATA_DIR): print(f"startup job running in background: {job}", flush=True)
     threading.Thread(target=_record_chain_history, daemon=True, name='chain-history').start()
     print(f"inbox source: {start_inbox_source()}", flush=True)
+    if not read_only_test.enabled():
+        # «اطلب حساباً» details past their retention period are cleared once a day, whether or not anyone opens the list
+        access_requests.start_retention(RUNTIME_DIR, log=lambda n: LOGGER.info('access_request_retention cleared=%s', n))
     httpd = ThreadingHTTPServer(('0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT') else '127.0.0.1', PORT), H)
     # socket is bound now, so /healthz answers at once; warm the cold caches on a daemon thread that never blocks serving
     threading.Thread(target=_warm_caches, daemon=True, name='warm-caches').start()

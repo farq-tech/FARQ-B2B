@@ -17,7 +17,7 @@ import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { useAnswer } from './use-answer'
-import { aroundOf, caveatTag, gapsVerdict, populationKind } from './tool-answers'
+import { aroundOf, caveatTag, fitLine, gapsVerdict, populationKind, rankGapsAround } from './tool-answers'
 import { Examples } from './examples'
 import { neighbourMap } from '@/lib/geo-measure'
 import type { DistrictFeature } from '@/lib/insights-api'
@@ -25,7 +25,7 @@ import { Verdict } from './verdict'
 
 /** caveat: the service marks a district that is industrial by its atlas name, or labour housing (nine in ten residents
  * men, measured), and lists it after the residential ones; null or absent is an ordinary district. */
-type Gap = { district_ar: string; population: number; businesses: number; expected_businesses: number | null; shortfall: number | null; male_pct?: number | null; caveat?: 'industrial' | 'workers' | 'estimated' | null; population_coverage_pct?: number | null }
+type Gap = { district_ar: string; population: number; businesses: number; expected_businesses: number | null; shortfall: number | null; male_pct?: number | null; caveat?: 'industrial' | 'workers' | 'estimated' | 'campus' | null; population_coverage_pct?: number | null }
 /** `population_model_fits` is false when the activity's count does not track population here (wholesale,
  * industrial, B2B, destinations): there is no honest city rate, so `residents_per_business` and every row's
  * `expected_businesses`/`shortfall` are null, and the districts are listed by their real counts only. `fit`
@@ -86,6 +86,30 @@ export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSel
   // is honest, so the map is not shaded by one. It keeps its own shading; a clicked district shows its real
   // directory count, and the summary says why no «ناقص» appears.
   const notPopulationDriven = result?.population_model_fits === false
+  // the districts' neighbours by outline, once per city, and the top of the list reordered by each gap net of the
+  // surplus next door (rankGapsAround): the verdict, the peek line and «أرني الأعلى» name the same district
+  const neighbours = useMemo(() => (features.length ? neighbourMap(features.map((feature) => ({ id: String(feature.properties.id), geometry: feature.geometry }))) : null), [features])
+  const gapRanked = useMemo(() => {
+    if (!result || result.residents_per_business == null) return []
+    const byName = new Map(result.districts.map((row) => [row.district_ar, row]))
+    const nameOf = new Map(rows.map((row) => [row.id, row.name]))
+    const idOf = new Map(rows.map((row) => [row.name, row.id]))
+    const surplusOf = (other: string) => {
+      const near = byName.get(nameOf.get(other) ?? '')
+      return near && near.expected_businesses != null ? { name: near.district_ar, n: near.businesses - Math.round(near.expected_businesses) } : null
+    }
+    return rankGapsAround(result.districts.filter((row) => isShort(row)), (row) => {
+      const id = idOf.get(row.district_ar)
+      return id ? aroundOf(id, neighbours, surplusOf) : null
+    }, 10, (row) => {
+      // each neighbour's surplus shared among its own neighbours, so one crowded district is not subtracted six times
+      const id = idOf.get(row.district_ar)
+      return [...(id ? neighbours?.get(id) ?? [] : [])].reduce((sum, other) => {
+        const surplus = surplusOf(other)?.n ?? 0
+        return sum + (surplus > 0 ? surplus / Math.max(1, neighbours?.get(other)?.size ?? 1) : 0)
+      }, 0)
+    })
+  }, [result, rows, neighbours])
   useEffect(() => {
     // no answer yet: the request's own state (working, slow, failed), so the map says it instead of the step's ask
     if (!result) { onOverlay(waiting(answer)); return }
@@ -116,8 +140,8 @@ export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSel
       if (!id) continue
       colors.set(id, isShort(row) ? SHADES[Math.min(4, Math.floor((5 * (row.shortfall ?? 0)) / (largest + 1e-9)))] : SURPLUS)
     }
-    const top = short[0]
-    const summary = gapsSummary(result, counted)
+    const top = gapRanked[0] ?? short[0]
+    const summary = gapsSummary(result, counted, gapRanked[0] ?? null)
     const answered = new Map(result.districts.map((row) => [row.district_ar, row]))
     const hover = new Map(rows.map((row) => [row.id, gapsHoverLine(answered.get(row.name), row.population, MIN_POPULATION, counted, numberFormat)]))
     // the card on a clicked district reads its row as the list does: «ناقص N» (needed at the city rate − present), or
@@ -130,7 +154,7 @@ export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSel
     onOverlay({ summary, hover, facts, lead: top ? ids.get(top.district_ar) ?? null : null, colors, legend: { title: `نقص «${label}» في الأحياء`, from: 'نقص قليل', to: 'نقص كبير', shades: SHADES, extra: { color: SURPLUS, label: 'مكتفٍ' } } })
     // answer.retry is stable; status and slow are what the no-answer overlay says
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [result, rows, onOverlay, label, noPeople, notPopulationDriven, answer.status, answer.slow])
+  }, [result, rows, onOverlay, label, noPeople, notPopulationDriven, answer.status, answer.slow, gapRanked])
 
   const study = (text: string) => { if (text) setStudied({ q: text, label: text }) }
 
@@ -143,22 +167,12 @@ export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSel
   // a shortlist first: the verdict names the top three, the next rows are one tap away
   const [limit, showMore] = useShowMore(10, `${city}|${label}`)
   // the top district's population kind (counted, from buildings, or a density grid), so a guessed population is said
-  const topSource = gaps[0] ? rows.find((row) => row.name === gaps[0].district_ar)?.populationSource ?? null : null
-  // the top district's neighbours that hold more than they need at the city rate (businesses − needed, each as its row
-  // reads it), so a gap next door to a surplus is said before the decision
-  const neighbours = useMemo(() => (features.length ? neighbourMap(features.map((feature) => ({ id: String(feature.properties.id), geometry: feature.geometry }))) : null), [features])
-  const around = useMemo(() => {
-    const top = gaps[0]
-    const topId = top ? rows.find((row) => row.name === top.district_ar)?.id : undefined
-    if (!result || !topId) return null
-    const byName = new Map(result.districts.map((row) => [row.district_ar, row]))
-    const nameOf = new Map(rows.map((row) => [row.id, row.name]))
-    return aroundOf(topId, neighbours, (id) => {
-      const row = byName.get(nameOf.get(id) ?? '')
-      return row && row.expected_businesses != null ? { name: row.district_ar, n: row.businesses - Math.round(row.expected_businesses) } : null
-    })
-  }, [gaps, rows, result, neighbours])
-  const verdict = result?.residents_per_business != null ? gapsVerdict(gaps, label, result.residents_per_business, populationKind(topSource), around) : null
+  const first = gapRanked[0]
+  const topSource = first ? rows.find((row) => row.name === first.district_ar)?.populationSource ?? null : null
+  // the neighbours' surplus beside each top gap: the list keeps the service's order, the verdict the net one
+  const verdict = result?.residents_per_business != null
+    ? gapsVerdict(gapRanked, label, result.residents_per_business, populationKind(topSource), first?.around ?? null, Boolean(first && gaps[0] && first.district_ar !== gaps[0].district_ar))
+    : null
   // the industrial and labour-housing districts come last, usually past the first rows shown: a line under the visible
   // rows counts them, and a click shows the list down to them
   const [reveal, setReveal] = useState(false)
@@ -203,7 +217,7 @@ export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSel
             {/* the measured r is shown only when it was measured over enough districts to mean anything; with too
                 few covered districts r is unreliable, so only the count is shown and the message says why */}
             {result.population_model_reason === 'weak_relationship' && result.fit != null && result.covered_districts != null && (
-              <p className="text-sm text-muted-foreground tabular-nums">قيس على {numberFormat.format(result.covered_districts)} حي يحمل سكاناً ومنشآت: ارتباط العدد بالسكان r = {numberFormat.format(result.fit)}.</p>
+              <Explained title="كيف قيس" lines={[`معامل الارتباط بين عدد «${label}» وسكان كل حي: ${numberFormat.format(result.fit)}، على ${counted(result.covered_districts, 'district')}.`]} className="text-sm text-muted-foreground">{fitLine(result.fit, result.covered_districts, label)}</Explained>
             )}
             {result.population_model_reason === 'too_few_districts' && result.covered_districts != null && (
               <p className="text-sm text-muted-foreground tabular-nums">الأحياء التي تحمل سكاناً ومنشآت لهذا النشاط: {numberFormat.format(result.covered_districts)} فقط.</p>
@@ -256,7 +270,8 @@ export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSel
           )}
           {/* the measured strength of the population→count relationship, so the city rate is auditable */}
           {result.fit != null && result.covered_districts != null && (
-            <p className="text-sm text-muted-foreground tabular-nums">يتبع العدد السكان هنا (الارتباط r = {numberFormat.format(result.fit)} على {numberFormat.format(result.covered_districts)} حي).</p>
+            // plain words; the measured r stays in its explanation for whoever audits it
+            <Explained title="كيف قيس" lines={[`معامل الارتباط بين عدد «${label}» وسكان كل حي: ${numberFormat.format(result.fit)}، على ${counted(result.covered_districts, 'district')}.`]} className="text-sm text-muted-foreground">{fitLine(result.fit, result.covered_districts, label)}</Explained>
           )}
           {/* every district carries its share at the city rate: said once, never as «0 حي» over an empty list */}
           {gaps.length === 0 && <NoResult title={`لا حي ينقصه «${label}»`} body="كل حي معروف السكان فيه ما يكفيه بمعدل المدينة. جرّب نشاطاً آخر، أو «المنافسون» لترى أين المنافسة أخف." />}
@@ -269,8 +284,8 @@ export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSel
                 <Fragment key={row.district_ar}>
                   {index === firstCaveat && (
                     <li id="gaps-caveats" className="pt-4 pb-1 text-sm text-muted-foreground">
-                      <span className="block font-semibold text-foreground">مناطق صناعية أو سكن عمال أو سكان مقدّرون</span>
-                      اسمها يدل على منطقة صناعية، أو 90% فأكثر من سكانها رجال كما في سكن العمال، أو سكانها تقدير من خرائط الكثافة يغطي أقل من نصف مساحتها، فنقصها بعدد السكان لا يُعتمد. لذلك تأتي بعد الأحياء السكنية.
+                      <span className="block font-semibold text-foreground">مناطق صناعية أو سكن عمال أو حرم مغلق أو سكان مقدّرون</span>
+                      اسمها يدل على منطقة صناعية، أو 90% فأكثر من سكانها رجال كما في سكن العمال، أو حرم جامعة أو قاعدة له خدماته داخله، أو سكانها تقدير من خرائط الكثافة يغطي أقل من نصف مساحتها، فنقصها بعدد السكان لا يُعتمد. لذلك تأتي بعد الأحياء السكنية.
                     </li>
                   )}
                   <ResultRow title={tag ? <>{row.district_ar} <span className="ms-1 rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">{tag}</span></> : row.district_ar}

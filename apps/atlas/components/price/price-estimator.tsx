@@ -3,15 +3,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { Building2, Calculator, ClipboardList, ExternalLink, Loader2, MapPinned, Pencil, SearchX } from 'lucide-react'
+import { Building2, Calculator, ExternalLink, Loader2, MapPinned, Pencil, SearchX } from 'lucide-react'
 import { CopyLinkButton } from '@/components/shared/copy-link'
-import { districtMapHref, homesHref, loginHref, readPriceOrigin } from '@/lib/handoff'
+import { districtMapHref, homesHref, readPriceOrigin } from '@/lib/handoff'
 import { askVsRange } from '@/lib/ask-vs-range'
-import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
-import { useAppStore } from '@/lib/store'
-import { makeId } from '@/lib/format'
-import type { PublicDirectoryEntity } from '@/lib/live-directory'
+import { ESTIMATE_CACHE, estimateKey, keepEstimate } from '@/lib/estimate-key'
+import { answerCache } from '@/components/lens/tools/answer-cache'
+import { OfficesRequest, VALUERS } from '@/components/shared/offices-request'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
 import { ListingFace } from '@/components/shared/listing-face'
@@ -217,10 +215,13 @@ export function PriceEstimator() {
     if (type !== kind) setKind(type)
     setAsked({ key: keyFor(type), kind: type, area: areaNumber, city, district, districtName: districtList.find((item) => item.id === district)?.name, deal })
     setResult('loading')
-    postMarket<Estimate>('price-estimate', {
+    const body = {
       city, district_id: district, deal, type, area_sqm: areaNumber,
       ...(age ? { age } : {}), ...(streets ? { streets } : {}), ...(width ? { street_width: width } : {}), ...(furnished ? { furnished } : {}),
-    }).then((estimate) => { if (ask === sequence.current) setResult(estimate) })
+    }
+    // the same visit cache as a listing card's estimate (lib/estimate-key.ts): the same answers are priced once
+    answerCache.run<Estimate>(`${ESTIMATE_CACHE}|${estimateKey(body)}`, () => postMarket<Estimate>('price-estimate', body), keepEstimate)
+      .then((estimate) => { if (ask === sequence.current) setResult(estimate) })
       .catch(() => { if (ask === sequence.current) setResult('error') })
   }
   // a link that carries a district and an area prices itself once the district list confirms the district
@@ -410,69 +411,6 @@ export function PriceEstimator() {
  * district itself on the map. Each opens on the answers already given, nothing typed again.
  */
 const PLURAL: Record<string, string> = { apartment: 'الشقق', floor: 'الأدوار', villa: 'الفلل' }
-/** The directory's real-estate offices (the «مكتب عقار» sub-activity of «عقار»), asked by their taxonomy id. */
-const REAL_ESTATE = { sub_id: 're.office', label: 'مكتب عقار', plural: 'مكاتب العقار', noun: 'مكتب عقار' }
-/** And its valuers («تقييم عقاري»), offered beside the offices for a sale. */
-const VALUERS = { sub_id: 're.valuation', label: 'تقييم عقاري', plural: 'مكاتب التقييم العقاري', noun: 'مكتب تقييم' }
-type Kindred = typeof REAL_ESTATE
-const DEAL_WORD: Record<string, string> = { rent_year: 'للإيجار السنوي', rent_month: 'للإيجار الشهري', sale: 'للبيع' }
-
-/**
- * A priced property turned into a quote request to the district's real-estate businesses: the draft names the property
- * (type, deal, area, district) and Atlas's expected price, and opens in «الطلبات» for review. Nothing is sent: a quote
- * request is shared by the person after review (docs/atlas-product-foundation.md §1.5), and no contact is shown here.
- */
-function OfficesRequest({ asked, cityName, price, fromListing = null, to = REAL_ESTATE }: { asked: { city: string; district: string; districtName?: string; deal: string; kind: string; area: number }; cityName: string; price?: number; fromListing?: { id: string; ask: number | null } | null; to?: Kindred }) {
-  const valuation = to.sub_id === VALUERS.sub_id
-  const router = useRouter()
-  const { createDraft } = useAppStore()
-  const [state, setState] = useState<'idle' | 'loading' | 'login' | 'empty' | 'error'>('idle')
-  const name = asked.districtName ?? 'الحي'
-  const start = async () => {
-    if (!asked.districtName) return
-    setState('loading')
-    const response = await fetch('/api/market/entities', {
-      method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ city: asked.city, district: asked.districtName, sub_id: to.sub_id, q: to.label, objective: 'purchase', limit: 50, offset: 0 }),
-    }).catch(() => null)
-    const body = await response?.json().catch(() => null) as { rows?: PublicDirectoryEntity[]; guest?: boolean } | null
-    // a signed-out visitor sees the sign-in, never a preview turned into a request
-    if (response?.status === 401 || body?.guest) { setState('login'); return }
-    if (!response?.ok || !body) { setState('error'); return }
-    const rows = body.rows ?? []
-    if (!rows.length) { setState('empty'); return }
-    const property = `${typeLabel(asked.kind)} ${DEAL_WORD[asked.deal] ?? ''} في ${name}`.replace(/\s+/g, ' ')
-    const id = createDraft({
-      type: 'rfq', businessIds: rows.map((row) => row.id), liveBusinesses: rows, cityId: asked.city.toLowerCase(), cityName,
-      query: to.label, categoryHint: to.label, districtHint: name,
-      title: valuation ? `طلب تقييم ${property}` : fromListing ? `طلب عروض مثل عرض ${property}` : `طلب عروض ${property}`,
-      rfq: {
-        lineItems: [{ id: makeId('l'), name: property, qty: 1, unit: 'عقار', spec: `${numberFormat.format(asked.area)} م²` }],
-        deliveryCity: cityName,
-        notes: [
-          fromListing?.ask != null ? `عرض مثله معروض الآن بـ ${numberFormat.format(fromListing.ask)} ريال${PERIOD[asked.deal] ?? ''}.` : null,
-          price != null ? `السعر المتوقع في أطلس: ${numberFormat.format(price)} ريال${PERIOD[asked.deal] ?? ''}.` : null,
-          valuation ? 'أرسلوا عرض سعر لتقييم العقار ومدته.' : 'أرسلوا عروضاً مشابهة إن وُجدت.',
-        ].filter(Boolean).join(' '),
-      },
-    })
-    toast.success(valuation ? 'جُهّز طلب التقييم' : 'جُهّز طلب العروض', { description: `${numberFormat.format(rows.length)} ${to.noun} في ${name}. راجعه قبل أي مشاركة، لا يُرسل شيء تلقائياً.` })
-    router.push(`/requests/${id}`)
-  }
-  return (
-    <div className="flex flex-col gap-1.5 sm:col-span-2">
-      <button type="button" onClick={() => void start()} disabled={state === 'loading' || !asked.districtName}
-        className="inline-flex items-center gap-2 rounded-2xl border bg-card px-4 py-3 text-start text-sm font-semibold outline-none transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">
-        {state === 'loading' ? <Loader2 className="size-5 shrink-0 animate-spin text-primary" aria-hidden /> : <ClipboardList className="size-5 shrink-0 text-primary" aria-hidden />}
-        <span>{valuation ? 'اطلب تقييماً' : fromListing ? 'اطلب عروضاً مثل هذا العرض' : 'اطلب عروضاً مشابهة'} من {to.plural} في {name}</span>
-      </button>
-      {state === 'login' && <p className="text-sm">لتجهيز الطلب <a href={loginHref(`${window.location.pathname}${window.location.search}`)} className="font-semibold text-primary underline">سجّل الدخول</a>.</p>}
-      {state === 'empty' && <p className="text-sm text-muted-foreground">لا {to.plural} في {name} في الدليل.</p>}
-      {state === 'error' && <p role="alert" className="flex items-center gap-2 text-sm text-muted-foreground">تعذّر التحميل.<Chip onClick={() => void start()}>أعد المحاولة</Chip></p>}
-    </div>
-  )
-}
-
 function NextLinks({ asked, cityName, price, fromListing = null }: { asked: { city: string; district: string; districtName?: string; deal: string; kind: string; area: number }; cityName: string; price?: number; fromListing?: { id: string; ask: number | null } | null }) {
   const name = asked.districtName ?? 'الحي'
   const listings = homesHref({ city: asked.city, kind: asked.deal === 'sale' ? 'sale' : 'rent', rentDeal: asked.deal === 'sale' ? 'rent_year' : asked.deal, types: [asked.kind], districts: [asked.district] })

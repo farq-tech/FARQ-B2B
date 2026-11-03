@@ -14,15 +14,17 @@ export const isShortRow = (row: GapRow) => Math.round(row.shortfall ?? 0) > 0
 export function gapsSummary(
   result: { residents_per_business: number | null; districts: GapRow[] } | null,
   counted: (value: number, noun: 'district' | 'business') => string,
+  /** The district the verdict leads with, when the neighbours reorder the top (rankGapsAround). */
+  first?: GapRow | null,
 ): string | null {
   if (!result || result.residents_per_business == null) return null
   // short by at least one whole business, as the list and the map read it: a shortfall under half a business rounds
   // to «ناقص 0», so it is not counted here either, and the line's count agrees with the list's
   const short = result.districts.filter(isShortRow)
-  const top = short[0]
+  const top = first ?? short[0]
   if (!top) return 'لا نقص في أي حي'
   // the top district leads: on a phone the line is cut at its end, and the count of districts matters least
-  return `الأعلى: ${top.district_ar} بنقص ${counted(Math.round(top.shortfall ?? 0), 'business')} · ${counted(short.length, 'district')} ${short.length === 1 ? 'فيه' : 'فيها'} نقص`
+  return `الأعلى${first && first !== short[0] ? ' مع جواره' : ''}: ${top.district_ar} بنقص ${counted(Math.round(top.shortfall ?? 0), 'business')} · ${counted(short.length, 'district')} ${short.length === 1 ? 'فيه' : 'فيها'} نقص`
 }
 
 /**

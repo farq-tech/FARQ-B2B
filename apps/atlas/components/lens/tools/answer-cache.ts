@@ -23,6 +23,8 @@ const SHAPE = '1'
 
 export function createAnswerCache(storage: () => Store | null, { now = Date.now, ttl = ANSWER_TTL }: { now?: () => number; ttl?: number } = {}) {
   const held = new Map<string, Entry>()
+  // the requests on their way, by key: the step and the map's ask-ahead share one instead of asking twice
+  const flying = new Map<string, Promise<unknown>>()
   let version: string | null = null
   const current = () => {
     if (version == null) { try { version = storage()?.getItem(VERSION_KEY) ?? '' } catch { version = '' } }
@@ -36,9 +38,10 @@ export function createAnswerCache(storage: () => Store | null, { now = Date.now,
   const fresh = (entry: Entry | undefined) => entry != null && entry.version === current() && now() - entry.at < ttl
   const drop = (key: string) => {
     held.delete(key)
+    flying.delete(key)
     try { storage()?.removeItem(PREFIX + key) } catch { /* blocked storage */ }
   }
-  return {
+  const api = {
     get<T>(key: string): T | undefined {
       let entry = held.get(key)
       if (!entry) {
@@ -62,11 +65,30 @@ export function createAnswerCache(storage: () => Store | null, { now = Date.now,
     },
     /** Forget one answer («أعد المحاولة» asks afresh). */
     drop,
+    /**
+     * The answer to `key`: the kept one, else the request already on its way for it (one asked ahead, or by another
+     * user of the key), else `ask()` once. The answer is kept when `keep` agrees; a failure keeps nothing.
+     */
+    run<T>(key: string, ask: () => Promise<T>, keep: (value: T) => boolean = () => true): Promise<T> {
+      const kept = api.get<T>(key)
+      if (kept !== undefined) return Promise.resolve(kept)
+      const going = flying.get(key)
+      if (going) return going as Promise<T>
+      const request: Promise<T> = ask().then((value) => {
+        if (flying.get(key) === request && keep(value)) api.set(key, value)
+        return value
+      }).finally(() => { if (flying.get(key) === request) flying.delete(key) })
+      flying.set(key, request)
+      return request
+    },
+    /** Whether a request for `key` is on its way. */
+    flying: (key: string) => flying.has(key),
     /** The data the answers were worked out from: a new version forgets every kept answer. */
     setVersion(next: string) {
       if (current() === `${SHAPE}|${next}`) return
       version = next
       held.clear()
+      flying.clear()
       try {
         const store = storage()
         store?.setItem(VERSION_KEY, next)
@@ -76,6 +98,7 @@ export function createAnswerCache(storage: () => Store | null, { now = Date.now,
       } catch { /* blocked storage: the memory is cleared */ }
     },
   }
+  return api
 }
 
 /** The data version from the city list: each city's districts and business count, as the service reports them. */

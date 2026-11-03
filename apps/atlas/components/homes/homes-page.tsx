@@ -63,6 +63,15 @@ export function HomesPage() {
   // a group of listings that was clicked on the map (its card names the cheapest), and where it sits on screen
   const [group, setGroup] = useState<BusinessGroup | null>(null)
   const [groupAt, setGroupAt] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
+  // opening a listing flies the map to it: the list keeps what it showed while the card is open (it used to shrink to
+  // the one or two listings around the card), and takes the map's view again once the card closes
+  const seenBounds = useRef<[number, number, number, number] | null>(null)
+  const followBounds = useCallback((next: [number, number, number, number]) => { seenBounds.current = next; if (!activeOpen.current) setBounds(next) }, [])
+  const activeOpen = useRef(false)
+  // only a list the person was already looking at beside the map keeps its view: a phone opening its map for the
+  // card has nothing in view yet, and takes the card's surroundings as before
+  const mapSeenRef = useRef(false)
+  useEffect(() => { activeOpen.current = active != null && mapSeenRef.current; if (!active && seenBounds.current) setBounds(seenBounds.current) }, [active])
   useEffect(() => { setGroup(null) }, [result.listings])
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
   const [compare, setCompare] = useState<Listing[]>([])
@@ -74,6 +83,7 @@ export function HomesPage() {
   // the list follows the map only once the person can see the map: always on a wide screen, and on a phone after they
   // open it. Before that a phone's hidden map still reports bounds, and the list was cut to a view nobody saw.
   const [mapSeen, setMapSeen] = useState(false)
+  mapSeenRef.current = mapSeen
   useEffect(() => {
     const wide = window.matchMedia('(min-width: 64rem)')
     const sync = () => { if (wide.matches) setMapSeen(true) }
@@ -159,6 +169,24 @@ export function HomesPage() {
   const homesKey = (listing: string | null | undefined) => JSON.stringify([city, kind, filters.rentDeal, typesKey, districtsKey, listing ?? null])
   // closing a listing opened from the entry before goes Back to it, so «open, close» is undone by one Back, not two
   const closeListing = () => { if (!backIfReturning(homesKey(null))) setActive(null) }
+  // closing a listing (its ✕, Back, or the list button on a phone) puts the list back on that listing's card, with focus
+  // on it, instead of leaving the person to find their place again
+  const returnTo = useRef<string | null>(null)
+  const lastOpenId = useRef<string | null>(null)
+  useEffect(() => {
+    if (active) { lastOpenId.current = active.id; return }
+    if (lastOpenId.current) { returnTo.current = lastOpenId.current; lastOpenId.current = null }
+  }, [active])
+  useEffect(() => {
+    const id = returnTo.current
+    // a phone shows the list only once its map is closed again
+    if (!id || active || (mobileMap && !window.matchMedia('(min-width: 64rem)').matches)) return
+    returnTo.current = null
+    const card = [...document.querySelectorAll<HTMLElement>('[data-listing-ids]')].find((item) => item.dataset.listingIds?.split(' ').includes(id))
+    if (!card) return
+    card.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+    card.querySelector<HTMLElement>('button.mt-2')?.focus({ preventScroll: true })
+  }, [active, mobileMap])
   useEffect(() => {
     if (!hydrated) return
     // a listing still waiting for the listings keeps its place in the address
@@ -370,7 +398,7 @@ export function HomesPage() {
         <section className={cn('relative min-h-0 lg:p-4', !mobileMap && 'hidden lg:block')} aria-label="خريطة العروض">
           <div className="relative h-full min-h-[60vh] overflow-hidden lg:rounded-2xl lg:border">
             <LensMapCanvas features={data.features} steps={NO_STEPS} selected={[]} onToggle={() => {}} listings={dots} focus={focus}
-              onListing={(id) => { const listing = byId.get(id); if (listing) { presetListing.current = null; setGroup(null); setActive(listing) } }} onBounds={setBounds}
+              onListing={(id) => { const listing = byId.get(id); if (listing) { presetListing.current = null; setGroup(null); setActive(listing) } }} onBounds={followBounds}
               onListingGroup={(next) => { setActive(null); setGroup(next) }} pin={!active ? group : null} onPin={setGroupAt} />
             {/* a group of listings names its cheapest, each a tap from its own card, and the zoom that splits it */}
             {!active && group && groupAt && groupAt.x >= 0 && groupAt.y >= 0 && groupAt.x <= groupAt.width && groupAt.y <= groupAt.height && (
@@ -441,7 +469,7 @@ const HomeCard = memo(function HomeCard({ listing, others, priority, comparing, 
   const [expanded, setExpanded] = useState(false)
   const facts = [listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.beds ? counted(listing.beds, 'room') : null]
   return (
-    <li onMouseEnter={() => onHover(listing.id)} onMouseLeave={() => onHover(null)} className="group">
+    <li onMouseEnter={() => onHover(listing.id)} onMouseLeave={() => onHover(null)} className="group scroll-my-4" data-listing-ids={[listing.id, ...others.map((item) => item.id)].join(' ')}>
       <div className="relative overflow-hidden rounded-2xl bg-muted">
         {/* an ad without photos keeps the card's shape, so the compare button never lands on the text */}
         {/* a listing with no photo to show (none in the ad, or none that loads) gets its type's face in the same slot */}

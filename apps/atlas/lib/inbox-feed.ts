@@ -21,7 +21,16 @@ export type ServerInboxMessage = {
 /** The delivery state of the newest campaign message a recipient of a request was sent. */
 export type ServerDelivery = { requestId: string; poiKey: string; status: 'sent' | 'delivered' | 'read' | 'failed'; at: string | null }
 
-export type ServerFeed = { messages: ServerInboxMessage[]; deliveries: ServerDelivery[]; owner: boolean }
+/** A request's reply figures from the service: recipients reached, how many replied, median seconds to a first reply. */
+export type ServerReplyStat = {
+  requestId: string; sent: number; replied: number; medianReplySeconds: number | null
+  /** With its follow-ups (up to two steps): of this campaign's recipients reached, how many answered it or a follow-up. */
+  combined?: { sent: number; replied: number; viaFollowUps: number }
+}
+/** A recipient that has not answered this request but answered another of the person's campaigns lately. */
+export type ServerElsewhere = { requestId: string; poiKey: string; otherRequestId: string; messageId: string; at: string | null }
+
+export type ServerFeed = { messages: ServerInboxMessage[]; deliveries: ServerDelivery[]; owner: boolean; requests: ServerReplyStat[]; elsewhere: ServerElsewhere[] }
 
 /** What a reply without words of its own is, in the inbox's words. Text kinds have none. */
 const KIND_LABEL: Record<string, string> = {
@@ -129,7 +138,7 @@ const STATUSES = new Set(['sent', 'delivered', 'read', 'failed'])
 
 /** Reads `/api/inbox`'s answer; anything not in the expected shape is dropped. */
 export function parseServerFeed(payload: unknown): ServerFeed {
-  const root = payload && typeof payload === 'object' ? payload as { messages?: unknown; deliveries?: unknown; owner?: unknown } : {}
+  const root = payload && typeof payload === 'object' ? payload as { messages?: unknown; deliveries?: unknown; owner?: unknown; requests?: unknown; elsewhere?: unknown } : {}
   const messages = (Array.isArray(root.messages) ? root.messages : []).flatMap((item) => {
     const m = (item ?? {}) as Partial<Record<keyof ServerInboxMessage, unknown>>
     if (typeof m.id !== 'string' || typeof m.requestId !== 'string' || typeof m.poiKey !== 'string' || typeof m.receivedAt !== 'string' || Number.isNaN(Date.parse(m.receivedAt))) return []
@@ -140,7 +149,21 @@ export function parseServerFeed(payload: unknown): ServerFeed {
     if (typeof d.requestId !== 'string' || typeof d.poiKey !== 'string' || typeof d.status !== 'string' || !STATUSES.has(d.status)) return []
     return [{ requestId: d.requestId, poiKey: d.poiKey, status: d.status as ServerDelivery['status'], at: typeof d.at === 'string' && !Number.isNaN(Date.parse(d.at)) ? d.at : null }]
   })
-  return { messages, deliveries, owner: root.owner === true }
+  const whole = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : null
+  const requests = (Array.isArray(root.requests) ? root.requests : []).flatMap((item) => {
+    const r = (item ?? {}) as Record<string, unknown>
+    const sent = whole(r.sent); const replied = whole(r.replied)
+    const c = r.combined && typeof r.combined === 'object' ? r.combined as Record<string, unknown> : null
+    const cs = whole(c?.sent); const cr = whole(c?.replied); const cv = whole(c?.viaFollowUps)
+    const combined = cs != null && cr != null && cv != null ? { combined: { sent: cs, replied: Math.min(cr, cs), viaFollowUps: Math.min(cv, cr, cs) } } : {}
+    return typeof r.requestId === 'string' && sent != null && replied != null ? [{ requestId: r.requestId, sent, replied, medianReplySeconds: whole(r.medianReplySeconds), ...combined }] : []
+  })
+  const elsewhere = (Array.isArray(root.elsewhere) ? root.elsewhere : []).flatMap((item) => {
+    const e = (item ?? {}) as Record<string, unknown>
+    return typeof e.requestId === 'string' && typeof e.poiKey === 'string' && typeof e.otherRequestId === 'string' && typeof e.messageId === 'string'
+      ? [{ requestId: e.requestId, poiKey: e.poiKey, otherRequestId: e.otherRequestId, messageId: e.messageId, at: typeof e.at === 'string' ? e.at : null }] : []
+  })
+  return { messages, deliveries, owner: root.owner === true, requests, elsewhere }
 }
 
 /** The latest reply of each recipient of one request, by recipient id: whether, and with which message, they answered. */
@@ -169,4 +192,186 @@ export function healthState(health: SourceHealth | null | undefined, nowMs: numb
   if (health.failures > 0) return 'failing'
   if (!health.lastOkAt) return 'never'
   return nowMs - Date.parse(health.lastOkAt) > STALE_AFTER_MS ? 'stale' : 'ok'
+}
+
+/** A recipient's message went out: WhatsApp reported on it (and not a failure), or this device saw it sent. */
+export function wasSent(id: string, tracked: Readonly<Record<string, ServerDelivery['status']>> | undefined, delivery: Readonly<Record<string, string>> | undefined): boolean {
+  const reported = tracked?.[id]
+  return reported ? reported !== 'failed' : delivery?.[id] === 'sent'
+}
+
+export type ReplyFilter = 'all' | 'waiting' | 'replied'
+
+/** The recipients a campaign's reply filter shows: everyone, those sent to who have not answered, or those who did. */
+export function replyGroups(ids: readonly string[], sent: (id: string) => boolean, replied: Readonly<Record<string, string>> | undefined): Record<ReplyFilter, string[]> {
+  return {
+    all: [...ids],
+    waiting: ids.filter((id) => sent(id) && !replied?.[id]),
+    replied: ids.filter((id) => Boolean(replied?.[id])),
+  }
+}
+
+/**
+ * A campaign's reply rate: of the recipients its messages reached (sent and not failed), how many answered. Null when
+ * nothing went out yet, so a list never says «0%» for a campaign that was not sent.
+ */
+export function replyRate(ids: readonly string[], sent: (id: string) => boolean, replied: Readonly<Record<string, string>> | undefined): { sent: number; replied: number; percent: number } | null {
+  const reached = ids.filter(sent)
+  if (!reached.length) return null
+  const answered = reached.filter((id) => replied?.[id]).length
+  return { sent: reached.length, replied: answered, percent: Math.round((answered / reached.length) * 100) }
+}
+
+const matchesRequest = (id: string, request: Pick<RequestItem, 'id' | 'remoteId'>) => id === request.id || (request.remoteId != null && id === request.remoteId)
+
+/** The service's reply figures for one request (by its local or cloud id); undefined before the feed has them. */
+export function statFor(stats: readonly ServerReplyStat[], request: Pick<RequestItem, 'id' | 'remoteId'>): ServerReplyStat | undefined {
+  return stats.find((s) => matchesRequest(s.requestId, request))
+}
+
+/**
+ * Recipients of the original who answered one of its follow-ups (this device's inbox), in the same shape as the
+ * service's «replied elsewhere», so the original does not call them silent before the service says so.
+ */
+export function answeredFollowUps(inbox: readonly InboxMessage[], original: Pick<RequestItem, 'id' | 'remoteId'>, followUps: readonly Pick<RequestItem, 'id' | 'remoteId'>[]): Record<string, ServerElsewhere> {
+  const own = repliesFor(inbox, original)
+  const out: Record<string, ServerElsewhere> = {}
+  for (const f of followUps) {
+    for (const [poiKey, messageId] of Object.entries(repliesFor(inbox, f))) {
+      if (!own[poiKey] && !out[poiKey]) out[poiKey] = { requestId: original.id, poiKey, otherRequestId: f.id, messageId, at: null }
+    }
+  }
+  return out
+}
+
+/** Recipients of one request who answered another of the person's campaigns instead, by recipient id. */
+export function elsewhereFor(elsewhere: readonly ServerElsewhere[], request: Pick<RequestItem, 'id' | 'remoteId'>): Record<string, ServerElsewhere> {
+  const out: Record<string, ServerElsewhere> = {}
+  for (const e of elsewhere) if (matchesRequest(e.requestId, request)) out[e.poiKey] ??= e
+  return out
+}
+
+/**
+ * The reply rate as a list or a header shows it: the service's figures when it has them (every device the same), else
+ * this device's own count. Null when nothing went out.
+ */
+export function rateFor(stat: ServerReplyStat | undefined, local: { sent: number; replied: number; percent: number } | null): { sent: number; replied: number; percent: number; medianReplySeconds: number | null } | null {
+  if (stat && stat.sent > 0) return { sent: stat.sent, replied: Math.min(stat.replied, stat.sent), percent: Math.round((Math.min(stat.replied, stat.sent) / stat.sent) * 100), medianReplySeconds: stat.medianReplySeconds }
+  return local ? { ...local, medianReplySeconds: null } : null
+}
+
+/** A reply time in whole units: minutes under an hour, hours under two days, else days. */
+export function durationParts(seconds: number): { value: number; unit: 'minute' | 'hour' | 'day' } {
+  const minutes = Math.max(1, Math.round(seconds / 60))
+  if (minutes < 60) return { value: minutes, unit: 'minute' }
+  const hours = Math.round(seconds / 3600)
+  if (hours < 48) return { value: hours, unit: 'hour' }
+  return { value: Math.round(seconds / 86400), unit: 'day' }
+}
+
+/** The recipient filter in the request page's address (`?replies=waiting|replied`); anything else is «الكل». */
+export function readReplyFilter(search: string): ReplyFilter {
+  const value = new URLSearchParams(search).get('replies')
+  return value === 'waiting' || value === 'replied' ? value : 'all'
+}
+
+export function writeReplyFilter(search: string, filter: ReplyFilter): string {
+  const query = new URLSearchParams(search)
+  if (filter === 'all') query.delete('replies')
+  else query.set('replies', filter)
+  const text = query.toString()
+  return text ? `?${text}` : ''
+}
+
+/**
+ * A campaign and its follow-ups as one result: of the original's recipients the messages reached, how many answered
+ * the original or any follow-up. Null when the original reached nobody.
+ */
+export function combinedRate(
+  original: Pick<RequestItem, 'id' | 'remoteId' | 'campaign'>,
+  followUps: readonly Pick<RequestItem, 'id' | 'remoteId'>[],
+  inbox: readonly InboxMessage[],
+  sent: (id: string) => boolean,
+): { sent: number; replied: number; percent: number; viaFollowUps: number } | null {
+  const reached = (original.campaign?.included ?? []).filter(sent)
+  if (!reached.length) return null
+  const own = repliesFor(inbox, original)
+  const later = followUps.map((f) => repliesFor(inbox, f))
+  const repliedOwn = reached.filter((id) => own[id])
+  const viaFollowUps = reached.filter((id) => !own[id] && later.some((r) => r[id])).length
+  const replied = repliedOwn.length + viaFollowUps
+  return { sent: reached.length, replied, percent: Math.round((replied / reached.length) * 100), viaFollowUps }
+}
+
+/** WhatsApp lets a business answer freely for 24 hours after a person's last message; after that only an approved
+ * template may be sent. */
+export const REPLY_WINDOW_MS = 24 * 3600_000
+
+/**
+ * The 24-hour window a WhatsApp reply opened, for information only (Atlas sends no reply from the inbox): it runs from
+ * the business's latest message on that request, so an older message of the same conversation names the same end.
+ * Null for a message that is not a WhatsApp reply.
+ */
+export function replyWindow(inbox: readonly InboxMessage[], message: InboxMessage, nowMs: number): { open: boolean; until: string } | null {
+  if (message.origin !== 'whatsapp') return null
+  const latest = inbox
+    .filter((m) => m.origin === 'whatsapp' && m.requestId === message.requestId && m.businessId === message.businessId)
+    .reduce((best, m) => (m.receivedAt > best ? m.receivedAt : best), message.receivedAt)
+  const until = Date.parse(latest) + REPLY_WINDOW_MS
+  if (Number.isNaN(until)) return null
+  return { open: nowMs < until, until: new Date(until).toISOString() }
+}
+
+/** Where a request page keeps its recipient filter for this tab, so leaving for the inbox and coming back keeps it. */
+export const replyFilterKey = (requestId: string) => `atlas.replies|${requestId}`
+
+/** The filter to open on: the address wins; else the one this tab last used on this request; else «الكل». */
+export function openingReplyFilter(search: string, remembered: string | null | undefined): ReplyFilter {
+  if (new URLSearchParams(search).has('replies')) return readReplyFilter(search)
+  return remembered === 'waiting' || remembered === 'replied' ? remembered : 'all'
+}
+
+/** A follow-up chain stops after two follow-ups (the original, then two): a third would be chasing. */
+export const MAX_FOLLOW_UP_DEPTH = 2
+
+/** How many follow-ups deep a request is: 0 for an original. A loop in the links stops the count. */
+export function followUpDepth(requests: readonly Pick<RequestItem, 'id' | 'followUpOf'>[], request: Pick<RequestItem, 'id' | 'followUpOf'>): number {
+  const byId = new Map(requests.map((r) => [r.id, r]))
+  let depth = 0
+  let node = request
+  const seen = new Set([request.id])
+  while (node.followUpOf && byId.has(node.followUpOf) && !seen.has(node.followUpOf) && depth < 10) {
+    node = byId.get(node.followUpOf)!
+    seen.add(node.id)
+    depth += 1
+  }
+  return depth
+}
+
+/**
+ * The chain a request belongs to: its original first, then every follow-up of the chain (step 1, then step 2, each by
+ * creation), so every member shows the same chain. A request alone is a chain of one.
+ */
+export function followUpChain<T extends Pick<RequestItem, 'id' | 'followUpOf' | 'createdAt'>>(requests: readonly T[], request: T): { request: T; depth: number }[] {
+  const byId = new Map(requests.map((r) => [r.id, r]))
+  let root = request
+  const seen = new Set([request.id])
+  while (root.followUpOf && byId.has(root.followUpOf) && !seen.has(root.followUpOf)) {
+    root = byId.get(root.followUpOf)!
+    seen.add(root.id)
+  }
+  const out: { request: T; depth: number }[] = [{ request: root, depth: 0 }]
+  let level = [root]
+  for (let depth = 1; depth <= MAX_FOLLOW_UP_DEPTH + 1 && level.length; depth += 1) {
+    const ids = new Set(level.map((r) => r.id))
+    level = requests.filter((r) => r.followUpOf && ids.has(r.followUpOf) && r.id !== root.id).sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    out.push(...level.map((r) => ({ request: r, depth })))
+  }
+  return out
+}
+
+/** A held-back recipient of a follow-up: still unticked at review, or ticked by the person afterwards. */
+export function heldBackState(campaign: Pick<NonNullable<RequestItem['campaign']>, 'heldBack' | 'included'> | undefined, id: string): 'held' | 'added' | null {
+  if (campaign?.heldBack?.[id] !== 'replied_elsewhere') return null
+  return campaign.included.includes(id) ? 'added' : 'held'
 }

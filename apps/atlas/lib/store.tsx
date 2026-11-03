@@ -5,7 +5,7 @@ import { CATEGORIES, DEFAULT_VARIABLES, businessById } from './mock-data'
 import { makeId } from './format'
 import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType, RfqDetails } from './types'
 import { mergeCloudRequests } from './workspace-merge'
-import { mergeServerInbox, parseServerFeed, type ServerDelivery, type ServerFeed } from './inbox-feed'
+import { mergeServerInbox, parseServerFeed, type ServerDelivery, type ServerElsewhere, type ServerFeed, type ServerReplyStat } from './inbox-feed'
 import { safeMapOrigin } from './handoff'
 import { mergeIntoRequest, removeFromRequest } from './request-add'
 import { deviceOnlyViews, mergeSavedViews, readView, saveView, viewKey, type SavedView } from './saved-views'
@@ -30,6 +30,10 @@ interface State {
   inboxOwner: boolean
   /** How many feeds of replies have arrived this visit (0 before the first), so a notice can tell new from loaded. */
   repliesVersion: number
+  /** Per request, from the service: recipients reached, replied, median time to a first reply (not stored). */
+  replyStats: ServerReplyStat[]
+  /** Recipients who answered another of the person's campaigns instead of this one (not stored). */
+  repliedElsewhere: ServerElsewhere[]
 }
 
 type CloudRequest = { id?: unknown; title?: unknown; payload?: unknown }
@@ -61,7 +65,8 @@ function reducer(state: State, action: Action): State {
       // WhatsApp replies from the account's feed join the device's inbox with the read state the service keeps;
       // drafts and device-only items stay as they are (lib/inbox-feed.ts)
       const inbox = mergeServerInbox(state.inbox, action.feed.messages, action.pending)
-      return { ...state, inbox, deliveries: action.feed.deliveries, inboxOwner: action.feed.owner, repliesVersion: state.repliesVersion + 1 }
+      return { ...state, inbox, deliveries: action.feed.deliveries, inboxOwner: action.feed.owner, repliesVersion: state.repliesVersion + 1,
+        replyStats: action.feed.requests, repliedElsewhere: action.feed.elsewhere }
     }
     case 'toggle-select':
       return {
@@ -314,6 +319,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     deliveries: [],
     inboxOwner: false,
     repliesVersion: 0,
+    replyStats: [],
+    repliedElsewhere: [],
   })
   const [workspaceReady, setWorkspaceReady] = useState(false)
   const requestsRef = useRef<RequestItem[]>([])
@@ -493,10 +500,14 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       void syncViews()
     }
     window.addEventListener('focus', back)
+    // the connection coming back retries at once whatever is still on this device only (no wait: it is one event)
+    const online = () => { if (viewsRef.current.some((view) => !view.synced) || accountRef.current === 'error') void syncViews() }
+    window.addEventListener('online', online)
     document.addEventListener('visibilitychange', back)
     return () => {
       window.removeEventListener(SESSION_CHANGED, again)
       window.removeEventListener('focus', back)
+      window.removeEventListener('online', online)
       document.removeEventListener('visibilitychange', back)
     }
   }, [workspaceReady, syncViews])

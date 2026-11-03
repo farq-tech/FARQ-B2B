@@ -174,8 +174,14 @@ export type VerdictText = { lead: string; why: string[]; caution?: string | null
  *   (وادي لبن: none inside, 240 in ظهرة لبن across its edge).
  * - `sparse`: a district the population grid holds as settled over under half of its cells (golden settled_pct):
  *   وادي لبن 42%, النظيم 40%, الحائر 28% in Riyadh; three in four Riyadh districts are settled over 88% or more.
+ * - `minArea`: a district and its neighbours with fewer than 10,000 residents together are ranked after the others in
+ *   «أين المنافسة أخف؟» (الزاهر led Riyadh pharmacies with 6,246 people around it and none of the activity).
+ * - `nearKm`: a neighbour counts by its nearness, 1 ÷ (1 + distance ÷ 3 km) between the districts' centres, so a
+ *   neighbour across a long edge 6 km away weighs a third of one next door.
+ * - `minDistrict`: a district of under 1,000 residents of its own goes after the others too, whatever its neighbours
+ *   (الدانة 1, الرحاب 4, المجد 5 in Riyadh: grid estimates of nearly empty land).
  */
-export const THIN = { located: 0.9, thinGapShare: 0.1, perRep: 4, uneven: 0.25, focus: 3, level: 3, rentSample: 10, nextDoor: 10, sparse: 50 } as const
+export const THIN = { located: 0.9, thinGapShare: 0.1, perRep: 4, uneven: 0.25, focus: 3, level: 3, rentSample: 10, nextDoor: 10, sparse: 50, minArea: 10000, nearKm: 3, minDistrict: 1000 } as const
 
 /** What the districts around one district hold, summed from the same answer as the list (its neighbours by outline). */
 export type Around = { districts: number; total: number; top: { name: string; n: number } | null }
@@ -193,7 +199,7 @@ const areas = (count: number) => (count === 2 ? 'منطقتان' : `${n(count)} 
 /** A gap row as «أين ينقص نشاطي؟» reads it (market-gaps). */
 // expected and shortfall are null where the count does not follow the population (market-gaps); such a row is never
 // short, so it never reaches the verdict
-export type GapVerdictRow = { district_ar: string; businesses: number; expected_businesses: number | null; shortfall: number | null; caveat?: 'industrial' | 'workers' | 'estimated' | null }
+export type GapVerdictRow = { district_ar: string; businesses: number; expected_businesses: number | null; shortfall: number | null; caveat?: 'industrial' | 'workers' | 'estimated' | 'campus' | null }
 
 /**
  * «أكبر نقص في «صيدلية»: النرجس», with what it has against what it needs at the city rate, and the next two
@@ -211,9 +217,11 @@ export function populationKind(source: string | null | undefined): 'measured' | 
   return 'grid'
 }
 
-export function gapsVerdict(short: GapVerdictRow[], label: string, residentsPerBusiness: number, topPopulation: 'measured' | 'buildings' | 'grid' | null = null,
+export function gapsVerdict(short: (GapVerdictRow & { net?: number })[], label: string, residentsPerBusiness: number, topPopulation: 'measured' | 'buildings' | 'grid' | null = null,
   /** The top district's neighbours that hold more than they need at the city rate: their surplus, summed. */
-  around: Around | null = null): VerdictText | null {
+  around: Around | null = null,
+  /** The list was reordered by the gap net of the neighbours' surplus (rankGapsAround), so the lead says so. */
+  reordered = false): VerdictText | null {
   const top = short[0]
   if (!top) return null
   const need = Math.round(top.expected_businesses ?? 0)
@@ -232,7 +240,8 @@ export function gapsVerdict(short: GapVerdictRow[], label: string, residentsPerB
     : topPopulation === 'grid' ? `سكان ${top.district_ar} تقدير من خرائط الكثافة لا عدّ مقاس، فنقصه قد يكون أكبر من الحقيقة. قارنه بما يليه قبل القرار.`
     : thin ? `النقص في أعلى حي ${counted(missing, 'business')} فقط من ${n(need)}: الأحياء قريبة من معدل المدينة، فالفرصة ضعيفة.`
     : around && around.total >= missing ? `فائض الأحياء المجاورة يعادل نقصه أو أكثر، فقد يُخدم سكانه من جواره. قارن الحي التالي قبل القرار.` : null
-  return { lead: `أكبر نقص في «${label}»: ${top.district_ar}، ينقصه ${counted(missing, 'business')}`, why, caution }
+  if (top.net != null && around && around.total > 0) why.push(`صافي نقصه بعد فائض جواره: ${counted(Math.max(0, top.net), 'business')}.`)
+  return { lead: `أكبر نقص في «${label}»${reordered ? ' مع حساب الجوار' : ''}: ${top.district_ar}، ينقصه ${counted(missing, 'business')}`, why, caution }
 }
 
 /**
@@ -271,7 +280,9 @@ export function competitorsVerdict<T extends CompetitorRow & { row: { name: stri
   const area = top.area
   const areaLine = area == null ? []
     : area.competitors === 0 ? [`لا منافس فيه ولا في الأحياء المجاورة (${n(area.districts - 1)})، وفيها ${n(Math.round(area.residents))} ساكن.`]
-      : [`هو وجواره (${counted(area.districts, 'district')}): ${n(Math.round(area.residents / area.competitors))} ساكن لكل منافس (${n(Math.round(area.residents))} ساكن، ${counted(area.competitors, 'business')}).`]
+      : area.weighted
+        ? [`هو وجواره (${counted(area.districts, 'district')}): ${n(Math.round(area.residents / area.competitors))} ساكن لكل منافس (${n(Math.round(area.residents))} ساكن، ${counted(area.competitors, 'business')})، والترتيب يحسب الجار الأقرب أكثر.`]
+        : [`هو وجواره (${counted(area.districts, 'district')}): ${n(Math.round(area.residents / area.competitors))} ساكن لكل منافس (${n(Math.round(area.residents))} ساكن، ${counted(area.competitors, 'business')}).`]
   return {
     lead: `أخف منافسة على «${label}»${area ? ' مع جواره' : ''}: ${top.row.name}`,
     why: [
@@ -299,7 +310,8 @@ export function brandsVerdict(brands: { total: number; chains: number; in_chains
   if (!brands.chains || !top) return { lead: 'السوق كله محلات مستقلة', why: ['لا سلسلة لهذا النشاط بثلاثة فروع أو أكثر.'] }
   const share = Math.round((100 * brands.in_chains) / brands.total)
   return {
-    lead: share >= 50 ? `السلاسل تملك أكثر السوق: ${n(share)}%` : `أكثر السوق محلات مستقلة: السلاسل ${n(share)}% فقط`,
+    // «أكثر» only past half (5,255 of 10,575 Riyadh pharmacies is 49.7%, «50%» but not most); half said as half
+    lead: share > 50 ? `السلاسل تملك أكثر السوق: ${n(share)}%` : share === 50 ? 'السلاسل تملك نصف السوق تقريباً: 50%' : `أكثر السوق محلات مستقلة: السلاسل ${n(share)}% فقط`,
     why: [`أكبرها ${top.brand}: ${counted(top.branches, 'branch')} في ${counted(top.districts, 'district')}.`],
   }
 }
@@ -382,12 +394,18 @@ export const factorWord = (factor: Factor, byIncome: boolean) => (factor === 'au
  * top two are level (within 3 points). A site without a score says which factor it is missing. The population quoted
  * is the service's figure in the table, so the reason reads what the visitor sees.
  */
-export function sitesVerdict(sites: (SiteFactors & { label: string; population: number | null })[], attraction: { scores: Map<number, number>; factors: Factor[]; dropped?: Factor[] }, byIncome: boolean): VerdictText | null {
+export function sitesVerdict(sites: (SiteFactors & { label: string; population: number | null })[], attraction: { scores: Map<number, number>; factors: Factor[]; dropped?: Factor[] }, byIncome: boolean,
+  /** Factors whose city table failed to load this time (the income table): said as «تعذّر تحميله», with the retry
+   * beside the verdict, never as a district lacking it and never by switching silently to another figure. */
+  failed: Factor[] = []): VerdictText | null {
   const { scores, factors } = attraction
   const dropped = attraction.dropped ?? []
   // a factor the visitor left out is their choice, said as such; only a factor they kept and a site lacks is «غير متاح»
   const choice = dropped.length ? [`بلا ${names(dropped.map((factor) => factorWord(factor, byIncome)))} باختيارك.`] : []
-  const kept = (factor: Factor) => !dropped.includes(factor)
+  const kept = (factor: Factor) => !dropped.includes(factor) && !failed.includes(factor)
+  const failedLine = failed.filter((factor) => !dropped.includes(factor)).length
+    ? `«${names(failed.filter((factor) => !dropped.includes(factor)).map((factor) => factorWord(factor, byIncome)))}» تعذّر تحميله الآن، ${factors.length ? `فالدرجة من ${names(factors.map((factor) => factorWord(factor, byIncome)))} حتى يُعاد تحميله` : 'فلا درجة حتى يُعاد تحميله'}.`
+    : null
   if (sites.length === 0) return null
   if (sites.length === 1) return { lead: 'أضف موقعاً ثانياً لتعرف أيهما أجذب', why: ['اضغط على الخريطة في مكان آخر، فيُقاس بالنطاق نفسه.'] }
   // a factor one site lacks is left out of every site's score, and said: «الدرجة من السكان والمنافسة فقط»
@@ -395,9 +413,10 @@ export function sitesVerdict(sites: (SiteFactors & { label: string; population: 
     const what = kept('audience') && site.audience == null ? 'السكان' : kept('spending') && site.spending == null ? (byIncome ? 'دخل حيه' : 'حصة الفلل في حيه') : kept('density') && site.density == null ? 'كثافة المنشآت' : null
     return what ? [`الموقع ${site.label} (${what} غير متاح)`] : []
   })
-  const caution = !missing.length ? null
+  const missingLine = !missing.length ? null
     : factors.length ? `الدرجة من ${names(factors.map((factor) => factorWord(factor, byIncome)))} فقط: ${missing.join('، ')}.`
       : `بلا درجة: ${missing.join('، ')}.`
+  const caution = [failedLine, missingLine].filter(Boolean).join(' ') || null
   const scored = sites.filter((site) => scores.has(site.id)).sort((a, b) => scores.get(b.id)! - scores.get(a.id)!)
   if (scored.length < 2) return { lead: 'جاذبية المواقع غير متاحة للمقارنة', why: ['لا عامل مختار متاح للمواقع كلها.', ...choice], caution }
   const [best, second] = scored
@@ -471,7 +490,7 @@ export function corridorVerdict(corridors: CorridorVerdictRow[], label: string):
   return {
     lead: `أقوى شارع لـ«${label}»: ${top.street_ar}`,
     why: [
-      `${counted(top.n, 'shop')} منه، ${n(top.per_100m)} لكل 100 م${top.road_class === 'main' ? '، على شارع رئيسي' : ''}.`,
+      `${counted(top.n, 'shop')} منه، ${n(Math.round(top.per_100m * 10) / 10)} لكل 100 م${top.road_class === 'main' ? '، على شارع رئيسي' : ''}.`,
       ...(next ? [`يليه ${next.street_ar} (${counted(next.n, 'shop')}).`] : []),
     ],
   }
@@ -538,18 +557,24 @@ export function weekFitHint(customers: number, unplanned: number, days: number, 
 }
 
 /** «اختر عقاراً» in one line: the first listing of the list (best value, or nearest the viewer's point) and why. */
-export function listingVerdict(first: { type: string; district: string | null; price: string | null; versus: string | null; area: number | null; away: string | null } | null, nearest: boolean): VerdictText | null {
+export function listingVerdict(first: { type: string; district: string | null; price: string | null; versus: string | null; area: number | null; away: string | null; oversized?: string | null } | null, nearest: boolean): VerdictText | null {
   if (!first) return null
   const where = first.district ? ` في ${first.district}` : ''
   const line = [first.versus, first.area != null ? `${n(first.area)} م²` : null, first.away].filter(Boolean).join(' · ')
   return {
     lead: `${nearest ? 'الأقرب لنقطتك' : 'أنسب عرض'}: ${first.type}${where}${first.price ? ` بـ ${first.price}` : '، السعر غير مذكور'}`,
     why: line ? [`${line}.`] : [],
-    caution: !nearest && !first.versus ? 'حيه بلا وسيط كافٍ، فترتيبه لا يقارن سعره بجيرانه.' : null,
+    caution: [first.oversized ? `${first.oversized}. افتح الإعلان قبل المقارنة.` : null, !nearest && !first.versus ? 'حيه بلا وسيط كافٍ، فترتيبه لا يقارن سعره بجيرانه.' : null].filter(Boolean).join(' ') || null,
   }
 }
 
 /** One figure of a district pair: its label, the two raw values, and each as the comparison table shows it. */
+/** A district of the pair whose population grid settles under half of it: said beside the figures. */
+export function sparseLine(names2: [string, string], settled: [number | null | undefined, number | null | undefined]): string | null {
+  const sparse = names2.flatMap((name, index) => (settled[index] != null && settled[index]! < THIN.sparse ? [`${name} مأهول في ${n(settled[index]!)}% من مساحته`] : []))
+  return sparse.length ? `${sparse.join('، و')} فقط، فسكانه في جزء منه.` : null
+}
+
 export type DistrictFigure = {
   label: string; a: number | null; b: number | null; shown: [string, string]
   /** A median from fewer listings than lenses.RELIABLE_LISTINGS on that side: shown in the table, never weighed here. */
@@ -596,15 +621,24 @@ export function aroundOf(id: string, neighbours: Map<string, Set<string>> | null
  * The tag on a gap row the service lists after the residential ones: an industrial name, labour housing (with the
  * measured share of men when there is one), or a population estimated from a grid over little of the district.
  */
-export function caveatTag(row: { caveat?: 'industrial' | 'workers' | 'estimated' | null; male_pct?: number | null; population_coverage_pct?: number | null }): string | null {
+export function caveatTag(row: { caveat?: 'industrial' | 'workers' | 'estimated' | 'campus' | null; male_pct?: number | null; population_coverage_pct?: number | null }): string | null {
   if (row.caveat === 'industrial') return 'منطقة صناعية'
   if (row.caveat === 'workers') return row.male_pct != null ? `${n(Math.round(row.male_pct))}% من سكانه رجال` : 'سكن عمال غالباً'
+  if (row.caveat === 'campus') return 'حرم مغلق له خدماته'
   if (row.caveat === 'estimated') return row.population_coverage_pct != null ? `سكان مقدّرون من ${n(row.population_coverage_pct)}% من مساحته` : 'سكان مقدّرون'
   return null
 }
 
 /** A district and its neighbours together: their residents and competitors summed from the same answer. */
-export type AroundArea = { districts: number; residents: number; competitors: number }
+export type AroundArea = {
+  districts: number; residents: number; competitors: number
+  /** Residents per competitor with each neighbour weighted by its nearness (THIN.nearKm); null with no competitor. */
+  ratio?: number | null
+  /** Fewer residents than THIN.minArea in the district and its neighbours: ranked after the others. */
+  small?: boolean
+  /** The ratio weighs each neighbour by its distance (a distance was given). */
+  weighted?: boolean
+}
 
 /**
  * «أين المنافسة أخف؟» with the neighbours counted: a populated district ranks by the residents per competitor of
@@ -612,21 +646,79 @@ export type AroundArea = { districts: number; residents: number; competitors: nu
  * none inside but a crowded edge (وادي لبن: 0 inside, 668 next door) no longer leads. An area with no competitor at
  * all comes first, the most residents first. Without outlines, the plain ranking (rankCompetition).
  */
-export function rankLightAround<T extends CompetitorRow & { row: { id: string; population: number | null } }>(table: T[], neighbours: Map<string, Set<string>> | null): (T & { area: AroundArea | null })[] {
+export function rankLightAround<T extends CompetitorRow & { row: { id: string; population: number | null } }>(table: T[], neighbours: Map<string, Set<string>> | null,
+  /** Distance in km between two districts' centres; without it every neighbour weighs 1. */
+  distance?: (a: string, b: string) => number | null): (T & { area: AroundArea | null })[] {
   if (!neighbours) return rankCompetition(table, 'light').map((item) => ({ ...item, area: null }))
   const byId = new Map(table.map((item) => [item.row.id, item]))
+  const weight = (a: string, b: string) => { const km = distance?.(a, b); return km == null ? 1 : 1 / (1 + km / THIN.nearKm) }
   const scored = table.filter((item) => item.row.population != null).map((item) => {
-    const members = [item, ...[...(neighbours.get(item.row.id) ?? [])].map((id) => byId.get(id)).filter((other): other is T => other != null && other.row.population != null)]
-    const area = { districts: members.length, residents: members.reduce((sum, other) => sum + (other.row.population ?? 0), 0), competitors: members.reduce((sum, other) => sum + other.competitors, 0) }
+    const others = [...(neighbours.get(item.row.id) ?? [])].map((id) => byId.get(id)).filter((other): other is T => other != null && other.row.population != null)
+    const residents = (item.row.population ?? 0) + others.reduce((sum, other) => sum + (other.row.population ?? 0), 0)
+    const competitors = item.competitors + others.reduce((sum, other) => sum + other.competitors, 0)
+    const weighted = others.reduce((sum, other) => {
+      const w = weight(item.row.id, other.row.id)
+      return { residents: sum.residents + w * (other.row.population ?? 0), competitors: sum.competitors + w * other.competitors }
+    }, { residents: item.row.population ?? 0, competitors: item.competitors })
+    const area: AroundArea = { districts: others.length + 1, residents, competitors, ratio: competitors === 0 ? null : weighted.residents / weighted.competitors, small: residents < THIN.minArea || (item.row.population ?? 0) < THIN.minDistrict, weighted: distance != null }
     return { ...item, area }
   })
-  const per = (area: AroundArea) => (area.competitors === 0 ? Infinity : area.residents / area.competitors)
-  // the same area (districts that are all each other's neighbours): the district with fewer competitors of its own first
-  return scored.sort((a, b) => per(b.area) - per(a.area) || b.area.residents - a.area.residents || a.competitors - b.competitors)
+  const per = (area: AroundArea) => (area.competitors === 0 ? Infinity : area.ratio ?? 0)
+  // a small area after the others; then the lightest; the same area (districts that are all each other's neighbours):
+  // the district with fewer competitors of its own first
+  return scored.sort((a, b) => Number(a.area.small) - Number(b.area.small) || per(b.area) - per(a.area) || b.area.residents - a.area.residents || a.competitors - b.competitors)
 }
 
 /** A light-order row's line: «مع جواره: 2,310 ساكن لكل منافس», or that its whole area has none. */
 export function areaLine(area: AroundArea | null): string | null {
   if (!area) return null
-  return area.competitors === 0 ? 'لا منافس فيه ولا في جواره' : `مع جواره: ${n(Math.round(area.residents / area.competitors))} ساكن لكل منافس`
+  const line = area.competitors === 0 ? 'لا منافس فيه ولا في جواره' : `مع جواره: ${n(Math.round(area.residents / area.competitors))} ساكن لكل منافس`
+  return area.small ? `${line}، منطقة قليلة السكان` : line
+}
+
+/**
+ * «أين ينقص نشاطي؟» with the neighbours: the first `consider` residential districts reorder by their gap net of
+ * the surplus next door (missing − the neighbours' businesses over their own need), so a gap a crowded neighbour
+ * already serves no longer leads. The rest keep the service's order; flagged districts stay last.
+ */
+export function rankGapsAround<R extends GapVerdictRow>(short: R[], aroundOfRow: (row: R) => Around | null, consider = 10,
+  /** The part of the neighbours' surplus that serves this district: a neighbour's surplus is shared among its own
+   * neighbours (Riyadh's طويق, 37 over its need, borders six districts), never subtracted whole from each. Without
+   * it, the whole surplus. */
+  shareOf?: (row: R) => number): (R & { around: Around | null; net?: number })[] {
+  const lead = short.slice(0, consider).filter((row) => !row.caveat)
+  const rest = short.filter((row) => !lead.includes(row))
+  const scored = lead.map((row, index) => {
+    const around = aroundOfRow(row)
+    const missing = Math.round(row.expected_businesses ?? 0) - row.businesses
+    return { ...row, around, net: missing - Math.round(shareOf ? shareOf(row) : around?.total ?? 0), index }
+  })
+  scored.sort((a, b) => b.net - a.net || a.index - b.index)
+  return [...scored.map(({ index: _index, ...row }) => row as R & { around: Around | null; net: number }), ...rest.map((row) => ({ ...row, around: null }))]
+}
+
+/**
+ * The gaps tool's line on how far the activity's count follows the population, in plain words, from the service's
+ * measured correlation (`fit`, Pearson r) over the districts that carry both: «عدد «صيدلية» يتبع السكان بقوة هنا،
+ * قيس على 163 حياً.» The r itself stays in the line's explanation for whoever audits it. Bands: 0.7 and over strong,
+ * 0.5 clear, 0.3 moderate (the service's own floor for a city rate), under that it does not follow.
+ */
+export function fitLine(fit: number | null | undefined, districts: number | null | undefined, label: string): string | null {
+  if (fit == null || districts == null) return null
+  const where = `قيس على ${counted(districts, 'district')} فيها سكان ومنشآت.`
+  if (fit >= 0.7) return `عدد «${label}» يتبع السكان بقوة هنا، ${where}`
+  if (fit >= 0.5) return `عدد «${label}» يتبع السكان بوضوح هنا، ${where}`
+  if (fit >= 0.3) return `عدد «${label}» يتبع السكان بقدر متوسط هنا، فالنقص دليل لا قياس دقيق. ${where}`
+  return `عدد «${label}» لا يتبع السكان هنا، فلا يُحسب له نقص بعدد السكان. ${where}`
+}
+
+/**
+ * A shop listing whose stated area is far past a shop's (over OVERSIZED_SHOP_M2): flagged, never dropped. Riyadh's
+ * shops for rent (449, 2026-11-03): median 400 m², 75 over 1,000 m², 3,000 m² at the 95th; past 1,000 m² an ad is
+ * usually a showroom, a warehouse or a whole commercial building.
+ */
+export const OVERSIZED_SHOP_M2 = 1000
+export function oversizedShop(type: string | null | undefined, area: number | null | undefined): string | null {
+  if (type !== 'store' || area == null || area <= OVERSIZED_SHOP_M2) return null
+  return `مساحة كبيرة لمحل (${n(Math.round(area))} م²): قد يكون معرضاً أو مستودعاً أو مبنى تجارياً`
 }

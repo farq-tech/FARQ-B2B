@@ -18,7 +18,7 @@ import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { ActivityCompare } from './activity-compare'
 import { areaLine, aroundOf, brandsVerdict, competitorsSummary, competitorsVerdict, densestDistrict, rankCompetition, rankLightAround, THIN, type AroundArea } from './tool-answers'
 import { Examples } from './examples'
-import { neighbourMap } from '@/lib/geo-measure'
+import { distanceKm, neighbourMap, outlineCentre } from '@/lib/geo-measure'
 import type { DistrictFeature } from '@/lib/insights-api'
 import { Verdict } from './verdict'
 import { useMainActivities } from '@/lib/main-activities'
@@ -128,7 +128,11 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   // the districts' neighbours by outline, once per city: the lightest competition counts them (rankLightAround)
   const neighbours = useMemo(() => (features.length ? neighbourMap(features.map((feature) => ({ id: String(feature.properties.id), geometry: feature.geometry }))) : null), [features])
   // sorted once per answer and order, not on every render (a hover or a show-more re-renders the whole tool)
-  const ranked = useMemo<Row[]>(() => (order === 'light' ? rankLightAround(table, neighbours) : rankCompetition(table, order)), [table, order, neighbours])
+  // each district's centre, so a neighbour far across a long edge counts less than one next door
+  const centres = useMemo(() => new Map(features.map((feature) => [String(feature.properties.id), outlineCentre(feature.geometry)])), [features])
+  const ranked = useMemo<Row[]>(() => (order === 'light'
+    ? rankLightAround(table, neighbours, (a, b) => { const p = centres.get(a); const q = centres.get(b); return p && q ? distanceKm(p, q) : null })
+    : rankCompetition(table, order)), [table, order, neighbours, centres])
 
   useEffect(() => {
     if (brand) {
@@ -165,10 +169,11 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     // the same count the district's colour and the list read (a district the service lists no business in is «لا منافس»)
     const facts = new Map(table.map((item) => [item.row.id, item.competitors ? `${counted(item.competitors, 'business')} من «${studied.label}»` : 'لا منافس'] as [string, string]))
     // «أرني الأعلى» opens the district the summary names
-    onOverlay({ colors, facts, summary, lead: top?.row.id ?? null, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
+    // the chains are a second reading of the same businesses: an answer without them is said partial in the journey
+    onOverlay({ colors, facts, summary, lead: top?.row.id ?? null, partial: brands == null ? 'السلاسل' : null, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
     // answer.retry is stable; status and slow are what the no-answer overlay says
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table, brand, rows, onOverlay, cityTotal, studied.label, order, answer.status, answer.slow, ranked])
+  }, [table, brand, rows, onOverlay, cityTotal, studied.label, order, answer.status, answer.slow, ranked, brands])
 
   // the service counted the activity and found none: a city total of 0, or no district and no total
   const noneFound = counts != null && (cityTotal === 0 || (cityTotal == null && counts.length === 0))
@@ -245,7 +250,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                     item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي',
                     // the light order ranks by the district with its neighbours: the row says what that is
                     order === 'light' ? areaLine(item.area ?? null) : null,
-                    item.row.settledPct != null && item.row.settledPct < THIN.sparse ? `مأهول في ${numberFormat.format(item.row.settledPct)}% من مساحته` : null,
+                    item.row.settledPct != null && item.row.settledPct < THIN.sparse ? (item.row.settledPct < 1 ? 'غير مأهول تقريباً' : `مأهول في ${numberFormat.format(item.row.settledPct)}% من مساحته`) : null,
                   ].filter(Boolean).join(' · ')}
                   value={counted(item.competitors, 'business')}
                   // a district with none has no density to show, and its area is not what is missing

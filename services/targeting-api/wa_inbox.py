@@ -25,6 +25,7 @@ logs the service already keeps there: standard library only, no new server or ve
 from __future__ import annotations
 
 import contextlib
+import copy
 import hashlib
 import hmac
 import json
@@ -35,6 +36,7 @@ import threading
 import time
 
 LINK_WINDOW_DAYS = 30
+STATS_TTL_SECONDS = 300
 MAX_BODY_CHARS = 4096
 MAX_WEBHOOK_BYTES = 1024 * 1024
 ID_RE = re.compile(r'^[A-Za-z0-9_\-:.]{1,160}$')
@@ -55,7 +57,8 @@ create table if not exists wa_outbound (
   status text not null default 'sent',
   status_at integer,
   sender_id text,
-  request_title text
+  request_title text,
+  follow_up_of text
 );
 create index if not exists wa_outbound_by_number on wa_outbound (wa_id, sent_at desc);
 create index if not exists wa_outbound_by_account on wa_outbound (account_id, sent_at desc);
@@ -92,7 +95,7 @@ create table if not exists wa_source_health (
 );
 """
 # columns added after the first release of the file: added in place to a store created before them
-LATER_COLUMNS = {'wa_outbound': {'sender_id': 'text', 'request_title': 'text'}, 'wa_inbound': {'read_at': 'integer', 'reviewed_at': 'integer', 'reviewed_by': 'text'}}
+LATER_COLUMNS = {'wa_outbound': {'sender_id': 'text', 'request_title': 'text', 'follow_up_of': 'text'}, 'wa_inbound': {'read_at': 'integer', 'reviewed_at': 'integer', 'reviewed_by': 'text'}}
 
 
 def digits(value) -> str:
@@ -231,6 +234,16 @@ class InboxStore:
         self.window = int(link_window_days) * 86400
         self._lock = threading.Lock()
         self._ready = False
+        # reply_stats is asked on every inbox poll of every open tab: its answer is kept per accounts until a write
+        # that can change it (a send, a reply, a status, an owner review) or STATS_TTL_SECONDS, whichever comes first
+        self._version = 0
+        self._stats_cache = {}
+        self._stats_lock = threading.Lock()
+
+    def _changed(self) -> None:
+        with self._stats_lock:
+            self._version += 1
+            self._stats_cache.clear()
 
     @contextlib.contextmanager
     def _connect(self):
@@ -256,7 +269,7 @@ class InboxStore:
             finally:
                 con.close()
 
-    def record_outbound(self, message_id, account_id, request_id, poi_key, to, sent_at=None, sender_id=None, request_title=None) -> bool:
+    def record_outbound(self, message_id, account_id, request_id, poi_key, to, sent_at=None, sender_id=None, request_title=None, follow_up_of=None) -> bool:
         """Remember one campaign message we sent, so its reply can be linked back. Returns False when an id is not
         usable (nothing stored); a repeated message id keeps the first record."""
         number = digits(to)
@@ -264,8 +277,10 @@ class InboxStore:
                 and isinstance(poi_key, str) and 1 <= len(poi_key) <= 200 and 8 <= len(number) <= 15):
             return False
         with self._connect() as con:
-            con.execute('insert or ignore into wa_outbound (message_id, account_id, request_id, poi_key, wa_id, sent_at, sender_id, request_title) values (?,?,?,?,?,?,?,?)',
-                        (message_id, account_id, request_id, poi_key, number, int(sent_at or time.time()), sender_id if valid_id(sender_id) else None, clean_title(request_title)))
+            con.execute('insert or ignore into wa_outbound (message_id, account_id, request_id, poi_key, wa_id, sent_at, sender_id, request_title, follow_up_of) values (?,?,?,?,?,?,?,?,?)',
+                        (message_id, account_id, request_id, poi_key, number, int(sent_at or time.time()), sender_id if valid_id(sender_id) else None,
+                         clean_title(request_title), follow_up_of if valid_id(follow_up_of) and follow_up_of != request_id else None))
+        self._changed()
         return True
 
     def _link(self, con, message):
@@ -312,6 +327,8 @@ class InboxStore:
                 if forward:
                     con.execute('update wa_outbound set status=?, status_at=? where message_id=?', (state, status['at'], status['message_id']))
                     result['statuses'] += 1
+        if result['new'] or result['statuses']:
+            self._changed()
         return result
 
     def known_numbers(self, numbers) -> set:
@@ -356,6 +373,12 @@ class InboxStore:
         return {'source': source, 'lastOkAt': iso(row[0]) if row[0] else None, 'lastErrorAt': iso(row[1]) if row[1] else None,
                 'lastErrorKind': row[2], 'failures': int(row[3] or 0), 'lastCounts': counts}
 
+    def health_epochs(self, source: str) -> tuple[int | None, int]:
+        """(last success as epoch seconds or None, failures in a row) for the watchdog and the metrics."""
+        with self._connect() as con:
+            row = con.execute('select last_ok_at, failures from wa_source_health where source=?', (source,)).fetchone()
+        return (row[0], int(row[1] or 0)) if row else (None, 0)
+
     def cursor(self, source: str) -> str | None:
         with self._connect() as con:
             row = con.execute('select value from wa_source_cursor where source=?', (source,)).fetchone()
@@ -386,6 +409,102 @@ class InboxStore:
             'messages': [{'id': r[0], 'requestId': r[1], 'poiKey': r[2], 'kind': r[3], 'body': r[4], 'receivedAt': iso(r[5]), 'link': r[6], 'read': r[7] is not None} for r in rows],
             'deliveries': [{'requestId': r[0], 'poiKey': r[1], 'status': r[2], 'at': iso(r[3])} for r in deliveries],
         }
+
+    def reply_stats(self, account_id, now: int | None = None, elsewhere_days: int = LINK_WINDOW_DAYS) -> dict:
+        """reply_stats_uncached, kept per accounts until a write changes the figures or STATS_TTL_SECONDS pass (the
+        30-day window of «replied elsewhere» moves with time). A copy is returned, so a caller cannot change the cache."""
+        accounts = accounts_of(account_id)
+        key = (tuple(sorted(accounts)), int(elsewhere_days))
+        at = int(now or time.time())
+        with self._stats_lock:
+            hit = self._stats_cache.get(key)
+            version = self._version
+        if hit and hit[0] == version and 0 <= at - hit[1] < STATS_TTL_SECONDS:
+            return copy.deepcopy(hit[2])
+        result = self.reply_stats_uncached(accounts, at, elsewhere_days)
+        with self._stats_lock:
+            if self._version == version:   # a write landed meanwhile: do not keep an answer it may have changed
+                self._stats_cache[key] = (version, at, result)
+        return copy.deepcopy(result)
+
+    def reply_stats_uncached(self, account_id, now: int | None = None, elsewhere_days: int = LINK_WINDOW_DAYS) -> dict:
+        """Per request of these accounts: how many recipients the campaign reached (sent, not failed), how many replied,
+        and the median time to a first reply, counted from the latest message the recipient was sent before it (a
+        follow-up's reply is timed from the follow-up, not from the first message weeks earlier). And, per recipient who has not
+        replied to a request, whether the same number replied to another of these accounts' campaigns in the last
+        `elsewhere_days` (the reply's id, so the inbox can open it). Only these accounts' own records are read, so
+        nothing about another account's campaigns is said. No numbers in the answer."""
+        accounts = accounts_of(account_id)
+        if not accounts:
+            return {'requests': [], 'elsewhere': []}
+        marks = ','.join('?' * len(accounts))
+        with self._connect() as con:
+            # each recipient of each request: the first message it was sent and whether any of its messages failed for good
+            recipients = con.execute(
+                f'select request_id, poi_key, wa_id, min(sent_at), max(case when status != \'failed\' then 1 else 0 end) '
+                f'from wa_outbound where account_id in ({marks}) group by request_id, poi_key, wa_id', accounts).fetchall()
+            sends = con.execute(f'select request_id, poi_key, sent_at from wa_outbound where account_id in ({marks})', accounts).fetchall()
+            parents = con.execute(f'select distinct request_id, follow_up_of from wa_outbound where account_id in ({marks}) and follow_up_of is not null', accounts).fetchall()
+            replies = con.execute(
+                f'select request_id, poi_key, min(received_at) from wa_inbound where account_id in ({marks}) '
+                'and request_id is not null group by request_id, poi_key', accounts).fetchall()
+            latest = con.execute(
+                f'select wa_id, request_id, message_id, received_at from wa_inbound where account_id in ({marks}) and request_id is not null '
+                'and received_at >= ? order by received_at desc', (*accounts, int(now or time.time()) - int(elsewhere_days) * 86400)).fetchall()
+        first_reply = {(r[0], r[1]): r[2] for r in replies}
+        sent_times = {}
+        for request_id, poi_key, sent_at in sends:
+            sent_times.setdefault((request_id, poi_key), []).append(int(sent_at))
+        per_request = {}
+        for request_id, poi_key, _wa, sent_at, reached in recipients:
+            row = per_request.setdefault(request_id, {'requestId': request_id, 'sent': 0, 'replied': 0, 'delays': []})
+            if not reached:
+                continue
+            row['sent'] += 1
+            at = first_reply.get((request_id, poi_key))
+            if at is not None:
+                row['replied'] += 1
+                # the latest message sent before the reply (5 minutes of clock skew allowed), else the first
+                before = [t for t in sent_times.get((request_id, poi_key), []) if t <= int(at) + 300]
+                row['delays'].append(max(0, int(at) - (max(before) if before else int(sent_at))))
+        out = []
+        for row in per_request.values():
+            delays = sorted(row.pop('delays'))
+            n = len(delays)
+            row['medianReplySeconds'] = None if not n else (delays[n // 2] if n % 2 else (delays[n // 2 - 1] + delays[n // 2]) // 2)
+            out.append(row)
+        # an original campaign with its follow-ups (follow_up_of, at most two steps, as Atlas allows): of the original's
+        # recipients it reached, how many answered the original or any follow-up of its chain
+        parent_of = {r[0]: r[1] for r in parents}
+        descendants = {}
+        for child in parent_of:
+            node, steps = child, 0
+            while node in parent_of and steps < 3:
+                node, steps = parent_of[node], steps + 1
+                descendants.setdefault(node, set()).add(child)
+        reached_by = {}
+        for request_id, poi_key, _wa, _sent, reached in recipients:
+            if reached: reached_by.setdefault(request_id, set()).add(poi_key)
+        for row in out:
+            chain = descendants.get(row['requestId'])
+            if not chain:
+                continue
+            reached = reached_by.get(row['requestId'], set())
+            own = {p for p in reached if (row['requestId'], p) in first_reply}
+            later = {p for p in reached - own if any((child, p) in first_reply for child in chain)}
+            row['combined'] = {'sent': len(reached), 'replied': len(own) + len(later), 'viaFollowUps': len(later), 'followUps': sorted(chain)}
+        # a number that has not answered this request but answered another campaign of these accounts lately
+        newest_by_number = {}
+        for wa_id, request_id, message_id, received_at in latest:
+            newest_by_number.setdefault(wa_id, []).append((request_id, message_id, received_at))
+        elsewhere = []
+        for request_id, poi_key, wa_id, _sent, reached in recipients:
+            if (request_id, poi_key) in first_reply:
+                continue
+            other = next((r for r in newest_by_number.get(wa_id, []) if r[0] != request_id), None)
+            if other:
+                elsewhere.append({'requestId': request_id, 'poiKey': poi_key, 'otherRequestId': other[0], 'messageId': other[1], 'at': iso(other[2])})
+        return {'requests': sorted(out, key=lambda r: r['requestId']), 'elsewhere': elsewhere}
 
     def set_read(self, account_id, message_ids, read: bool = True, now: int | None = None) -> int:
         """Marks the account's own replies read (or unread again). Ids of another account's replies change nothing."""
@@ -426,6 +545,7 @@ class InboxStore:
                 return False
             con.execute('update wa_inbound set outbound_id=?, account_id=?, request_id=?, poi_key=?, link=?, reviewed_at=?, reviewed_by=? where message_id=?',
                         (row[0], row[1], row[2], row[3], 'manual', int(now or time.time()), reviewer, message_id))
+        self._changed()
         return True
 
     def dismiss(self, message_id: str, reviewer: str, now: int | None = None) -> bool:
@@ -454,3 +574,54 @@ def handle_post(raw: bytes, signature_header: str | None, app_secret: str | None
     except (ValueError, UnicodeDecodeError):
         return 400, {'ok': False, 'error': 'BAD_JSON'}
     return 200, {'ok': True, **store.ingest(payload, phone_number_id, now)}
+
+
+# ── staleness: a source that stops succeeding, including one whose poll hangs and never reports a failure ─────────
+
+STALE_AFTER_SECONDS = 10 * 60
+REALERT_SECONDS = 30 * 60
+
+
+class StalenessWatch:
+    """Says when to raise `ALERT inbox_source_stale`: once the source has had no success for `stale_after` seconds
+    (counted from the start when it never succeeded), then again every `realert` seconds while it stays stale, and
+    once more (`recovered`) when a success comes back. A poll that hangs on a connection never records a failure, so
+    the failure counter alone cannot see it; this can."""
+
+    def __init__(self, started_at: int, stale_after: int = STALE_AFTER_SECONDS, realert: int = REALERT_SECONDS):
+        self.started_at = int(started_at)
+        self.stale_after = int(stale_after)
+        self.realert = int(realert)
+        self.alerted_at = None
+
+    def check(self, last_ok_at: int | None, now: int) -> dict | None:
+        since = last_ok_at if last_ok_at else self.started_at
+        age = int(now) - int(since)
+        if age <= self.stale_after:
+            if self.alerted_at is not None:
+                self.alerted_at = None
+                return {'event': 'recovered', 'age_seconds': age}
+            return None
+        if self.alerted_at is None or now - self.alerted_at >= self.realert:
+            self.alerted_at = int(now)
+            return {'event': 'stale', 'age_seconds': age, 'never_succeeded': not last_ok_at}
+        return None
+
+
+def prometheus_lines(source: str, last_ok_at: int | None, failures: int, now: int, running: bool) -> list:
+    """Gauges for the existing authenticated /metrics, so any scraper can alert on the reply source: up (running, last
+    poll succeeded, success within STALE_AFTER_SECONDS), age of the last success (-1 when never) and failures in a row."""
+    label = re.sub(r'[^a-z0-9_]', '_', str(source).lower())[:40] or 'unknown'
+    age = int(now) - int(last_ok_at) if last_ok_at else -1
+    up = 1 if running and failures == 0 and 0 <= age <= STALE_AFTER_SECONDS else 0
+    return [
+        '# HELP atlas_inbox_source_up 1 when the WhatsApp reply source is running and read successfully in the last 10 minutes.',
+        '# TYPE atlas_inbox_source_up gauge',
+        f'atlas_inbox_source_up{{source="{label}"}} {up}',
+        '# HELP atlas_inbox_source_last_ok_age_seconds Seconds since the reply source last read successfully (-1: never).',
+        '# TYPE atlas_inbox_source_last_ok_age_seconds gauge',
+        f'atlas_inbox_source_last_ok_age_seconds{{source="{label}"}} {age}',
+        '# HELP atlas_inbox_source_failures_in_row Failed reads of the reply source since its last success.',
+        '# TYPE atlas_inbox_source_failures_in_row gauge',
+        f'atlas_inbox_source_failures_in_row{{source="{label}"}} {int(failures)}',
+    ]

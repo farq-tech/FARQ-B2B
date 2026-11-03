@@ -16,6 +16,7 @@ import { trackDecisionMoment } from '@/lib/commercial-metrics'
 import { CATEGORICAL, PALETTE as TONE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { Chip } from '@/components/ui/chip'
 import { useMainActivities } from '@/lib/main-activities'
 import { duration, territoriesSummary, territoriesVerdict, weekFitHint, weekSummary } from './tool-answers'
 import { Verdict } from './verdict'
@@ -122,7 +123,12 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   // step 1-2: the territories, rebuilt whenever the activity, count or balance changes; the last split goes at once,
   // so the map never colours the old reps under the new count's skeleton
   const groupsKey = `${city}|${count}|${weight}|${mainId}`
-  const split = useAnswer(groupsKey, () => postMarket<{ territories: Territory[] }>('territories', { city, count, weight, ...(mainId ? { main_id: mainId } : {}) }))
+  // the city is split once the distributor has said whose customers it is: an activity, or «كل المنشآت» on purpose.
+  // Splitting every business by default handed each rep some 150,000 businesses nobody serves
+  const [scope, setScope] = useStickyState<'all' | 'activity'>('territories.scope', 'activity')
+  const told = Boolean(mainId) || scope === 'all'
+  const pickCustomers = (id: string) => { setMainId(id); setScope(id ? 'activity' : 'all') }
+  const split = useAnswer(told ? groupsKey : null, () => postMarket<{ territories: Territory[] }>('territories', { city, count, weight, ...(mainId ? { main_id: mainId } : {}) }))
   // one array per answer: the map's overlay effect follows it, so a new empty array on every render would loop
   const groups = useMemo(() => (split.status === 'ready' ? split.data?.territories ?? [] : null), [split.status, split.data])
   const status = split.status === 'loading' ? 'loading' : split.status === 'error' ? 'error' : 'idle'
@@ -245,7 +251,13 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
       <h2 className="text-xl font-bold">المناطق والمسار</h2>
 
       <Step n={1} title="نشاط عملائك" done={Boolean(mainId)}>
-        <MainActivityPicker activities={activities} value={mainId} onChange={setMainId} placeholder="نشاط عملائك" allLabel="كل المنشآت" />
+        <MainActivityPicker activities={activities} value={mainId} onChange={pickCustomers} placeholder="نشاط عملائك" allLabel="كل المنشآت" />
+        {!told && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <span className="min-w-0 flex-1">اختر نشاط عملائك فتُقسَّم المدينة على عملائك أنت، لا على كل منشآتها.</span>
+            <Chip onClick={() => setScope('all')}>قسّم على كل المنشآت</Chip>
+          </div>
+        )}
       </Step>
 
       <Step n={2} title="المندوبون" done={Boolean(groups?.length)}>

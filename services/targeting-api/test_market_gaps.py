@@ -169,6 +169,18 @@ class MarketGapTests(unittest.TestCase):
         self.assertEqual(by_name["الظهران"]["population"], 242901)
         self.assertGreater(by_name["الظهران"]["shortfall"], 0)
 
+    def test_model_holds_a_closed_campus_goes_after_the_residential_districts(self):
+        analytics, population, counts, pops = self._fitting()
+        # Al Khobar as served: the university campus, 31,805 people and no pharmacy here, led the list second
+        population["جامعة الملك فهد للبترول"] = {"population": 31805.0, "male": None, "female": None, "source": "910ths.sa", "coverage_pct": 100.0}
+        # a residential district whose name only contains the word stays ordinary
+        population["الجامعة"] = {"population": 30000.0, "male": None, "female": None, "source": "910ths.sa", "coverage_pct": 100.0}
+        result = analytics.market_gaps({"city": "Riyadh"}, population)
+        by_name = {row["district_ar"]: row for row in result["districts"]}
+        self.assertEqual(by_name["جامعة الملك فهد للبترول"]["caveat"], "campus")
+        self.assertIsNone(by_name["الجامعة"]["caveat"])
+        self.assertEqual(result["districts"][-1]["district_ar"], "جامعة الملك فهد للبترول")
+
     # ------- shared behaviour -------
 
     def test_no_response_field_names_an_outside_source(self):

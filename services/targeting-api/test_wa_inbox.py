@@ -216,7 +216,7 @@ class ReadStateTests(Base):
         import sqlite3
         path = os.path.join(self.dir.name, 'old.sqlite3')
         con = sqlite3.connect(path)
-        con.executescript(wa_inbox.SCHEMA.replace(',\n  sender_id text,\n  request_title text', '').replace(',\n  read_at integer,\n  reviewed_at integer,\n  reviewed_by text', ''))
+        con.executescript(wa_inbox.SCHEMA.replace(',\n  sender_id text,\n  request_title text,\n  follow_up_of text', '').replace(',\n  read_at integer,\n  reviewed_at integer,\n  reviewed_by text', ''))
         con.execute("insert into wa_outbound (message_id, account_id, request_id, poi_key, wa_id, sent_at) values ('wamid.O','org-1','cmp-1','poi:1',?,?)", (NUMBER, T0))
         con.commit(); con.close()
         store = wa_inbox.InboxStore(path)
@@ -279,6 +279,139 @@ class TitleAndHealthTests(Base):
         self.assertEqual(self.store.record_poll('construction_db', True, now=T0 + 180), 0)
         self.assertEqual(self.store.health('construction_db')['failures'], 0)
         self.assertEqual(self.store.health('construction_db')['lastErrorKind'], 'psycopg.errors.InsufficientPrivilege', 'the last error stays visible')
+
+
+
+class StalenessTests(Base):
+    def test_a_source_with_no_success_for_ten_minutes_alerts_once_then_every_half_hour_then_recovers(self):
+        watch = wa_inbox.StalenessWatch(started_at=T0)
+        self.assertIsNone(watch.check(None, T0 + 300), 'starting up: not stale yet')
+        first = watch.check(None, T0 + 601)
+        self.assertEqual((first['event'], first['never_succeeded']), ('stale', True))
+        self.assertIsNone(watch.check(None, T0 + 1200), 'no repeat within 30 minutes')
+        self.assertEqual(watch.check(None, T0 + 601 + 1800)['event'], 'stale')
+        self.assertEqual(watch.check(T0 + 2500, T0 + 2510), {'event': 'recovered', 'age_seconds': 10})
+        self.assertIsNone(watch.check(T0 + 2500, T0 + 2520))
+        hung = watch.check(T0 + 2500, T0 + 2500 + 700)
+        self.assertEqual((hung['event'], hung['never_succeeded']), ('stale', False), 'a hung poll records no failure; age still counts')
+
+    def test_metrics_gauges_say_up_age_and_failures(self):
+        self.store.record_poll('construction_db', True, now=T0)
+        last_ok, failures = self.store.health_epochs('construction_db')
+        self.assertEqual((last_ok, failures), (T0, 0))
+        up = wa_inbox.prometheus_lines('construction_db', last_ok, failures, T0 + 60, True)
+        self.assertIn('atlas_inbox_source_up{source="construction_db"} 1', up)
+        self.assertIn('atlas_inbox_source_last_ok_age_seconds{source="construction_db"} 60', up)
+        self.store.record_poll('construction_db', False, 'InsufficientPrivilege', now=T0 + 120)
+        down = wa_inbox.prometheus_lines('construction_db', *self.store.health_epochs('construction_db'), T0 + 120, True)
+        self.assertIn('atlas_inbox_source_up{source="construction_db"} 0', down)
+        self.assertIn('atlas_inbox_source_failures_in_row{source="construction_db"} 1', down)
+        never = wa_inbox.prometheus_lines('construction_db', None, 0, T0, True)
+        self.assertIn('atlas_inbox_source_last_ok_age_seconds{source="construction_db"} -1', never)
+        self.assertIn('atlas_inbox_source_up{source="x"} 0', wa_inbox.prometheus_lines('x', T0, 0, T0, False), 'not running: down')
+        self.assertEqual(self.store.health_epochs('nothing'), (None, 0))
+
+
+class ReplyStatsTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.third = '966500000003'
+        for message_id, request_id, poi, number, at in [
+            ('wamid.A1', 'cmp-1', 'poi:1', NUMBER, T0), ('wamid.A2', 'cmp-1', 'poi:2', OTHER, T0), ('wamid.A3', 'cmp-1', 'poi:3', self.third, T0),
+            ('wamid.B1', 'cmp-2', 'poi:1', NUMBER, T0 + 7200),   # a later campaign of the same account to the same number
+        ]:
+            self.store.record_outbound(message_id, 'org-1', request_id, poi, number, sent_at=at)
+        self.store.record_outbound('wamid.X', 'org-9', 'cmp-x', 'poi:1', NUMBER, sent_at=T0 + 9000)   # another account
+        # poi:2 answers cmp-1 after 1 h (quoting it); poi:1 answers cmp-2 after 3 h; poi:3's message failed
+        self.post(body([text('wamid.R2', sender=OTHER, at=T0 + 3600, context='wamid.A2'),
+                        text('wamid.R1', sender=NUMBER, at=T0 + 7200 + 3 * 3600, context='wamid.B1')]))
+        self.post(body(statuses=[{'id': 'wamid.A3', 'status': 'failed', 'timestamp': str(T0 + 5)}]))
+
+    def test_each_request_counts_the_recipients_reached_the_replies_and_the_median_reply_time(self):
+        stats = {r['requestId']: r for r in self.store.reply_stats('org-1', now=T0 + 86400)['requests']}
+        self.assertEqual((stats['cmp-1']['sent'], stats['cmp-1']['replied'], stats['cmp-1']['medianReplySeconds']), (2, 1, 3600),
+                         'the failed recipient is not counted as reached')
+        self.assertEqual((stats['cmp-2']['sent'], stats['cmp-2']['replied'], stats['cmp-2']['medianReplySeconds']), (1, 1, 3 * 3600))
+        self.assertNotIn('cmp-x', stats, "another account's campaign is not read")
+        self.assertEqual(self.store.reply_stats('bad id!'), {'requests': [], 'elsewhere': []})
+
+    def test_a_recipient_who_answered_another_campaign_of_the_account_is_flagged(self):
+        elsewhere = self.store.reply_stats('org-1', now=T0 + 86400)['elsewhere']
+        self.assertEqual([(e['requestId'], e['poiKey'], e['otherRequestId'], e['messageId']) for e in elsewhere],
+                         [('cmp-1', 'poi:1', 'cmp-2', 'wamid.R1')])
+        self.assertNotIn(NUMBER, json.dumps(elsewhere))
+        self.assertEqual(self.store.reply_stats('org-9', now=T0 + 86400)['elsewhere'], [], "another account's replies are never named")
+        self.assertEqual(self.store.reply_stats('org-1', now=T0 + 40 * 86400)['elsewhere'], [], 'only replies of the last 30 days')
+
+    def test_an_even_number_of_reply_times_takes_the_mean_of_the_middle_two(self):
+        self.store.record_outbound('wamid.E1', 'org-1', 'cmp-e', 'poi:5', '966500000005', sent_at=T0)
+        self.store.record_outbound('wamid.E2', 'org-1', 'cmp-e', 'poi:6', '966500000006', sent_at=T0)
+        self.post(body([text('wamid.RE1', sender='966500000005', at=T0 + 3600, context='wamid.E1'),
+                        text('wamid.RE2', sender='966500000006', at=T0 + 3 * 3600, context='wamid.E2')]))
+        stats = {r['requestId']: r for r in self.store.reply_stats('org-1', now=T0 + 86400)['requests']}
+        self.assertEqual(stats['cmp-e']['medianReplySeconds'], 2 * 3600)
+
+
+class ReplyTimingAndCacheTests(Base):
+    def test_a_reply_after_a_follow_up_message_is_timed_from_that_message(self):
+        self.store.record_outbound('wamid.F1', 'org-1', 'cmp-f', 'poi:1', NUMBER, sent_at=T0)
+        self.store.record_outbound('wamid.F2', 'org-1', 'cmp-f', 'poi:1', NUMBER, sent_at=T0 + 3 * 86400)   # sent again, same request
+        self.post(body([text('wamid.RF', at=T0 + 3 * 86400 + 1800)]))
+        [stat] = [r for r in self.store.reply_stats('org-1', now=T0 + 4 * 86400)['requests'] if r['requestId'] == 'cmp-f']
+        self.assertEqual(stat['medianReplySeconds'], 1800, 'from the latest message before the reply, not 3 days earlier')
+
+    def test_a_message_sent_after_the_reply_does_not_shorten_its_time(self):
+        self.store.record_outbound('wamid.G1', 'org-1', 'cmp-g', 'poi:1', NUMBER, sent_at=T0)
+        self.post(body([text('wamid.RG', at=T0 + 7200, context='wamid.G1')]))
+        self.store.record_outbound('wamid.G2', 'org-1', 'cmp-g', 'poi:1', NUMBER, sent_at=T0 + 86400)
+        [stat] = [r for r in self.store.reply_stats('org-1', now=T0 + 2 * 86400)['requests'] if r['requestId'] == 'cmp-g']
+        self.assertEqual(stat['medianReplySeconds'], 7200)
+
+    def test_the_figures_are_kept_until_a_write_or_five_minutes(self):
+        import sqlite3
+        self.store.record_outbound('wamid.C1', 'org-1', 'cmp-c', 'poi:1', NUMBER, sent_at=T0)
+        first = self.store.reply_stats('org-1', now=T0 + 10)
+        # a change behind the store's back is not seen while the answer is kept
+        con = sqlite3.connect(self.store.path)
+        con.execute("insert into wa_outbound (message_id, account_id, request_id, poi_key, wa_id, sent_at) values ('wamid.C2','org-1','cmp-c','poi:2',?,?)", (OTHER, T0))
+        con.commit(); con.close()
+        self.assertEqual(self.store.reply_stats('org-1', now=T0 + 20), first, 'kept')
+        self.assertEqual(self.store.reply_stats('org-1', now=T0 + 10 + wa_inbox.STATS_TTL_SECONDS)['requests'][0]['sent'], 2, 'five minutes later: read again')
+        # a write through the store is seen at once
+        self.store.record_outbound('wamid.C3', 'org-1', 'cmp-c', 'poi:3', '966500000003', sent_at=T0)
+        self.assertEqual(self.store.reply_stats('org-1', now=T0 + 400)['requests'][0]['sent'], 3)
+        self.post(body([text('wamid.RC', at=T0 + 60)]))
+        self.assertEqual(self.store.reply_stats('org-1', now=T0 + 401)['requests'][0]['replied'], 1, 'a new reply is seen at once')
+
+    def test_a_caller_cannot_change_the_kept_answer(self):
+        self.store.record_outbound('wamid.D1', 'org-1', 'cmp-d', 'poi:1', NUMBER, sent_at=T0)
+        answer = self.store.reply_stats('org-1', now=T0)
+        answer['requests'].clear()
+        self.assertEqual(len(self.store.reply_stats('org-1', now=T0 + 1)['requests']), 1)
+
+
+class CombinedRateTests(Base):
+    def test_an_original_counts_replies_to_any_follow_up_of_its_chain(self):
+        a, b, c = NUMBER, OTHER, '966500000003'
+        for message_id, request_id, poi, number, at, parent in [
+            ('wamid.O1', 'cmp-o', 'poi:1', a, T0, None), ('wamid.O2', 'cmp-o', 'poi:2', b, T0, None), ('wamid.O3', 'cmp-o', 'poi:3', c, T0, None),
+            ('wamid.F1', 'cmp-f1', 'poi:2', b, T0 + 86400, 'cmp-o'), ('wamid.F1b', 'cmp-f1', 'poi:3', c, T0 + 86400, 'cmp-o'),
+            ('wamid.F2', 'cmp-f2', 'poi:3', c, T0 + 2 * 86400, 'cmp-f1'),     # the second step
+        ]:
+            self.store.record_outbound(message_id, 'org-1', request_id, poi, number, sent_at=at, follow_up_of=parent)
+        self.post(body([text('wamid.R1', sender=a, at=T0 + 600, context='wamid.O1'),
+                        text('wamid.R2', sender=b, at=T0 + 86400 + 600, context='wamid.F1'),
+                        text('wamid.R3', sender=c, at=T0 + 2 * 86400 + 600, context='wamid.F2')]))
+        stats = {r['requestId']: r for r in self.store.reply_stats('org-1', now=T0 + 3 * 86400)['requests']}
+        self.assertEqual(stats['cmp-o']['replied'], 1)
+        self.assertEqual(stats['cmp-o']['combined'], {'sent': 3, 'replied': 3, 'viaFollowUps': 2, 'followUps': ['cmp-f1', 'cmp-f2']})
+        self.assertEqual(stats['cmp-f1']['combined'], {'sent': 2, 'replied': 2, 'viaFollowUps': 1, 'followUps': ['cmp-f2']})
+        self.assertNotIn('combined', stats['cmp-f2'], 'no follow-up of its own')
+
+    def test_a_request_is_never_its_own_follow_up(self):
+        self.store.record_outbound('wamid.S1', 'org-1', 'cmp-s', 'poi:1', NUMBER, sent_at=T0, follow_up_of='cmp-s')
+        [stat] = self.store.reply_stats('org-1', now=T0)['requests']
+        self.assertNotIn('combined', stat)
 
 
 if __name__ == '__main__':
