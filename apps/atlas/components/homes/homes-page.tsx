@@ -18,7 +18,7 @@ import { LISTING_TYPES, shownPhotos, RENT_DEALS, daysAgo, flattenSimilar, groupS
 import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { HomesFilters } from './homes-filters'
 import { CopyLinkButton } from '@/components/shared/copy-link'
-import { DEFAULT_CITY, backIfReturning, districtMapHref, historyGate, pushedState, priceStartHref, readHomesQuery, readListing, rememberView, writeHomesQuery } from '@/lib/handoff'
+import { DEFAULT_CITY, backIfReturning, districtMapHref, historyGate, pushedState, priceStartHref, readHomesMax, readHomesQuery, readListing, rememberView, writeHomesQuery } from '@/lib/handoff'
 import { cn } from '@/lib/utils'
 import { AdvisorPanel } from '../lens/advisor-panel'
 import { useCityData } from '../lens/city-data'
@@ -86,7 +86,16 @@ export function HomesPage() {
     if (kept.length !== types.length) change({ types: kept.length ? kept : ['apartment'] })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, typesKey, change])
-  useEffect(() => { setFilters((current) => (current.minPrice == null && current.maxPrice == null ? current : { ...current, minPrice: null, maxPrice: null })) }, [deal])
+  // a budget the address carries (?max=, from the map's property journey) belongs to the deal it came with: kept while
+  // that deal settles in, cleared like any price once the deal changes
+  const presetMax = useRef<{ max: number; deal: string | null } | null>(null)
+  useEffect(() => {
+    const preset = presetMax.current
+    if (preset && preset.deal !== deal) presetMax.current = null
+    setFilters((current) => (current.minPrice == null && current.maxPrice == null ? current
+      : preset && preset.deal === deal && current.maxPrice === preset.max && current.minPrice == null ? current
+        : { ...current, minPrice: null, maxPrice: null }))
+  }, [deal])
   // a new city starts with no district (a district belongs to the city it was picked in); the city the address opened
   // on keeps the districts the address named
   const lastCity = useRef(city)
@@ -111,9 +120,11 @@ export function HomesPage() {
     lastCity.current = view.city
     if (view.city !== DEFAULT_CITY) presetCity.current = view.city
     setCity(view.city)
+    const max = readHomesMax(window.location.search)
+    presetMax.current = max != null ? { max, deal: view.kind === 'sale' ? 'sale' : view.rentDeal } : null
     setFilters((current) => {
-      const same = current.kind === view.kind && current.rentDeal === view.rentDeal && current.types.join(',') === view.types.join(',') && current.districts.join(',') === view.districts.join(',')
-      return same ? current : { ...current, kind: view.kind, rentDeal: view.rentDeal as HomeFilters['rentDeal'], types: view.types, districts: view.districts }
+      const same = current.kind === view.kind && current.rentDeal === view.rentDeal && current.types.join(',') === view.types.join(',') && current.districts.join(',') === view.districts.join(',') && current.maxPrice === (max ?? current.maxPrice)
+      return same ? current : { ...current, kind: view.kind, rentDeal: view.rentDeal as HomeFilters['rentDeal'], types: view.types, districts: view.districts, ...(max != null ? { maxPrice: max } : {}) }
     })
     presetListing.current = readListing(window.location.search)
     if (!presetListing.current) setActive(null)
@@ -147,7 +158,7 @@ export function HomesPage() {
     if (!hydrated) return
     // a listing still waiting for the listings keeps its place in the address
     const listing = active?.id ?? presetListing.current
-    const text = writeHomesQuery({ city, kind, rentDeal: filters.rentDeal, types, districts: filters.districts, listing })
+    const text = writeHomesQuery({ city, kind, rentDeal: filters.rentDeal, types, districts: filters.districts, listing, max: filters.maxPrice })
     const next = text ? `?${text}` : ''
     rememberView('/homes', next)
     const prev = gate.step(homesKey(listing))
@@ -155,7 +166,7 @@ export function HomesPage() {
     if (prev != null) window.history.pushState(pushedState(prev), '', `${window.location.pathname}${next}`)
     else window.history.replaceState(window.history.state, '', `${window.location.pathname}${next}`)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the ids, not the arrays
-  }, [hydrated, city, kind, filters.rentDeal, typesKey, districtsKey, active?.id, listingTick])
+  }, [hydrated, city, kind, filters.rentDeal, typesKey, districtsKey, active?.id, listingTick, filters.maxPrice])
 
   const askKey = JSON.stringify([city, kind, typesKey, deal, filters.maxPrice, districtsKey, attempt])
   useEffect(() => {

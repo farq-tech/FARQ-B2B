@@ -117,7 +117,7 @@ export function readHomesQuery(search: string, rentDeals: readonly string[], typ
 }
 
 /** Writes «العقار»'s view, leaving out what is at its default so a plain visit keeps a plain address; `listing` is the open listing. */
-export function writeHomesQuery(view: Partial<HomesView> & { listing?: string | null }): string {
+export function writeHomesQuery(view: Partial<HomesView> & { listing?: string | null; max?: number | null }): string {
   const query = new URLSearchParams()
   if (view.city && view.city !== DEFAULT_CITY && CITY.test(view.city)) query.set('city', view.city)
   const deal = view.kind === 'sale' ? 'sale' : view.rentDeal ?? HOMES_DEFAULTS.rentDeal
@@ -126,12 +126,22 @@ export function writeHomesQuery(view: Partial<HomesView> & { listing?: string | 
   if (types.length && types.join(',') !== HOMES_DEFAULTS.types.join(',')) query.set('type', types.join(','))
   const districts = (view.districts ?? []).filter((id) => ID.test(id)).slice(0, MAX_DISTRICTS)
   if (districts.length) query.set('district', districts.join(','))
+  if (view.max != null && Number.isFinite(view.max) && view.max > 0 && view.max <= MAX_PRICE) query.set('max', String(Math.round(view.max)))
   if (view.listing && LISTING_ID.test(view.listing)) query.set('listing', view.listing)
   return query.toString()
 }
 
+/** The highest price «العقار» opens on (?max=, in the deal's own period), when the address names a sensible one. */
+const MAX_PRICE = 1_000_000_000
+export function readHomesMax(search: string): number | null {
+  const raw = new URLSearchParams(search).get('max')
+  if (!raw || !/^\d{1,10}$/.test(raw)) return null
+  const value = Number(raw)
+  return value > 0 && value <= MAX_PRICE ? value : null
+}
+
 /** «العقار» opened on a view (a district's listings, the same deal and type as a priced property). */
-export function homesHref(view: Partial<HomesView>): string {
+export function homesHref(view: Partial<HomesView> & { max?: number | null }): string {
   const text = writeHomesQuery(view)
   return text ? `/homes?${text}` : '/homes'
 }
