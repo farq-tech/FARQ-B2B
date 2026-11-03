@@ -460,3 +460,6 @@ export const SEED_INBOX: InboxMessage[] = [
     quote: { lines: [{ name: 'كشاف LED صناعي 150 واط', unitPrice: 185, qty: 120 }], validity: 'منتهي', deliveryDays: 4 },
   },
 ]
+
+/** The city a request was made in, in Arabic: the name saved with it, else the sample list's; undefined when neither knows it. */
+export const cityOf = (request: Pick<RequestItem, 'cityId' | 'cityName'>): string | undefined => request.cityName ?? cityById.get(request.cityId)?.name
