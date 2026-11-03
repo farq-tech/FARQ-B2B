@@ -54,7 +54,8 @@ create table if not exists wa_outbound (
   sent_at integer not null,
   status text not null default 'sent',
   status_at integer,
-  sender_id text
+  sender_id text,
+  request_title text
 );
 create index if not exists wa_outbound_by_number on wa_outbound (wa_id, sent_at desc);
 create index if not exists wa_outbound_by_account on wa_outbound (account_id, sent_at desc);
@@ -81,9 +82,17 @@ create table if not exists wa_source_cursor (
   value text not null,
   updated_at integer not null
 );
+create table if not exists wa_source_health (
+  source text primary key,
+  last_ok_at integer,
+  last_error_at integer,
+  last_error_kind text,
+  failures integer not null default 0,
+  last_counts text
+);
 """
 # columns added after the first release of the file: added in place to a store created before them
-LATER_COLUMNS = {'wa_outbound': {'sender_id': 'text'}, 'wa_inbound': {'read_at': 'integer', 'reviewed_at': 'integer', 'reviewed_by': 'text'}}
+LATER_COLUMNS = {'wa_outbound': {'sender_id': 'text', 'request_title': 'text'}, 'wa_inbound': {'read_at': 'integer', 'reviewed_at': 'integer', 'reviewed_by': 'text'}}
 
 
 def digits(value) -> str:
@@ -104,6 +113,14 @@ def accounts_of(value) -> list:
     """One account id or a few (an organisation and its sender's own fallback account), each checked; at most 4."""
     values = [value] if isinstance(value, str) else list(value or []) if isinstance(value, (list, tuple)) else []
     return list(dict.fromkeys(v for v in values if valid_id(v)))[:4]
+
+
+def clean_title(value) -> str | None:
+    """A request's title as the person named it, for the owner's review: one line, at most 200 characters."""
+    if not isinstance(value, str):
+        return None
+    text = re.sub(r'\s+', ' ', re.sub(r'[\x00-\x1f\x7f<>]', ' ', value)).strip()[:200]
+    return text or None
 
 
 def iso(seconds) -> str:
@@ -239,7 +256,7 @@ class InboxStore:
             finally:
                 con.close()
 
-    def record_outbound(self, message_id, account_id, request_id, poi_key, to, sent_at=None, sender_id=None) -> bool:
+    def record_outbound(self, message_id, account_id, request_id, poi_key, to, sent_at=None, sender_id=None, request_title=None) -> bool:
         """Remember one campaign message we sent, so its reply can be linked back. Returns False when an id is not
         usable (nothing stored); a repeated message id keeps the first record."""
         number = digits(to)
@@ -247,8 +264,8 @@ class InboxStore:
                 and isinstance(poi_key, str) and 1 <= len(poi_key) <= 200 and 8 <= len(number) <= 15):
             return False
         with self._connect() as con:
-            con.execute('insert or ignore into wa_outbound (message_id, account_id, request_id, poi_key, wa_id, sent_at, sender_id) values (?,?,?,?,?,?,?)',
-                        (message_id, account_id, request_id, poi_key, number, int(sent_at or time.time()), sender_id if valid_id(sender_id) else None))
+            con.execute('insert or ignore into wa_outbound (message_id, account_id, request_id, poi_key, wa_id, sent_at, sender_id, request_title) values (?,?,?,?,?,?,?,?)',
+                        (message_id, account_id, request_id, poi_key, number, int(sent_at or time.time()), sender_id if valid_id(sender_id) else None, clean_title(request_title)))
         return True
 
     def _link(self, con, message):
@@ -314,6 +331,31 @@ class InboxStore:
             return [r[0] for r in con.execute("select message_id from wa_outbound where sent_at>=? and status not in ('read','failed') "
                                               'order by sent_at desc limit ?', (int(since), int(limit)))]
 
+    # ── health of a reply source, for the owner and the log ───────────────────────────────────────────────────────
+
+    def record_poll(self, source: str, ok: bool, error_kind: str | None = None, counts: dict | None = None, now: int | None = None) -> int:
+        """Notes one poll of a source. Returns how many polls in a row have now failed (0 after a success)."""
+        at = int(now or time.time())
+        kind = re.sub(r'[^A-Za-z0-9_.]', '', str(error_kind or ''))[:80] or 'Error'
+        with self._connect() as con:
+            con.execute('insert or ignore into wa_source_health (source, failures) values (?, 0)', (source,))
+            if ok:
+                con.execute('update wa_source_health set last_ok_at=?, failures=0, last_counts=? where source=?',
+                            (at, json.dumps(counts or {}, sort_keys=True), source))
+                return 0
+            con.execute('update wa_source_health set last_error_at=?, last_error_kind=?, failures=failures+1 where source=?', (at, kind, source))
+            return con.execute('select failures from wa_source_health where source=?', (source,)).fetchone()[0]
+
+    def health(self, source: str) -> dict:
+        with self._connect() as con:
+            row = con.execute('select last_ok_at, last_error_at, last_error_kind, failures, last_counts from wa_source_health where source=?', (source,)).fetchone()
+        if not row:
+            return {'source': source, 'lastOkAt': None, 'lastErrorAt': None, 'lastErrorKind': None, 'failures': 0, 'lastCounts': None}
+        try: counts = json.loads(row[4]) if row[4] else None
+        except ValueError: counts = None
+        return {'source': source, 'lastOkAt': iso(row[0]) if row[0] else None, 'lastErrorAt': iso(row[1]) if row[1] else None,
+                'lastErrorKind': row[2], 'failures': int(row[3] or 0), 'lastCounts': counts}
+
     def cursor(self, source: str) -> str | None:
         with self._connect() as con:
             row = con.execute('select value from wa_source_cursor where source=?', (source,)).fetchone()
@@ -367,10 +409,10 @@ class InboxStore:
                                'order by received_at desc, rowid desc limit ?', ('unlinked', limit)).fetchall()
             out = []
             for message_id, wa_id, kind, body, received_at in rows:
-                candidates = con.execute('select message_id, account_id, request_id, poi_key, sent_at from wa_outbound where wa_id=? '
+                candidates = con.execute('select message_id, account_id, request_id, poi_key, sent_at, request_title from wa_outbound where wa_id=? '
                                          'order by sent_at desc limit 5', (wa_id,)).fetchall()
                 out.append({'id': message_id, 'from': mask(wa_id), 'kind': kind, 'body': body, 'receivedAt': iso(received_at),
-                            'candidates': [{'outboundId': c[0], 'accountId': c[1], 'requestId': c[2], 'poiKey': c[3], 'sentAt': iso(c[4])} for c in candidates]})
+                            'candidates': [{'outboundId': c[0], 'accountId': c[1], 'requestId': c[2], 'poiKey': c[3], 'sentAt': iso(c[4]), 'requestTitle': c[5]} for c in candidates]})
         return out
 
     def attach(self, message_id: str, outbound_id: str, reviewer: str, now: int | None = None) -> bool:

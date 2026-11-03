@@ -216,7 +216,7 @@ class ReadStateTests(Base):
         import sqlite3
         path = os.path.join(self.dir.name, 'old.sqlite3')
         con = sqlite3.connect(path)
-        con.executescript(wa_inbox.SCHEMA.replace(',\n  sender_id text', '').replace(',\n  read_at integer,\n  reviewed_at integer,\n  reviewed_by text', ''))
+        con.executescript(wa_inbox.SCHEMA.replace(',\n  sender_id text,\n  request_title text', '').replace(',\n  read_at integer,\n  reviewed_at integer,\n  reviewed_by text', ''))
         con.execute("insert into wa_outbound (message_id, account_id, request_id, poi_key, wa_id, sent_at) values ('wamid.O','org-1','cmp-1','poi:1',?,?)", (NUMBER, T0))
         con.commit(); con.close()
         store = wa_inbox.InboxStore(path)
@@ -224,6 +224,7 @@ class ReadStateTests(Base):
         self.assertEqual(wa_inbox.handle_post(raw, sign(raw), SECRET, store, PHONE_ID)[0], 200)
         self.assertEqual(store.set_read('org-1', ['wamid.IN1']), 1)
         self.assertTrue(store.feed('org-1')['messages'][0]['read'])
+        self.assertTrue(store.record_outbound('wamid.O2', 'org-1', 'cmp-2', 'poi:2', OTHER, sent_at=T0, request_title='حملة'))
 
 
 class OwnerReviewTests(Base):
@@ -255,6 +256,29 @@ class OwnerReviewTests(Base):
         self.assertFalse(self.store.dismiss('wamid.IN2', 'owner-1'))
         self.assertEqual([m['id'] for m in self.store.unlinked()], ['wamid.IN1'])
         self.assertFalse(self.store.attach('wamid.IN2', 'wamid.OLD', 'owner-1'))
+
+
+class TitleAndHealthTests(Base):
+    def test_the_owner_review_names_each_candidate_by_its_request_title(self):
+        self.store.record_outbound('wamid.OLD', 'org-2', 'cmp-old', 'poi:1', NUMBER, sent_at=T0 - 60 * 86400,
+                                   request_title='  حملة <b>مخابز</b>\n العليا ')
+        self.post(body([text('wamid.IN1')]))
+        [message] = self.store.unlinked()
+        self.assertEqual(message['candidates'][0]['requestTitle'], 'حملة b مخابز /b العليا', 'one line, no markup')
+        self.assertIsNone(wa_inbox.clean_title(None))
+        self.assertEqual(len(wa_inbox.clean_title('x' * 500)), 200)
+
+    def test_poll_health_keeps_the_last_success_the_last_error_kind_and_the_failures_in_a_row(self):
+        self.assertEqual(self.store.health('construction_db')['lastOkAt'], None)
+        self.assertEqual(self.store.record_poll('construction_db', True, counts={'new': 2}, now=T0), 0)
+        self.assertEqual(self.store.record_poll('construction_db', False, 'InsufficientPrivilege', now=T0 + 60), 1)
+        self.assertEqual(self.store.record_poll('construction_db', False, 'psycopg.errors.InsufficientPrivilege!', now=T0 + 120), 2)
+        health = self.store.health('construction_db')
+        self.assertEqual((health['failures'], health['lastErrorKind'], health['lastCounts']), (2, 'psycopg.errors.InsufficientPrivilege', {'new': 2}))
+        self.assertEqual(health['lastOkAt'], wa_inbox.iso(T0))
+        self.assertEqual(self.store.record_poll('construction_db', True, now=T0 + 180), 0)
+        self.assertEqual(self.store.health('construction_db')['failures'], 0)
+        self.assertEqual(self.store.health('construction_db')['lastErrorKind'], 'psycopg.errors.InsufficientPrivilege', 'the last error stays visible')
 
 
 if __name__ == '__main__':

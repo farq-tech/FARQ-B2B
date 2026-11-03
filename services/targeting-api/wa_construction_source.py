@@ -11,6 +11,12 @@ every reply there and its inbox stores it (api/lib/construction/conversation-cap
   with the sender's number and the quoted message id.
 * ``construction.whatsapp_status_events``: delivery receipts (sent, delivered, read, failed) of every message the
   number sent, Atlas campaign messages included.
+* ``construction.inbox_arrivals`` (written when the construction API runs with ``CONSTRUCTION_INBOX_ROUTING_V1=1``):
+  the routing record of each routed reply. For WhatsApp it keeps the routing reason in ``evidence.reason``, not the
+  quoted message id. ``WHATSAPP_CONTEXT`` means the reply quoted a message the construction side sent (its
+  ``dispatch_attempts`` / ``inbox_outbox``, where Atlas messages never are): it answers a construction request, not
+  Atlas, so it is left out instead of being linked to an Atlas campaign by recency. Without the table or the row,
+  nothing changes.
 
 This module only runs SELECT statements, on a connection opened read only. It brings in only messages from numbers
 an Atlas campaign message was sent to (``InboxStore.known_numbers``), so construction RFQ conversations stay out of
@@ -21,6 +27,7 @@ overlap, so a row written a little late is still read; the store keeps every mes
 from __future__ import annotations
 
 import datetime as dt
+import json
 import re
 import time
 
@@ -31,14 +38,17 @@ PAGE = 2000
 # conversation-capture.js stores a message without text as this sentence
 NON_TEXT = re.compile(r'^رسالة واتساب من نوع (\w{1,40}) — النص غير متاح$')
 
-ROUTED_SQL = """select m.provider_message_id, m.body_text, m.received_at, m.provider_sent_at, s.external_key, c.whatsapp_e164
+ROUTED_SQL = """select m.provider_message_id, m.body_text, m.received_at, m.provider_sent_at, s.external_key, c.whatsapp_e164, {evidence}
 from construction.inbox_messages m
 join construction.rfq_invites i on i.id = m.invite_id
 join construction.suppliers s on s.id = i.supplier_id
-left join construction.supplier_contacts c on c.supplier_id = s.id
+left join construction.supplier_contacts c on c.supplier_id = s.id{arrivals}
 where m.channel = 'WHATSAPP' and m.received_at >= {p}
 order by m.received_at
 limit {n}"""
+# the routing record, when the construction database has it (inbox_arrivals: provider, external_id, evidence)
+WITH_ARRIVALS = {'evidence': 'a.evidence', 'arrivals': "\nleft join construction.inbox_arrivals a on a.provider = 'WHATSAPP' and a.external_id = m.provider_message_id"}
+WITHOUT_ARRIVALS = {'evidence': 'null', 'arrivals': ''}
 
 UNROUTED_SQL = """select provider_message_id, sender, body_text, context_message_id, received_at
 from construction.inbox_unrouted_whatsapp
@@ -74,6 +84,15 @@ def text_and_kind(body) -> tuple[str, str]:
     return 'text', body
 
 
+def routing_reason(evidence) -> str | None:
+    """`evidence.reason` of a routing record: jsonb from Postgres (a dict) or JSON text from the fake database."""
+    if isinstance(evidence, (str, bytes)):
+        try: evidence = json.loads(evidence)
+        except ValueError: return None
+    reason = evidence.get('reason') if isinstance(evidence, dict) else None
+    return reason if isinstance(reason, str) else None
+
+
 def routed_number(external_key, whatsapp_e164) -> str:
     key = str(external_key or '')
     if key.startswith('whatsapp:'):
@@ -100,13 +119,19 @@ class ConstructionSource:
 
     def poll(self, store: 'wa_inbox.InboxStore', now: int | None = None) -> dict:
         now = int(now or time.time())
-        out = {'read': 0, 'ours': 0, 'new': 0, 'duplicate': 0, 'unlinked': 0, 'statuses': 0}
+        out = {'read': 0, 'ours': 0, 'quotesConstruction': 0, 'new': 0, 'duplicate': 0, 'unlinked': 0, 'statuses': 0}
         con = self.connect()
         try:
             cur = con.cursor()
             # replies routed to a construction conversation (incl. the catch-all holder)
             since = self._since(store, 'construction:routed', now)
-            cur.execute(ROUTED_SQL.format(p=self.p, n=self.page), (self.time_param(since),))
+            try:
+                cur.execute(ROUTED_SQL.format(p=self.p, n=self.page, **WITH_ARRIVALS), (self.time_param(since),))
+            except Exception:
+                # a construction database without the routing record table: read the replies alone
+                con.rollback()
+                cur = con.cursor()
+                cur.execute(ROUTED_SQL.format(p=self.p, n=self.page, **WITHOUT_ARRIVALS), (self.time_param(since),))
             routed = cur.fetchall()
             # replies held unrouted, with the number and the quoted message id
             since_u = self._since(store, 'construction:unrouted', now)
@@ -114,9 +139,12 @@ class ConstructionSource:
             unrouted = cur.fetchall()
             candidates = []
             newest_routed = newest_unrouted = None
-            for message_id, body, received_at, provider_sent_at, external_key, e164 in routed:
+            for message_id, body, received_at, provider_sent_at, external_key, e164, evidence in routed:
                 at = epoch(received_at)
                 newest_routed = max(newest_routed or 0, at or 0)
+                if routing_reason(evidence) == 'WHATSAPP_CONTEXT':
+                    out['quotesConstruction'] += 1   # quoted a construction message: not a reply to Atlas
+                    continue
                 kind, text = text_and_kind(body)
                 candidates.append({'message_id': str(message_id or ''), 'wa_id': routed_number(external_key, e164), 'kind': kind, 'body': text,
                                    'received_at': epoch(provider_sent_at) or at or now, 'context_id': ''})

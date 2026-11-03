@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, Inbox as InboxIcon, Link2, LogIn, ShieldAlert, X } from 'lucide-react'
+import { Activity, ArrowRight, Inbox as InboxIcon, Link2, LogIn, ShieldAlert, TriangleAlert, X } from 'lucide-react'
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -9,11 +9,11 @@ import { LoadError } from '@/components/shared/load-error'
 import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
 import { formatDateTime } from '@/lib/format'
-import { kindNote, previewText } from '@/lib/inbox-feed'
+import { healthState, kindNote, previewText, type SourceHealth } from '@/lib/inbox-feed'
 import { numberFormat } from '@/lib/insights-api'
 import { signInHref } from '@/lib/use-signed-in'
 
-type Candidate = { outboundId: string; account: string | null; requestId: string | null; name: string | null; sentAt: string }
+type Candidate = { outboundId: string; account: string | null; requestId: string | null; requestTitle: string | null; name: string | null; sentAt: string }
 type Unlinked = { id: string; from: string | null; kind: string; body: string; receivedAt: string; candidates: Candidate[] }
 type Pending = { message: Unlinked; candidate: Candidate | null }
 
@@ -30,6 +30,7 @@ export function UnlinkedReview() {
   const [messages, setMessages] = useState<Unlinked[]>([])
   const [pending, setPending] = useState<Pending | null>(null)
   const [busy, setBusy] = useState(false)
+  const [health, setHealth] = useState<SourceHealth | null>(null)
 
   const load = useCallback(async () => {
     setState('loading')
@@ -37,9 +38,10 @@ export function UnlinkedReview() {
       const response = await fetch('/api/inbox/unlinked', { cache: 'no-store' })
       if (response.status === 401) return setState('signed-out')
       if (response.status === 403) return setState('forbidden')
-      const body = await response.json().catch(() => null) as { ok?: boolean; messages?: Unlinked[] } | null
+      const body = await response.json().catch(() => null) as { ok?: boolean; messages?: Unlinked[]; health?: SourceHealth } | null
       if (!response.ok || !body?.ok) return setState('error')
       setMessages(Array.isArray(body.messages) ? body.messages : [])
+      setHealth(body.health ?? null)
       setState('ready')
     } catch {
       setState('error')
@@ -85,6 +87,8 @@ export function UnlinkedReview() {
         </p>
       </header>
 
+      {state === 'ready' ? <SourceHealthNote health={health} /> : null}
+
       {state === 'loading' ? <p className="text-sm text-muted-foreground" aria-live="polite">جارٍ التحميل...</p>
         : state === 'signed-out' ? (
           <EmptyState heading="h2" icon={LogIn} title="سجّل الدخول أولاً" body="هذه المراجعة لمالك فرق."
@@ -117,8 +121,10 @@ export function UnlinkedReview() {
                           <li key={candidate.outboundId} className="flex flex-wrap items-center gap-3 px-3 py-2">
                             <span className="flex min-w-0 flex-1 flex-col">
                               <span className="truncate text-sm font-medium">{candidate.name ?? 'غير متاح'}</span>
+                              {/* the campaign by the title its sender gave it; the id only when it was sent before titles were kept */}
+                              <span className="truncate text-xs text-foreground">{candidate.requestTitle ? `«${candidate.requestTitle}»` : <>الطلب <span dir="ltr">{shortId(candidate.requestId)}</span></>}</span>
                               <span className="text-xs text-muted-foreground">
-                                أُرسلت {formatDateTime(candidate.sentAt)} · الطلب <span dir="ltr">{shortId(candidate.requestId)}</span> · الحساب <span dir="ltr">{shortId(candidate.account)}</span>
+                                أُرسلت {formatDateTime(candidate.sentAt)} · الحساب <span dir="ltr">{shortId(candidate.account)}</span>
                               </span>
                             </span>
                             <Button size="sm" variant="outline" onClick={() => setPending({ message, candidate })}>
@@ -143,7 +149,7 @@ export function UnlinkedReview() {
         onClose={() => { if (!busy) setPending(null) }}
         title={pending?.candidate ? 'ربط الرد بالحملة' : 'استبعاد الرد'}
         description={pending?.candidate
-          ? `يظهر الرد في وارد الحساب الذي أرسل الحملة إلى «${pending.candidate.name ?? 'غير متاح'}». لا يُرسل أي شيء.`
+          ? `يظهر الرد في وارد الحساب الذي أرسل ${pending.candidate.requestTitle ? `«${pending.candidate.requestTitle}»` : 'الحملة'} إلى «${pending.candidate.name ?? 'غير متاح'}». لا يُرسل أي شيء.`
           : 'يبقى الرد محفوظاً ولا يظهر في أي وارد. لا يُرسل أي شيء.'}
         footer={
           <>
@@ -155,5 +161,33 @@ export function UnlinkedReview() {
         {pending ? <p className="line-clamp-3 text-sm text-muted-foreground">{previewText({ body: pending.message.body, kind: kindOf(pending.message.kind) })}</p> : null}
       </Modal>
     </main>
+  )
+}
+
+/**
+ * Whether replies are reaching Atlas at all: when the source last read successfully and, if its last poll failed, the
+ * kind of error (InsufficientPrivilege: the database role cannot read the inbox tables). An empty list below means
+ * nothing to review only when this says the source is reading.
+ */
+function SourceHealthNote({ health }: { health: SourceHealth | null }) {
+  const state = healthState(health, Date.now())
+  if (state === 'unknown') return null
+  const failing = state === 'failing' || state === 'off'
+  const Icon = failing ? TriangleAlert : Activity
+  const title = state === 'off' ? 'قراءة الردود متوقفة على الخادم'
+    : state === 'failing' ? 'آخر محاولة لقراءة الردود فشلت'
+      : state === 'never' ? 'لم تكتمل أول قراءة للردود بعد'
+        : state === 'stale' ? 'لم تُقرأ الردود منذ مدة'
+          : 'الردود تُقرأ بانتظام'
+  const parts = [
+    health?.lastOkAt ? `آخر قراءة ناجحة ${formatDateTime(health.lastOkAt)}` : 'لا قراءة ناجحة بعد',
+    state === 'failing' && health?.lastErrorKind ? `نوع الخطأ: ${health.lastErrorKind}` : null,
+    state === 'failing' && health?.failures ? `${numberFormat.format(health.failures)} محاولة فاشلة متتالية` : null,
+  ].filter(Boolean)
+  return (
+    <p role={failing ? 'alert' : 'status'} className={`flex items-start gap-2 rounded-xl border px-3 py-2 text-sm ${failing ? 'border-destructive/30 bg-destructive/5 text-destructive' : 'text-muted-foreground'}`}>
+      <Icon className="mt-0.5 size-4 shrink-0" aria-hidden />
+      <span><span className="font-semibold">{title}.</span> {parts.join(' · ')}</span>
+    </p>
   )
 }

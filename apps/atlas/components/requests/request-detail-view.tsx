@@ -16,7 +16,7 @@ import { useAppStore } from '@/lib/store'
 import { useBackClose } from '@/lib/use-back-close'
 import { businessName } from '@/lib/business-name'
 import { addToRequestHref, cityKey, mapHref, safeMapOrigin } from '@/lib/handoff'
-import { trackedFor } from '@/lib/inbox-feed'
+import { repliesFor, trackedFor } from '@/lib/inbox-feed'
 import type { RequestItem } from '@/lib/types'
 import { BusinessListEditor } from './business-list-editor'
 import { CampaignEditor, campaignIssues, eligibility, renderTemplate } from './campaign-editor'
@@ -165,6 +165,7 @@ export function RequestDetailView({ id }: { id: string }) {
         <WhatsAppSendPanel
           request={request}
           tracked={trackedFor(deliveries, request)}
+          replied={repliesFor(inbox, request)}
           onDeliveryUpdate={(campaign, complete) => patch({ campaign, status: complete ? 'awaiting' : 'ready_manual' })}
           onBackToDraft={() => patch({ status: 'draft', reviewedAt: undefined })}
         />
@@ -172,7 +173,7 @@ export function RequestDetailView({ id }: { id: string }) {
 
       {request.rfq ? <RfqEditor value={request.rfq} editable={editable} onChange={(rfq) => patch({ rfq })} /> : null}
       {request.campaign ? (
-        <CampaignEditor value={request.campaign} businessIds={request.businessIds} liveBusinesses={request.liveBusinesses} editable={editable} onChange={(campaign) => patch({ campaign })} tracked={trackedFor(deliveries, request)} />
+        <CampaignEditor value={request.campaign} businessIds={request.businessIds} liveBusinesses={request.liveBusinesses} editable={editable} onChange={(campaign) => patch({ campaign })} tracked={trackedFor(deliveries, request)} replied={repliesFor(inbox, request)} />
       ) : null}
 
       {/* once a campaign is reviewed its recipients list (with each one's send state) already names every business:
@@ -349,10 +350,12 @@ function ManualRfqPanel({ request, onBackToDraft }: { request: RequestItem; onBa
   )
 }
 
-function WhatsAppSendPanel({ request, tracked, onDeliveryUpdate, onBackToDraft }: {
+function WhatsAppSendPanel({ request, tracked, replied, onDeliveryUpdate, onBackToDraft }: {
   request: RequestItem
   /** What WhatsApp reported on each recipient's message, from the account's feed. */
   tracked: Record<string, 'sent' | 'delivered' | 'read' | 'failed'>
+  /** Each recipient's latest reply (its message id), from the inbox. */
+  replied: Record<string, string>
   onDeliveryUpdate: (campaign: NonNullable<RequestItem['campaign']>, complete: boolean) => void
   onBackToDraft: () => void
 }) {
@@ -423,7 +426,7 @@ function WhatsAppSendPanel({ request, tracked, onDeliveryUpdate, onBackToDraft }
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           // the request id lets a reply to this message reach the inbox under this request (lib/inbox-feed.ts)
-          body: JSON.stringify({ poiKey: id, message: text, requestId: request.id }),
+          body: JSON.stringify({ poiKey: id, message: text, requestId: request.id, requestTitle: request.title }),
         })
         const result = await response.json().catch(() => null) as { ok?: boolean } | null
         if (response.ok && result?.ok) nextDelivery[id] = 'sent'
@@ -456,6 +459,7 @@ function WhatsAppSendPanel({ request, tracked, onDeliveryUpdate, onBackToDraft }
   const deliveredCount = eligibleIds.filter((id) => tracked[id] === 'delivered').length
   const readCount = eligibleIds.filter((id) => tracked[id] === 'read').length
   const undeliveredCount = eligibleIds.filter((id) => tracked[id] === 'failed').length
+  const repliedCount = eligibleIds.filter((id) => replied[id]).length
   const tally = [
     sentCount ? `${numberFormat.format(sentCount)} أُرسلت` : null,
     unsentIds.length ? `${numberFormat.format(unsentIds.length)} بانتظار الإرسال` : null,
@@ -465,6 +469,7 @@ function WhatsAppSendPanel({ request, tracked, onDeliveryUpdate, onBackToDraft }
     deliveredCount ? `${numberFormat.format(deliveredCount)} وصلت` : null,
     readCount ? `${numberFormat.format(readCount)} قُرئت` : null,
     undeliveredCount ? `${numberFormat.format(undeliveredCount)} لم تصل` : null,
+    repliedCount ? `${numberFormat.format(repliedCount)} ردّت` : null,
     unlinkedCount ? `${numberFormat.format(unlinkedCount)} لا يمكن إرسالها لأنها ليست من نتائج الدليل الحية` : null,
   ].filter(Boolean)
   // nobody left to send to, and not because the campaign finished: say so instead of a disabled «إرسال 0»

@@ -1,6 +1,7 @@
 'use client'
 
 import { CheckCheck, CircleCheck, ChevronLeft, ChevronRight, CircleQuestionMark, Clock, Minus, ShieldCheck, CircleX, type LucideIcon } from 'lucide-react'
+import Link from 'next/link'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -86,10 +87,12 @@ interface CampaignEditorProps {
   onChange: (v: CampaignDetails) => void
   /** What WhatsApp reported on each recipient's message (sent, delivered, read, failed), by recipient id. */
   tracked?: Record<string, ServerDelivery['status']>
+  /** Each recipient's latest reply in the inbox (its message id), by recipient id. */
+  replied?: Record<string, string>
 }
 
 
-export function CampaignEditor({ value, businessIds, liveBusinesses = [], editable, onChange, tracked }: CampaignEditorProps) {
+export function CampaignEditor({ value, businessIds, liveBusinesses = [], editable, onChange, tracked, replied }: CampaignEditorProps) {
   const template = TEMPLATES.find((t) => t.id === value.templateId)
   const vars = template ? templateVariables(template.body).filter((v) => !AUTO_VARIABLES.includes(v)) : []
   const liveById = new Map(liveBusinesses.map((business) => [business.id, business]))
@@ -220,7 +223,15 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
                       {(mockBusiness ? [mockBusiness.role, districtById.get(mockBusiness.districtId)?.name] : [liveBusiness?.category, liveBusiness?.district]).filter(Boolean).join(' · ')}
                     </span>
                   </span>
-                  <span className={cn('shrink-0 text-xs', state.tone)}>{state.label}</span>
+                  <span className="flex shrink-0 flex-col items-end gap-0.5">
+                    <span className={cn('text-xs', state.tone)}>{state.label}</span>
+                    {/* whether the business answered: its reply one tap away, or «لا رد بعد» once the message went out */}
+                    {replied?.[id] ? (
+                      <Link href={`/inbox?m=${encodeURIComponent(replied[id])}`} className="rounded text-xs font-semibold text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">ردّت · اقرأ الرد</Link>
+                    ) : (tracked?.[id] ? tracked[id] !== 'failed' : value.delivery?.[id] === 'sent') ? (
+                      <span className="text-xs text-muted-foreground">لا رد بعد</span>
+                    ) : null}
+                  </span>
                 </li>
               )
             }

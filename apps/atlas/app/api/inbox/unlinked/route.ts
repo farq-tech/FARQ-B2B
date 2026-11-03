@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   if ('failed' in auth) return auth.failed
   try {
     const upstream = await fetch(`${auth.origin}/inbox/unlinked`, { headers: auth.headers, cache: 'no-store' })
-    const payload = await upstream.json().catch(() => null) as { ok?: unknown; messages?: unknown[] } | null
+    const payload = await upstream.json().catch(() => null) as { ok?: unknown; messages?: unknown[]; health?: unknown } | null
     if (!upstream.ok || payload?.ok !== true) return error('تعذر جلب الردود غير المرتبطة.', 502)
     const messages = (Array.isArray(payload.messages) ? payload.messages : []).flatMap((item) => {
       const m = item as Record<string, unknown>
@@ -46,11 +46,18 @@ export async function GET(request: NextRequest) {
         const c = entry as Record<string, unknown>
         const sentAt = isoTime(c.sentAt)
         return typeof c.outboundId === 'string' && ID.test(c.outboundId) && sentAt
-          ? [{ outboundId: c.outboundId, account: text(c.accountId, 80), requestId: text(c.requestId, 160), name: text(c.name, 200), sentAt }] : []
+          ? [{ outboundId: c.outboundId, account: text(c.accountId, 80), requestId: text(c.requestId, 160), requestTitle: text(c.requestTitle, 200), name: text(c.name, 200), sentAt }] : []
       })
       return [{ id: m.id, from: text(m.from, 20), kind: text(m.kind, 20) ?? 'unsupported', body: text(m.body, 4096) ?? '', receivedAt, candidates }]
     })
-    const response = NextResponse.json({ ok: true, messages }, { headers: { 'cache-control': 'no-store' } })
+    // how the reply source is doing: when it last read, and the kind of its last error (no message, no detail)
+    const h = (payload.health && typeof payload.health === 'object' ? payload.health : {}) as Record<string, unknown>
+    const health = {
+      source: text(h.source, 40), running: h.running === true, lastOkAt: isoTime(h.lastOkAt), lastErrorAt: isoTime(h.lastErrorAt),
+      lastErrorKind: typeof h.lastErrorKind === 'string' && /^[A-Za-z0-9_.]{1,80}$/.test(h.lastErrorKind) ? h.lastErrorKind : null,
+      failures: typeof h.failures === 'number' && Number.isFinite(h.failures) ? Math.max(0, Math.floor(h.failures)) : 0,
+    }
+    const response = NextResponse.json({ ok: true, messages, health }, { headers: { 'cache-control': 'no-store' } })
     if (auth.refreshed) setSession(response, auth.session)
     return response
   } catch {
