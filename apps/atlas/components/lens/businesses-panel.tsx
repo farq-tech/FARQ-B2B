@@ -17,7 +17,7 @@ import { useStickyState, useStudiedActivity } from '@/lib/sticky-state'
 import { Icon3D } from '@/components/shared/icon-3d'
 import type { RequestType } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { AnimatePresence, DURATION, EASE, Expand, ease, motion, useReducedMotion } from '@/lib/motion'
+import { AnimatePresence, DURATION, EASE, Expand, Reveal, ease, motion, useReducedMotion } from '@/lib/motion'
 
 /** The picked count inside an action button, popping as it changes (scale/opacity only, so it reads the same in RTL). */
 function PickCount({ value, reduce }: { value: number; reduce: boolean | null }) {
@@ -235,7 +235,9 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
         <NoResult title={`لا منشآت ${activity.trim() ? `«${activity.trim()}» ` : ''}في ${where}`} body={activity.trim() ? 'جرّب اسماً آخر للنشاط، أو كل الأنشطة.' : 'جرّب حياً آخر.'} />
       )}
       {status === 'ready' && rows.length > 0 && (
-        <>
+        // one gentle container fade as the skeleton gives way to the real list — perceived speed, not a hard cut; it
+        // plays once on mount, never again on a pick toggle, and collapses to instant when motion is reduced
+        <Reveal className="flex min-h-0 flex-col gap-3">
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <span>{numberFormat.format(shown.length)} منشأة معروضة{total != null && total > rows.length ? ` من ${numberFormat.format(total)}` : ''}{searched != null && searched < districts.length ? ` · في ${numberFormat.format(searched)} من ${counted(districts.length, 'district')} محددة` : ''}</span>
           </div>
@@ -283,7 +285,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
             )}
           </AnimatePresence>
           <p className="text-sm text-muted-foreground">{picked.size ? 'يُفتح الطلب في «الطلبات» لتراجعه. لا يُرسل شيء من هنا.' : 'اختر منشأة أو أكثر لتنشئ منها طلباً. لا يُرسل شيء من هنا.'}</p>
-        </>
+        </Reveal>
       )}
     </section>
   )
