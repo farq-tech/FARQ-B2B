@@ -13,6 +13,8 @@ import { EXPLAIN } from '@/lib/explanations'
 import { formatDistance, numberFormat } from '@/lib/insights-api'
 import { PALETTE, readableOn } from '@/lib/palette'
 import { MoreRows } from '../result-row'
+import { siteCardVerdict } from './tool-answers'
+import { Verdict } from './verdict'
 
 /** /api/market/site-card (services/targeting-api/site_card.py). Every figure is computed there; this only draws it. */
 export type SiteCardData = {
@@ -91,6 +93,8 @@ function Body({ data, activity }: { data: SiteCardData; activity: string }) {
   const [nearestShown, setNearestShown] = useState(5)
   return (
     <div className="space-y-4 p-4">
+      {/* the site's answer in one line (competitors in range and the nearest), before the figures behind it */}
+      <Verdict verdict={siteCardVerdict(competitors, data.residents_per_competitor, people.population, activity, formatDistance)} />
       <section className="space-y-2.5">
         <h4 className="flex items-center gap-1.5 text-sm font-bold"><Store className="size-4 text-primary" aria-hidden />المنافسون حولك</h4>
         {competitors == null ? (
