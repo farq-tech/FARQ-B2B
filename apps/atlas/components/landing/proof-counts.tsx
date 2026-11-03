@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Unavailable } from '@/components/shared/unavailable'
+import { Skeleton } from '@/components/ui/skeleton'
 import { fetchCities, numberFormat } from '@/lib/insights-api'
 
 /** The service's floor for a city to be listed (services/targeting-api/server.py cities(): having n >= 1500). */
@@ -31,7 +32,7 @@ export function ProofCounts() {
   }, [])
 
   const figure = (value: number | undefined) => (counts === 'loading'
-    ? <span className="inline-block h-8 w-16 animate-pulse rounded-md bg-muted align-middle" aria-hidden />
+    ? <Skeleton className="inline-block h-8 w-16 align-middle" aria-hidden />
     : value == null ? <Unavailable className="text-base" /> : numberFormat.format(value))
   const ready = typeof counts === 'object' ? counts : undefined
 

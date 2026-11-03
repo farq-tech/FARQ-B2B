@@ -29,7 +29,7 @@ export default function AtlasLandingPage() {
           <BrandMark />
           <div className="flex items-center gap-2">
             {/* sign-in stays on phones too: returning customers land here first */}
-            <Link href="/login?next=%2Fmap" className={buttonVariants({ variant: 'outline' })}>دخول</Link>
+            <Link href="/login?next=%2Fmap" className={buttonVariants({ variant: 'outline', className: 'bg-card' })}>دخول</Link>
             <Link href="/map" className={buttonVariants({ className: 'font-semibold' })}>ابدأ الآن</Link>
           </div>
         </div>
