@@ -12,6 +12,7 @@ import { planRoute, type Point, type RoutePart, type Stop } from '@/lib/route-pl
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
 import type { Overlay } from './overlay'
+import { trackDecisionMoment } from '@/lib/commercial-metrics'
 import { CATEGORICAL, PALETTE as TONE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
@@ -126,6 +127,10 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const groups = useMemo(() => (split.status === 'ready' ? split.data?.territories ?? [] : null), [split.status, split.data])
   const status = split.status === 'loading' ? 'loading' : split.status === 'error' ? 'error' : 'idle'
   useEffect(() => { setRep(null) }, [groupsKey])
+  // the distributor's decision moments (foundation §7): the city split into balanced territories (how many reps), and
+  // below, a route solved (how many stops); sizes only, never places
+  const splitCount = groups?.length ?? 0
+  useEffect(() => { if (splitCount > 0) trackDecisionMoment('territories_balanced', { lens: 'distributors', city, count: splitCount }) }, [groupsKey, splitCount, city])
 
   // step 3: one rep's customers, keyed by the split and the rep
   const stopsKey = rep != null && groups?.[rep] ? `${groupsKey}|${rep}` : null
@@ -191,6 +196,10 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   }
   const names = dayNames(days)
   const finished = progress != null && progress.done === progress.total && solved.length > 0
+  useEffect(() => { if (finished) trackDecisionMoment('route_planned', { lens: 'distributors', city, count: order.length }) },
+    // once per solved route: its stops counted, not its places
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [finished, order.length])
 
   // the step's answer in one line for the peeking sheet: the route once solved, else the rep's customers, else the split
   const visits = plan ? plan.days.reduce((sum, planned) => sum + planned.count, 0) : 0

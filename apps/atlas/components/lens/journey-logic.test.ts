@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { decisionMomentProps } from '../../lib/commercial-metrics.ts'
+import { homesHref, readHomesMax } from '../../lib/handoff.ts'
 import { matchMain } from '../../lib/sticky-state.ts'
 import type { DistrictRow } from './city-data.ts'
 import { STEP_WAIT, decisionFor, pickedLine, stepLine } from './journey-logic.ts'
@@ -52,7 +54,18 @@ test('each journey closes on a decision from what its steps found, acted on thro
   const shops = decisionFor({ ...base, lens: 'shops', leads: { gaps: '3' }, activity: 'صيدلية' })
   assert.equal(shops.title, 'أين تفتح «صيدلية»')
   assert.match(shops.pick!, /طويق/)
-  assert.deepEqual(shops.actions.map((action) => action.kind), ['step', 'businesses'])
+  // no sites compared yet: the card offers the comparison first, then the district's rentals and businesses
+  assert.deepEqual(shops.actions.map((action) => (action.kind === 'step' ? action.tool : action.kind)), ['around', 'homes', 'businesses'])
+  // two sites scored: side by side, the best first, and the card's district is the best site's
+  const compared = decisionFor({ ...base, lens: 'shops', leads: { gaps: '3' }, activity: 'صيدلية', sites: { reach: '10 د بالسيارة', byIncome: true, sites: [
+    { label: '1', district: 'طويق', score: 61, audience: 90000, spending: 4000, density: 30 },
+    { label: '2', district: 'العليا', score: 88, audience: 70000, spending: 9000, density: 12 },
+  ] } })
+  assert.equal(compared.pick, 'أجذب موقع: الموقع 2 في العليا (88 من 100)')
+  assert.deepEqual(compared.sites!.sites.map((site) => site.label), ['2', '1'])
+  assert.deepEqual(compared.actions.map((action) => (action.kind === 'step' ? `${action.tool}:${action.ids}` : action.kind === 'businesses' ? `${action.kind}:${action.ids}` : action.kind)), ['homes:1', 'businesses:1'])
+  // one scored site is no comparison
+  assert.equal(decisionFor({ ...base, lens: 'shops', sites: { reach: '', byIncome: true, sites: [{ label: '1', district: null, score: 50, audience: 1, spending: 1, density: 1 }] } }).pick, null)
 
   const marketers = decisionFor({ ...base, lens: 'marketers', leads: { audience: '1' } })
   assert.deepEqual(marketers.actions, [{ kind: 'businesses', ids: ['1'], label: 'جهّز حملة لمنشآت العليا' }])
@@ -66,6 +79,12 @@ test('each journey closes on a decision from what its steps found, acted on thro
 
   const property = decisionFor({ ...base, lens: 'property', leads: { homes: '2' } })
   assert.deepEqual(property.actions.map((action) => (action.kind === 'link' ? action.href : '')), ['/homes?district=2', '/price?district=2'])
+  // the search made in «اختر عقاراً» goes with the links: deal, type and budget to «العقار», deal and type to the price
+  const searched = decisionFor({ ...base, lens: 'property', leads: { homes: '2' }, homes: { kind: 'rent', type: 'villa', deal: 'rent_month', budget: 8000 } })
+  assert.deepEqual(searched.actions.map((action) => (action.kind === 'link' ? action.href : '')), ['/homes?deal=rent_month&type=villa&district=2&max=8000', '/price?district=2&deal=rent_month&type=villa'])
+  assert.match(searched.actions[0].label, /فيلا حتى 8,000 ريال/)
+  // a type the price page does not offer is not named there
+  assert.match(decisionFor({ ...base, lens: 'property', leads: { homes: '2' }, homes: { kind: 'rent', type: 'store', deal: null, budget: 0 } }).actions[1].label, /سعّر عقاراً/)
   // another city keeps its name in the links
   const jeddah = decisionFor({ ...base, city: 'Jeddah', lens: 'property', leads: { homes: '2' } })
   assert.ok(jeddah.actions.every((action) => action.kind === 'link' && action.href.includes('city=Jeddah')))
@@ -91,4 +110,18 @@ test('an activity typed in one step carries to a main-activity picker by its nam
   assert.equal(matchMain(activities, ' مقاهي '), 'cafe')
   assert.equal(matchMain(activities, 'مطعم'), null)
   assert.equal(matchMain(activities, ''), null)
+})
+
+test('decision moments are measured by sizes and ids only: no district, business, value or place', () => {
+  const props = decisionMomentProps('audience_filtered', { lens: 'marketers', city: 'Riyadh', filters: ['sex', 'income'] })
+  assert.deepEqual(props, { moment: 'audience_filtered', lens: 'marketers', city: 'Riyadh', filters: 'income,sex' })
+  assert.deepEqual(decisionMomentProps('route_planned', { lens: 'distributors', city: 'Riyadh', count: 23 }), { moment: 'route_planned', lens: 'distributors', city: 'Riyadh', size: '16-30' })
+  assert.equal(decisionMomentProps('audience_filtered', { lens: 'marketers', city: 'Riyadh', filters: [] }).filters, 'none')
+})
+
+test('«العقار» opens on the budget a link carries, and only a sensible one', () => {
+  assert.equal(readHomesMax('?max=8000'), 8000)
+  for (const bad of ['?max=-5', '?max=abc', '?max=0', '?max=99999999999', '']) assert.equal(readHomesMax(bad), null, bad)
+  assert.equal(homesHref({ districts: ['2'], max: 50000 }), '/homes?district=2&max=50000')
+  assert.equal(homesHref({ districts: ['2'], max: 0 }), '/homes?district=2')
 })

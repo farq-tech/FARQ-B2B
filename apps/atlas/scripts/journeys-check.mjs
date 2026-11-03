@@ -47,6 +47,12 @@ const POST = {
     ],
   }),
   territories: () => ({ territories: [] }),
+  'district-income': () => ({ districts: DISTRICTS.map((d, index) => ({ district_ar: d.ar, income_all: 6000 + 2000 * index })) }),
+  // the people inside a site's reach: the second site (the east one) has more
+  'population-within': (body) => {
+    const east = (body.geometry?.coordinates?.[0]?.[0]?.[0] ?? 0) > 46.7
+    return east ? { population: 52000, dwellings: 9000, businesses: 400, residents_per: 130, top_activities: [] } : { population: 30000, dwellings: 6000, businesses: 900, residents_per: 33, top_activities: [] }
+  },
 }
 const WAIT = (await import('node:fs')).readFileSync(new URL('../components/lens/journey-logic.ts', import.meta.url), 'utf8')
 const gapsWhy = WAIT.match(/gaps: \{ why: '([^']+)'/)[1]
@@ -112,11 +118,21 @@ try {
     check((await text(page)).includes(gapsWhy), 'a slow step says why it takes long and what to do')
     await page.waitForTimeout(2500)
     check((await text(page)).includes('حي الثالث'), 'the slow step answers once its request lands')
+    // the slow answer is kept for the visit: leaving the step and coming back shows it at once, with no second request
+    const gapsAsked = () => asked.filter((item) => item.path === '/api/market/market-gaps').length
+    const before = gapsAsked()
+    await tab(page, 'المنافسون'); await settle(page, 1000)
+    await tab(page, 'أين ينقص نشاطي؟'); await settle(page, 800)
+    check(gapsAsked() === before && (await text(page)).includes('حي الثالث'), 'a slow answer is kept for the visit (no second wait)')
+    // two candidate sites, through the step's own «ابدأ من هنا» (the map itself needs a token here)
+    await tab(page, 'قارن المواقع'); await settle(page, 800)
+    await panel(page).getByRole('button', { name: /ابدأ من هنا/ }).click(); await settle(page, 3000)
     await tab(page, 'محلات للإيجار'); await settle(page, 2500)
     const homes = await text(page)
     check(homes.includes('ابدأ من حي الثالث'), 'the rentals step starts from the district step 1 found short')
     await shoot(page, 'shops-desktop')
-    check(homes.includes('خلاصة رحلتك') && homes.includes('أين تفتح «صيدلية»') && homes.includes('أكثر حي ينقصه نشاطك: حي الثالث'), 'the shop owner\'s journey closes on its decision')
+    check(homes.includes('خلاصة رحلتك') && homes.includes('أين تفتح «صيدلية»') && /أجذب موقع: الموقع \d/.test(homes), 'the shop owner\'s journey closes on its decision, the best site first')
+    check(homes.includes('الجاذبية') && homes.includes('السكان في') && homes.includes('منشآت لكل كم²'), 'the candidate sites are side by side in the closing card')
     await context.close()
   }
   // marketer, phone: the peek says the step, step 2 starts from step 1's top district, the close opens the businesses
@@ -126,6 +142,8 @@ try {
     const peek = await page.locator('[aria-label^="اللوحة"]').first().innerText()
     check(/حجم الجمهور|اختر جمهورك|جارٍ حساب/.test(peek), 'phone: the peeking sheet says the step\'s answer or what to do')
     await tab(page, 'منشآت الأحياء'); await settle(page)
+    const lastPeek = await page.locator('[aria-label^="اللوحة"]').first().innerText()
+    check(lastPeek.includes('أعلى حي مطابق لجمهورك: حي الثالث'), 'phone: at the last step the peeking sheet says the decision')
     await raise(page)
     check((await text(page)).includes('ابدأ من حي الثالث'), 'the businesses step starts from the top audience district')
     const close = panel(page).getByRole('button', { name: /جهّز حملة لمنشآت/ })
@@ -150,10 +168,17 @@ try {
   {
     const { context, page } = await open(browser, { phone: false })
     await page.goto(`${BASE}/map?goal=property`); await settle(page, 3500)
+    await panel(page).getByRole('button', { name: 'فيلا' }).first().click(); await settle(page, 1200)
+    await panel(page).locator('select[aria-label="الميزانية"]').selectOption('50000'); await settle(page, 1500)
     await tab(page, 'تعرّف على الحي'); await settle(page)
     check((await text(page)).includes('ابدأ من حي الثاني'), 'the district step starts from the best listing\'s district')
     const link = await panel(page).locator('a[href^="/homes?"]').first().getAttribute('href').catch(() => null)
-    check(link === '/homes?district=d2', 'the property seeker\'s close links to the district\'s listings')
+    check(link === '/homes?type=villa&district=d2&max=50000', 'the property seeker\'s close links to the district\'s listings with the type and budget searched')
+    const price = await panel(page).locator('a[href^="/price?"]').first().getAttribute('href').catch(() => null)
+    check(price === '/price?district=d2&type=villa', 'and to «سعّر عقارك» with the type searched')
+    // «العقار» opens on that budget
+    if (link) { await page.goto(`${BASE}${link}`); await settle(page, 3000) }
+    check(new URL(page.url()).searchParams.get('max') === '50000', '«العقار» keeps the budget the link carried')
     await context.close()
   }
 } finally {

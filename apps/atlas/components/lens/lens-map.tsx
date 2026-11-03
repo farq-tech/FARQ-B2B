@@ -29,7 +29,8 @@ import { backIfReturning, historyGate, homesHref, priceStartHref, pushedState, r
 import { HALF, MapSheet, PEEK_PX, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, journeyStart, lensById, metricAvailability, neededTables, nextStep, stepTables, type LensId, type MetricId, type ToolId } from './lenses'
 import { CompareStart, JourneySummary, StartFrom } from './journey'
-import { STEP_WAIT, decisionFor, pickedLine, stepLine, type DecisionAction } from './journey-logic'
+import { STEP_WAIT, decisionFor, pickedLine, stepLine, type DecisionAction, type HomesChoice, type SitesCompared } from './journey-logic'
+import { trackDecisionMoment, trackJourneyDecision } from '@/lib/commercial-metrics'
 import { StillWorking } from './tools/choice'
 import { AroundTool } from './tools/around-tool'
 import { AudienceTool } from './tools/audience-tool'
@@ -523,9 +524,12 @@ export function LensMap() {
       setOverlay(next)
       if (next.summary || next.sites?.length) markDone(owner)
       remember(key, owner, next.summary ?? null, next.lead ?? null)
+      // the sites «قارن المواقع» scored, kept for the shop owner's closing card (cleared when the sites go)
+      if (owner === 'around') setSitesTrail((current) => (current.key === key && current.value === (next.comparison ?? null) ? current : { key, value: next.comparison ?? null }))
     }
   }, [tool, trailKey, markDone, remember])
   const trailNow = trail.key === trailKey ? trail : null
+  const [sitesTrail, setSitesTrail] = useState<{ key: string; value: SitesCompared | null }>({ key: '', value: null })
   // the decision card opened the picked districts' businesses; another step, group or city closes them
   const [decisionBusinesses, setDecisionBusinesses] = useState(false)
   useEffect(() => { setDecisionBusinesses(false) }, [tool, lens, city])
@@ -774,6 +778,19 @@ export function LensMap() {
     markDone(tool)
     if (tool !== 'businesses') remember(trailKey, tool, pickedAnswer, null)
   }, [pickedKey, tool, markDone, remember, trailKey, pickedAnswer])
+  // the analyst's decision moments (foundation §7): the ranking sorted by another figure (its id), and two districts
+  // compared (no names); the figure the lens opens on is not a choice
+  const openedMetric = useRef<string | null>(null)
+  useEffect(() => {
+    if (lens !== 'analysts' || tool !== 'district') { openedMetric.current = null; return }
+    if (openedMetric.current == null) { openedMetric.current = metric; return }
+    if (metric !== openedMetric.current) { openedMetric.current = metric; trackDecisionMoment('ranking_sorted', { lens, city, metric }) }
+  }, [lens, tool, metric, city])
+  useEffect(() => {
+    if (tool === 'compare' && selected.length === 2) trackDecisionMoment('districts_compared', { lens, city, count: 2 })
+    // once per pair picked, by their ids as one string
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool, pickedKey, city])
   // the businesses list's own line (its count in the picked districts), kept as that step's answer
   const onBusinessesAnswer = useCallback((line: string | null) => { if (line) remember(trailKey, 'businesses', line, null) }, [remember, trailKey])
   // «التالي»: the next step of the journey, named with what it carries over (the studied activity, the picked district)
@@ -948,8 +965,30 @@ export function LensMap() {
   const start = !search && !selected.length && tool !== 'compare' ? journeyStart(active, tool, startLeads, (id) => rowById.has(id)) : null
   const startRow = start ? rowById.get(start.id) ?? null : null
   // the card the journey closes on: what its steps pointed to, and what to do with it through the existing flows
-  const decision = !next ? decisionFor({ lens, city, rows: data.rows, picked: chosen, leads: trailNow?.leads ?? {}, activity: chosenActivity, done }) : null
+  // the property seeker's search in «اختر عقاراً» (its kept choices, homes-tool.tsx), carried into the close's links
+  const homesChoice = (): HomesChoice => {
+    const kind = getSticky('homes.plain.kind') === 'sale' ? 'sale' : 'rent'
+    const rentDeal = getSticky('homes.plain.rentDeal') as string | undefined
+    const budget = Number(getSticky('homes.plain.budget') ?? 0)
+    return { kind, type: String(getSticky('homes.plain.type') ?? 'apartment'), deal: kind === 'sale' ? 'sale' : rentDeal === 'all' ? null : rentDeal ?? 'rent_year', budget: Number.isFinite(budget) ? budget : 0 }
+  }
+  const decision = !next ? decisionFor({ lens, city, rows: data.rows, picked: chosen, leads: trailNow?.leads ?? {}, activity: chosenActivity, done,
+    sites: sitesTrail.key === trailKey ? sitesTrail.value : null, homes: lens === 'property' ? homesChoice() : null }) : null
+  const answeredSteps = active.steps.filter((item) => done.includes(item.tool)).length
+  // at the journey's last step the peeking sheet says the decision itself, so a phone sees it without raising the panel
+  // (a failed step still says it failed, with its retry)
+  const shownDecision = !search && decision?.pick && active.steps.length > 1 && done.some((id) => active.steps.some((item) => item.tool === id)) ? decision.pick : null
+  const decisionLine = shownDecision && overlay.state !== 'error'
+    ? <span className="inline-flex items-center gap-1.5 font-semibold text-foreground"><Check className="size-3.5 shrink-0 text-primary" strokeWidth={3} aria-hidden /><span className="truncate">{shownDecision}</span></span>
+    : null
+  // the decision moment of the journey itself: the closing card shown, once per group, city and decision in a visit
+  useEffect(() => {
+    if (shownDecision) trackJourneyDecision({ lens, city, moment: 'shown', answered: answeredSteps, steps: active.steps.length })
+    // keyed by the decision's words (never sent), the group and the city
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shownDecision, lens, city])
   const act = (action: DecisionAction) => {
+    trackJourneyDecision({ lens, city, moment: 'acted', action: action.kind, answered: answeredSteps, steps: active.steps.length })
     if (action.kind === 'link') return
     if (action.kind === 'step') {
       if (action.ids.length) { setSelected(action.ids); flyTo(...action.ids) }
@@ -1126,7 +1165,7 @@ export function LensMap() {
             </div>
           </div>
         </div>
-        <MapSheet snap={sheet} onSnap={setSheet} onPeek={setPeekPx} title={sheetTitle} summary={!search && !chosen.length ? peekLine : null} summaryAction={peekAction} resetKey={search ? `search|${search.nonce}` : `${lens}|${tool}`}
+        <MapSheet snap={sheet} onSnap={setSheet} onPeek={setPeekPx} title={sheetTitle} summary={!search ? decisionLine ?? (!chosen.length ? peekLine : null) : null} summaryAction={peekAction} resetKey={search ? `search|${search.nonce}` : `${lens}|${tool}`}
           panel={!search && data.status !== 'error' ? { id: STEP_PANEL, labelledBy: tabId(tool) } : null}
           header={!search && data.status !== 'error' ? (
             // the steps stay above the scrolling body at every stop of the sheet: one sideways line on a phone, and from lg

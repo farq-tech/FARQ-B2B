@@ -6,7 +6,8 @@ import { Chip } from '@/components/ui/chip'
 import { numberFormat } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
-import type { Decision, DecisionAction } from './journey-logic'
+import type { Decision, DecisionAction, SitesCompared } from './journey-logic'
+import type { SiteComparison } from './tools/overlay'
 import type { JourneyStep, Lens, ToolId } from './lenses'
 
 /**
@@ -31,6 +32,45 @@ export function CompareStart({ names, why, onPick }: { names: [string, string]; 
     <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-primary/40 bg-primary/5 p-3 text-sm">
       <span className="min-w-0 flex-1">أو قارن مباشرة: <span className="font-semibold">{names[0]}</span> و<span className="font-semibold">{names[1]}</span>، {why}</span>
       <Chip onClick={onPick} className="border-primary/50 font-semibold text-primary">قارن بينهما</Chip>
+    </div>
+  )
+}
+
+/**
+ * The shop owner's candidate sites side by side, as «قارن المواقع» scored them (attractionScores, the same numbers as
+ * its table): the score out of 100 and its three factors per site, the best first. A factor not measured reads «غير متاح».
+ */
+function SitesSideBySide({ compared }: { compared: SitesCompared }) {
+  const figure = (value: number | null, unit = '') => (value == null ? 'غير متاح' : `${numberFormat.format(Math.round(value))}${unit}`)
+  const rows: { label: string; value: (site: SiteComparison) => string }[] = [
+    { label: 'الجاذبية', value: (site) => (site.score == null ? 'غير متاح' : `${numberFormat.format(site.score)}/100`) },
+    { label: `السكان في ${compared.reach}`, value: (site) => figure(site.audience) },
+    { label: compared.byIncome ? 'دخل الحي' : 'حصة الفلل', value: (site) => figure(site.spending, compared.byIncome ? ' ريال' : '%') },
+    { label: 'منشآت لكل كم²', value: (site) => (site.density == null ? 'غير متاح' : numberFormat.format(Math.round(site.density * 10) / 10)) },
+  ]
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <caption className="sr-only">المواقع المرشحة جنباً إلى جنب</caption>
+        <thead>
+          <tr>
+            <th scope="col" className="py-1 text-start font-normal text-muted-foreground"><span className="sr-only">الرقم</span></th>
+            {compared.sites.map((site, index) => (
+              <th key={site.label} scope="col" className={cn('px-1.5 py-1 text-start', index === 0 && 'text-primary')}>
+                الموقع {site.label}{site.district && <span className="block text-xs font-normal text-muted-foreground">{site.district}</span>}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {rows.map((row) => (
+            <tr key={row.label}>
+              <th scope="row" className="py-1 pe-2 text-start font-normal text-muted-foreground">{row.label}</th>
+              {compared.sites.map((site, index) => <td key={site.label} className={cn('px-1.5 py-1 tabular-nums', index === 0 && 'font-semibold')}>{row.value(site)}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -74,10 +114,11 @@ export function JourneySummary({ lens, cityName, tool, done, answers, picked, ac
         <div className="flex flex-col gap-2 rounded-xl bg-primary/5 p-3">
           <p className="text-sm text-muted-foreground">{decision.title}</p>
           <p className="text-base font-bold">{decision.pick}</p>
+          {decision.sites && <SitesSideBySide compared={decision.sites} />}
           {decision.actions.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {decision.actions.map((action) => action.kind === 'link'
-                ? <Link key={action.label} href={action.href} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-primary/50 bg-card px-3 text-sm font-semibold text-primary hover:bg-primary/10">{action.label}<ArrowLeft className="size-4" aria-hidden /></Link>
+                ? <Link key={action.label} href={action.href} onClick={() => onAct?.(action)} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-primary/50 bg-card px-3 text-sm font-semibold text-primary hover:bg-primary/10">{action.label}<ArrowLeft className="size-4" aria-hidden /></Link>
                 : <Chip key={action.label} onClick={() => onAct?.(action)} className="h-auto min-h-9 border-primary/50 py-1.5 text-start font-semibold whitespace-normal text-primary">{action.label}</Chip>)}
             </div>
           )}

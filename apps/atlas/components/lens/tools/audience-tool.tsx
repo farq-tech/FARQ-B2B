@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { Explained } from '@/components/shared/explained'
 import { LoadError } from '@/components/shared/load-error'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
@@ -12,6 +12,7 @@ import { type DistrictShare, type Nationality, type Sex } from '@/lib/audience'
 import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
 import { waiting, type Overlay } from './overlay'
+import { trackDecisionMoment } from '@/lib/commercial-metrics'
 import { PALETTE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
@@ -68,6 +69,18 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
   const [rankBy, setRankBy] = useStickyState<'sex' | 'nationality'>('audience.rankBy', 'sex')
   const activities = useMainActivities(city)
   const [mainId, setMainId] = useStudiedMainId(activities)
+  // the marketer's decision moment (foundation §7): the filters changed, said by which are on (names, never values);
+  // the filters as they open (a first look, a link) are not a change
+  const filtersOn = [mode === 'businesses' ? 'businesses' : null, sex !== 'all' ? 'sex' : null, nationality !== 'all' ? 'nationality' : null, minIncome > 0 ? 'income' : null, mode === 'businesses' && mainId ? 'activity' : null].filter((item): item is string => item != null)
+  const filtersKey = filtersOn.join(',')
+  const firstFilters = useRef(filtersKey)
+  useEffect(() => {
+    if (filtersKey === firstFilters.current) return
+    firstFilters.current = '\u0000'
+    trackDecisionMoment('audience_filtered', { lens: 'marketers', city, filters: filtersOn })
+    // keyed by the filters' names as one string
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersKey])
 
   // the measured shares of the city; those of a city left behind never land on the next one. null while they load;
   // a failure leaves none (a sex or nationality figure then says so, with a retry, instead of «غير متاح»)

@@ -1,6 +1,8 @@
 // with extensions, so node --test can load this file for journey-logic.test.ts
 import { counted, numberFormat } from '../../lib/insights-api.ts'
-import { homesHref, priceStartHref } from '../../lib/handoff.ts'
+import { PRICE_TYPES, homesHref, priceStartHref } from '../../lib/handoff.ts'
+import { typeLabel } from '../../lib/real-estate.ts'
+import type { SiteComparison } from './tools/overlay.ts'
 import type { DistrictRow } from './city-data.ts'
 import type { JourneyStep, LensId, ToolId } from './lenses.ts'
 
@@ -74,7 +76,13 @@ export type DecisionAction =
   | { kind: 'step'; tool: ToolId; ids: string[]; label: string }
   | { kind: 'link'; href: string; label: string }
 
-export type Decision = { title: string; pick: string | null; actions: DecisionAction[] }
+/** The shop owner's candidate sites side by side, as «قارن المواقع» measured and scored them (attractionScores). */
+export type SitesCompared = { sites: SiteComparison[]; reach: string; byIncome: boolean }
+
+export type Decision = { title: string; pick: string | null; actions: DecisionAction[]; sites?: SitesCompared | null }
+
+/** What the property seeker searched in «اختر عقاراً», so the links open on it: the deal (null: every rent period), the type, the budget (0: any). */
+export type HomesChoice = { kind: 'rent' | 'sale'; type: string; deal: string | null; budget: number }
 
 const byGrowth = (rows: readonly DistrictRow[]) => rows
   .map((row) => ({ row, built: row.underConstruction != null && row.newBuildings != null ? row.underConstruction + row.newBuildings : null }))
@@ -87,8 +95,12 @@ const byGrowth = (rows: readonly DistrictRow[]) => rows
  * the quote request, the campaign or the list after review; «العقار» and «سعّر عقارك» take the district by link).
  * Never a recommendation the steps did not make: no pick, no «قرارك».
  */
-export function decisionFor({ lens, city, rows, picked, leads, activity, done = [] }: {
+export function decisionFor({ lens, city, rows, picked, leads, activity, done = [], sites = null, homes = null }: {
   lens: LensId
+  /** The sites «قارن المواقع» compared; two or more scored make the shop owner's card a side-by-side. */
+  sites?: SitesCompared | null
+  /** The property seeker's search, carried into the links. */
+  homes?: HomesChoice | null
   /** The steps answered in this visit: the growth ranking points to a district only once its step was opened. */
   done?: readonly ToolId[]
   city: string
@@ -104,13 +116,24 @@ export function decisionFor({ lens, city, rows, picked, leads, activity, done = 
     case 'shops': {
       const place = one ?? lead('gaps')
       const title = activity ? `أين تفتح «${activity}»` : 'أين تفتح'
-      if (!place) return { title, pick: null, actions: [] }
+      // two or more sites scored: the card shows them side by side, the best first; fewer, it offers the comparison
+      const scored = sites && sites.sites.filter((site) => site.score != null).length >= 2
+        ? { ...sites, sites: [...sites.sites].sort((a, b) => (b.score ?? -1) - (a.score ?? -1)) } : null
+      if (!place && !scored) return { title, pick: null, actions: [] }
+      const best = scored?.sites[0]
+      const pick = scored && best ? `أجذب موقع: الموقع ${best.label}${best.district ? ` في ${best.district}` : ''} (${numberFormat.format(best.score!)} من 100)`
+        : one ? `الحي الذي اخترته: ${place!.name}` : `أكثر حي ينقصه نشاطك: ${place!.name}`
+      const where = scored && best?.district ? rows.find((row) => row.name === best.district) ?? place : place
       return {
         title,
-        pick: one ? `الحي الذي اخترته: ${place.name}` : `أكثر حي ينقصه نشاطك: ${place.name}`,
+        pick,
+        sites: scored,
         actions: [
-          { kind: 'step', tool: 'homes', ids: [place.id], label: `محلات للإيجار في ${place.name}` },
-          { kind: 'businesses', ids: [place.id], label: `منشآت ${place.name}: اطلب تسعيراً أو احفظ قائمة` },
+          ...(scored ? [] : [{ kind: 'step' as const, tool: 'around' as const, ids: [], label: 'قارن موقعين مرشحين' }]),
+          ...(where ? [
+            { kind: 'step' as const, tool: 'homes' as const, ids: [where.id], label: `محلات للإيجار في ${where.name}` },
+            { kind: 'businesses' as const, ids: [where.id], label: `منشآت ${where.name}: اطلب تسعيراً أو احفظ قائمة` },
+          ] : []),
         ],
       }
     }
@@ -147,12 +170,17 @@ export function decisionFor({ lens, city, rows, picked, leads, activity, done = 
       const place = one ?? lead('homes')
       const title = 'العرض والحي'
       if (!place) return { title, pick: null, actions: [] }
+      // the search made in «اختر عقاراً» goes with the links: the same deal, type and budget on «العقار», and the same
+      // deal and type on «سعّر عقارك» (each page keeps only what it offers)
+      const what = homes ? typeLabel(homes.type) : 'عقار'
+      const budget = homes && homes.budget > 0 ? ` حتى ${numberFormat.format(homes.budget)} ريال` : ''
+      const rentDeal = homes?.kind === 'rent' && homes.deal && homes.deal !== 'sale' ? homes.deal : undefined
       return {
         title,
         pick: one ? `الحي الذي اخترته: ${place.name}` : `حي العرض الأنسب: ${place.name}`,
         actions: [
-          { kind: 'link', href: homesHref({ city, districts: [place.id] }), label: `كل عروض ${place.name} في «العقار»` },
-          { kind: 'link', href: priceStartHref({ city, district: place.id }), label: `سعّر عقاراً في ${place.name}` },
+          { kind: 'link', href: homesHref({ city, districts: [place.id], ...(homes ? { kind: homes.kind, types: [homes.type], ...(rentDeal ? { rentDeal } : {}), max: homes.budget > 0 && homes.deal ? homes.budget : null } : {}) }), label: `عروض ${what}${budget} في ${place.name} على «العقار»` },
+          { kind: 'link', href: priceStartHref({ city, district: place.id, ...(homes ? { deal: homes.deal, type: homes.type } : {}) }), label: `سعّر ${homes && (PRICE_TYPES as readonly string[]).includes(homes.type) ? what : 'عقاراً'} في ${place.name}` },
         ],
       }
     }

@@ -86,3 +86,33 @@ type OnboardingStep = 'shown' | 'goal_picked' | 'district_picked' | 'completed' 
 export function trackOnboardingStep(step: OnboardingStep, detail: { lens?: string; at?: string; via?: 'explain' | 'button' } = {}) {
   track('atlas_onboarding_step', { step, ...detail })
 }
+
+/**
+ * The decision moments of docs/atlas-product-foundation.md §7, one event name: the group, the city, the moment, and
+ * only a size bucket or an id the product defines (a filter's name, a figure's id) beside it. Never a district, a
+ * business, a value typed, a price or a place.
+ * - `sites_compared`: a shop owner has two or more sites scored (how many);
+ * - `audience_filtered`: a marketer changed the audience filters (which filters are on, by name);
+ * - `territories_balanced` / `route_planned`: a distributor's split (how many reps) and a solved route (how many stops);
+ * - `ranking_sorted`: an analyst ranked the districts by a figure (its id); `districts_compared`: two districts compared.
+ */
+export type DecisionMoment = 'sites_compared' | 'audience_filtered' | 'territories_balanced' | 'route_planned' | 'ranking_sorted' | 'districts_compared'
+export function decisionMomentProps(moment: DecisionMoment, { lens, city, count, filters, metric }: { lens: string; city: string; count?: number; filters?: string[]; metric?: string }) {
+  return {
+    moment, lens, city,
+    ...(count != null ? { size: countBucket(count) } : {}),
+    ...(filters ? { filters: filters.length ? [...filters].sort().join(',') : 'none' } : {}),
+    ...(metric ? { metric } : {}),
+  }
+}
+export function trackDecisionMoment(moment: DecisionMoment, detail: Parameters<typeof decisionMomentProps>[1]) {
+  track('atlas_decision_moment', decisionMomentProps(moment, detail))
+}
+
+/**
+ * The journey's closing card (components/lens/journey.tsx): `shown` once per group, city and pick in a visit, with how
+ * many of its steps were answered; `acted` when one of its actions is taken (its kind: businesses, step or link).
+ */
+export function trackJourneyDecision({ lens, city, moment, action, answered, steps }: { lens: string; city: string; moment: 'shown' | 'acted'; action?: 'businesses' | 'step' | 'link'; answered: number; steps: number }) {
+  track('atlas_journey_decision', { lens, city, moment, ...(action ? { action } : {}), answered: countBucket(answered), steps })
+}

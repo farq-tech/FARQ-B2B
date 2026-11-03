@@ -9,7 +9,7 @@ import { EXPLAIN } from '@/lib/explanations'
 import { formatDistance, numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 import { circlePolygon, type Area, type Site } from '../lens-map-canvas'
-import type { Overlay } from './overlay'
+import type { Overlay, SiteComparison } from './overlay'
 import { PALETTE, readableOn } from '@/lib/palette'
 import { areaKm2, containsPoint, districtAt } from '@/lib/geo-measure'
 import { stickyHas, useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/sticky-state'
@@ -17,6 +17,7 @@ import { SiteCard, type SiteCardData, type SiteCardState } from './site-card'
 import { attractionScores, placeSite, sitesVerdict } from './tool-answers'
 import { Verdict } from './verdict'
 import { useSlow } from './use-answer'
+import { trackDecisionMoment } from '@/lib/commercial-metrics'
 import { Choice, StillWorking } from './choice'
 import type { DistrictRow } from '../city-data'
 
@@ -173,43 +174,11 @@ export function AroundTool({ city, onOverlay, districts, features, next }: {
     setSites((current) => [...current])
   }
 
-  useEffect(() => {
-    const areas: Area[] = labelled.flatMap((site) => (site.result?.geometry ? [{ id: String(site.id), color: site.color, geometry: site.result.geometry }] : []))
-    const markers: Site[] = labelled.map((site) => ({ id: String(site.id), label: site.label, color: site.color, lon: site.lon, lat: site.lat }))
-    // the step's own line: the site with the most people inside its reach, from the figures as returned
-    const counts = labelled.flatMap((site) => (site.result?.status === 'ready' && site.result.figures?.population != null ? [{ label: site.label, people: site.result.figures.population }] : []))
-    const best = counts.sort((a, b) => b.people - a.people)[0]
-    const people = best?.people ?? null
-    const summary = best && people != null
-      ? (labelled.length === 1 ? `الموقع ${best.label}: ${numberFormat.format(people)} ساكن في ${reachLabel(reach)}` : `الأكثر سكاناً: الموقع ${best.label}، ${numberFormat.format(people)} ساكن في ${reachLabel(reach)}`)
-      : null
-    const busy = labelled.some((site) => !site.result || site.result.status === 'loading')
-    onOverlay({ onPick: pick, areas, sites: markers, summary, ...(busy && !summary ? { state: 'loading' as const, slow } : {}) })
-  }, [labelled, pick, onOverlay, reach, slow])
-
-  const rows: { label: string; value: (f: Within) => number | null; explain: string[]; higherIsBetter?: boolean }[] = [
-    { label: 'السكان', value: (f) => f.population, explain: EXPLAIN.aroundPeople, higherIsBetter: true },
-    { label: 'الوحدات السكنية', value: (f) => f.dwellings, explain: EXPLAIN.aroundHomes, higherIsBetter: true },
-    { label: 'المنشآت', value: (f) => f.businesses, explain: EXPLAIN.aroundBusinesses },
-    {
-      label: 'ساكن لكل منشأة',
-      value: (f) => f.residents_per,
-      explain: EXPLAIN.aroundResidentsPer,
-      higherIsBetter: true,
-    },
-  ]
-  const ready = labelled.filter((site) => site.result?.status === 'ready' && site.result.figures)
-  const best = (row: (typeof rows)[number]) => {
-    if (!row.higherIsBetter || ready.length < 2) return null
-    const values = ready.map((site) => row.value(site.result!.figures!)).filter((v): v is number => v != null)
-    return values.length ? Math.max(...values) : null
-  }
-
   // «جاذبية الموقع»: a 0–100 score comparing the chosen sites on three equal factors — audience (population in reach),
   // purchasing power (income where published, else villa share, of the حي the pin sits in), and lightness of
   // competition (fewest establishments per km²). Each factor is scaled to the best site, and the score is their mean.
   // A site missing any factor is «غير متاح», and the score needs two complete sites, since it is a comparison.
-  const { scoreById, topScore, byIncome, verdict } = useMemo(() => {
+  const { scoreById, topScore, byIncome, verdict, factored } = useMemo(() => {
     const byIncome = districts.some((row) => row.income != null)
     const districtById = new Map(districts.map((row) => [row.id, row]))
     const spendingOf = (point: Point): number | null => {
@@ -237,8 +206,57 @@ export function AroundTool({ city, onOverlay, districts, features, next }: {
     const settled = labelled.every((site) => site.result?.status === 'ready')
     const label = new Map(labelled.map((site) => [site.id, site.label]))
     const verdict = settled ? sitesVerdict(factored.map((item) => ({ ...item, label: label.get(item.id) ?? '', population: item.audience })), scoreById, byIncome) : null
-    return { scoreById, topScore: scores.length ? Math.max(...scores) : null, byIncome, verdict }
+    return { scoreById, topScore: scores.length ? Math.max(...scores) : null, byIncome, verdict, factored }
   }, [labelled, districts, features])
+  // the shop owner's decision moment (foundation §7): two or more sites scored side by side, once per set of sites and
+  // reach; only how many, never where
+  const scoredKey = `${[...scoreById.keys()].sort().join(',')}|${reachKey}`
+  useEffect(() => { if (scoreById.size >= 2) trackDecisionMoment('sites_compared', { lens: 'shops', city, count: scoreById.size }) },
+    // keyed by the scored sites and the reach as a string
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scoredKey, city])
+
+  useEffect(() => {
+    const areas: Area[] = labelled.flatMap((site) => (site.result?.geometry ? [{ id: String(site.id), color: site.color, geometry: site.result.geometry }] : []))
+    const markers: Site[] = labelled.map((site) => ({ id: String(site.id), label: site.label, color: site.color, lon: site.lon, lat: site.lat }))
+    // the step's own line: the site with the most people inside its reach, from the figures as returned
+    const counts = labelled.flatMap((site) => (site.result?.status === 'ready' && site.result.figures?.population != null ? [{ label: site.label, people: site.result.figures.population }] : []))
+    const best = counts.sort((a, b) => b.people - a.people)[0]
+    const people = best?.people ?? null
+    const summary = best && people != null
+      ? (labelled.length === 1 ? `الموقع ${best.label}: ${numberFormat.format(people)} ساكن في ${reachLabel(reach)}` : `الأكثر سكاناً: الموقع ${best.label}، ${numberFormat.format(people)} ساكن في ${reachLabel(reach)}`)
+      : null
+    const busy = labelled.some((site) => !site.result || site.result.status === 'loading')
+    // the sites side by side for the journey's closing card: each site's district, its score (attractionScores, the
+    // same numbers as the table) and its three factors, as measured; a missing one stays null («غير متاح»)
+    const label = new Map(labelled.map((site) => [site.id, site]))
+    const comparison: SiteComparison[] = factored.map((item) => {
+      const site = label.get(item.id)!
+      const district = districts.find((row) => row.id === districtAt(site, features))
+      return { label: site.label, district: district?.name ?? null, score: scoreById.get(item.id) ?? null, audience: item.audience, spending: item.spending, density: item.density }
+    })
+    onOverlay({ onPick: pick, areas, sites: markers, summary: verdict?.lead ?? summary, comparison: comparison.length ? { sites: comparison, reach: reachLabel(reach), byIncome } : null,
+      ...(busy && !summary ? { state: 'loading' as const, slow } : {}) })
+  }, [labelled, pick, onOverlay, reach, slow, factored, scoreById, verdict, byIncome, districts, features])
+
+  const rows: { label: string; value: (f: Within) => number | null; explain: string[]; higherIsBetter?: boolean }[] = [
+    { label: 'السكان', value: (f) => f.population, explain: EXPLAIN.aroundPeople, higherIsBetter: true },
+    { label: 'الوحدات السكنية', value: (f) => f.dwellings, explain: EXPLAIN.aroundHomes, higherIsBetter: true },
+    { label: 'المنشآت', value: (f) => f.businesses, explain: EXPLAIN.aroundBusinesses },
+    {
+      label: 'ساكن لكل منشأة',
+      value: (f) => f.residents_per,
+      explain: EXPLAIN.aroundResidentsPer,
+      higherIsBetter: true,
+    },
+  ]
+  const ready = labelled.filter((site) => site.result?.status === 'ready' && site.result.figures)
+  const best = (row: (typeof rows)[number]) => {
+    if (!row.higherIsBetter || ready.length < 2) return null
+    const values = ready.map((site) => row.value(site.result!.figures!)).filter((v): v is number => v != null)
+    return values.length ? Math.max(...values) : null
+  }
+
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
