@@ -52,6 +52,8 @@ function boxOf(geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon): [number, numbe
 
 type Status = 'idle' | 'loading' | 'ready' | 'login' | 'guest' | 'error' | 'needs-scope'
 const PAGE = 200
+/** How many answers of PAGE a site's reach is read through: up to 1,000 businesses in its box. */
+const AREA_PAGES = 5
 // one search per district, so a wide selection is read up to this many districts and the count says so
 const MAX_DISTRICTS = 5
 
@@ -102,6 +104,8 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
   // the activity studied in the other steps, offered as a one-tap start before anything is shown
   const [studied] = useStudiedActivity()
   const [rows, setRows] = useState<PublicDirectoryEntity[]>([])
+  // a reach whose box held more than AREA_PAGES answers: the list says it is the first part, never the whole
+  const [areaCapped, setAreaCapped] = useState(false)
   const [total, setTotal] = useState<number | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [status, setStatus] = useState<Status>('idle')
@@ -160,29 +164,43 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
       let guest = false
       // no district chosen: one search over the whole city, which needs an activity
       const scopes: (string | null)[] = area ? [null] : districts.length ? districts.slice(0, MAX_DISTRICTS) : typed ? [null] : []
+      // a site's reach pages on past one answer (the box it is asked by can hold more than PAGE), up to AREA_PAGES
+      let capped = false
       for (const district of scopes) {
-        const response = await fetch('/api/market/entities', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset: 0, ...(typed ? { q: typed, objective: 'purchase' } : {}), ...(main ? { main_id: main } : {}), ...(reach ? { bounds: reach } : {}) }),
-        })
-        const body = await response.json().catch(() => null) as { rows?: PublicDirectoryEntity[]; total?: number; error?: string; guest?: boolean } | null
-        if (stale()) return
-        if (response.status === 401) { setStatus('login'); return }
-        if (!response.ok || !body) throw new Error(body?.error || 'تعذر تحميل المنشآت.')
-        if (body.guest) {
-          guest = true
-          setPreview((current) => (count ? current : []).concat(((body.rows ?? []) as unknown as GuestPreviewRow[])).slice(0, GUEST_PREVIEW))
-          count += typeof body.total === 'number' ? body.total : 0
-          continue
+        let offset = 0
+        for (let page = 0; page < (area ? AREA_PAGES : 1); page++) {
+          const response = await fetch('/api/market/entities', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset, ...(typed ? { q: typed, objective: 'purchase' } : {}), ...(main ? { main_id: main } : {}), ...(reach ? { bounds: reach } : {}) }),
+          })
+          const body = await response.json().catch(() => null) as { rows?: PublicDirectoryEntity[]; total?: number; error?: string; guest?: boolean; hasMore?: boolean; nextOffset?: number | null } | null
+          if (stale()) return
+          if (response.status === 401) { setStatus('login'); return }
+          if (!response.ok || !body) throw new Error(body?.error || 'تعذر تحميل المنشآت.')
+          if (body.guest) {
+            guest = true
+            setPreview((current) => (count ? current : []).concat(((body.rows ?? []) as unknown as GuestPreviewRow[])).slice(0, GUEST_PREVIEW))
+            count += typeof body.total === 'number' ? body.total : 0
+            break
+          }
+          if (!area) {
+            found.push(...(body.rows ?? []))
+            count += typeof body.total === 'number' ? body.total : (body.rows ?? []).length
+            break
+          }
+          // a site's reach is a shape, not a box: what the box brought back is kept only inside the shape
+          const inside = (body.rows ?? []).filter((row) => row.latitude != null && row.longitude != null && containsPoint(area.geometry, { lon: row.longitude, lat: row.latitude }))
+          found.push(...inside)
+          count += inside.length
+          const more = body.hasMore === true || (body.rows ?? []).length >= PAGE
+          if (!more) break
+          if (page === AREA_PAGES - 1) { capped = true; break }
+          offset = typeof body.nextOffset === 'number' && body.nextOffset > offset ? body.nextOffset : offset + PAGE
         }
-        // a site's reach is a shape, not a box: what the box brought back is kept only inside the shape
-        const inside = area ? (body.rows ?? []).filter((row) => row.latitude != null && row.longitude != null && containsPoint(area.geometry, { lon: row.longitude, lat: row.latitude })) : body.rows ?? []
-        found.push(...inside)
-        if (area) { count += inside.length; continue }
-        count += typeof body.total === 'number' ? body.total : (body.rows ?? []).length
       }
+      setAreaCapped(capped)
       if (stale()) return
       if (guest) { setTotal(count); setSearched(districts.length ? scopes.length : null); setStatus('guest'); setKept(query && typed === query.trim() ? null : { q: typed, scope }); return }
       const unique = [...new Map(found.map((row) => [row.id, row])).values()]
@@ -360,6 +378,7 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
               حدّث القائمة عند تحريك الخريطة
             </label>
           )}
+          {area && areaCapped && <p className="text-sm text-muted-foreground">نطاق مزدحم: قرأنا أول {numberFormat.format(AREA_PAGES * PAGE)} منشأة في الإطار حوله، وما بقي منها داخل النطاق معروض هنا.</p>}
           {byMap && !shown.length && <p className="text-sm text-muted-foreground">لا منشأة من هذه القائمة في ما تُظهره الخريطة. حرّك الخريطة أو صغّرها.</p>}
           {shown.length > 0 && (
             <label className="flex items-center gap-2 text-sm font-medium">
