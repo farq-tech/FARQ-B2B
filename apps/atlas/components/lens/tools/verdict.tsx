@@ -11,10 +11,19 @@ import type { VerdictText } from './tool-answers'
  * request, price or listing surfaces, given by the map shell). The list under it is the evidence; this is the answer.
  * The words come from tool-answers.ts, where they are tested.
  */
-export function Verdict({ verdict, next, className }: { verdict: VerdictText | null; next?: ReactNode; className?: string }) {
+export function Verdict({ verdict, next, lift = false, className }: {
+  verdict: VerdictText | null
+  next?: ReactNode
+  /**
+   * On a phone (below lg), drawn right under the tool's heading (which carries max-lg:-order-2) and above its choices,
+   * so the answer is in the half-open sheet without scrolling; the DOM order, and so the reading order, is unchanged.
+   */
+  lift?: boolean
+  className?: string
+}) {
   if (!verdict) return null
   return (
-    <div role="status" aria-label="الخلاصة" className={cn('flex flex-col gap-1.5 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2.5', className)}>
+    <div role="status" aria-label="الخلاصة" className={cn('flex flex-col gap-1.5 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2.5', lift && 'max-lg:-order-1', className)}>
       <p className="flex items-start gap-1.5 text-base font-bold leading-snug">
         <Lightbulb className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
         <span>{verdict.lead}</span>

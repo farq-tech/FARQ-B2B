@@ -183,7 +183,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-      <h2 className="text-xl font-bold">المنافسون</h2>
+      <h2 className="text-xl font-bold max-lg:-order-2">المنافسون</h2>
       <form role="search" className="flex gap-2" onSubmit={(event) => { event.preventDefault(); if (query.trim()) study({ q: query.trim(), label: query.trim() }) }}>
         <input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="نشاطك" enterKeyHint="search"
           placeholder="اكتب نشاطك: صيدلية، مقهى…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
@@ -230,7 +230,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
             <>
             {/* the question first (where is it lightest, or densest), then its answer, then the districts behind it */}
             <Choice label="ترتيب الأحياء" value={order} onChange={setOrder} options={[{ id: 'light', label: 'أين المنافسة أخف؟' }, { id: 'dense', label: 'أين أشدها؟' }]} />
-            <Verdict verdict={verdict} next={next} />
+            <Verdict lift verdict={verdict} next={next} />
             <ol className="divide-y text-base lg:max-h-[45vh] lg:overflow-y-auto">
               {ranked.slice(0, limit).map((item) => (
                 <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={hover(item.row.id)} title={item.row.name}
@@ -247,7 +247,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
           {view === 'brands' && !brands && <NotAvailable what="السلاسل" where={`«${studied.label}»`} body="الأحياء وعدد المنافسين فيها متاحة من «الأحياء»." />}
           {view === 'brands' && brands && !brand && (
             <>
-              <Verdict verdict={brandsVerdict(brands)} />
+              <Verdict lift verdict={brandsVerdict(brands)} />
               <Explained title="السلاسل" lines={EXPLAIN.brands(brands.total, brands.in_chains)} className="text-base">
                 <span>
                   <strong>{counted(brands.chains, 'chain')}</strong> {brands.chains === 1 ? 'تملك' : 'تملك معاً'} {numberFormat.format(brands.in_chains)} من {numberFormat.format(brands.total)} منشأة

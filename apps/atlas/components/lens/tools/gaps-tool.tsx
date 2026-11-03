@@ -19,7 +19,7 @@ import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { useAnswer } from './use-answer'
-import { gapsVerdict } from './tool-answers'
+import { gapsVerdict, populationKind } from './tool-answers'
 import { Verdict } from './verdict'
 
 /** caveat: the service marks a district that is industrial by its atlas name, or labour housing (nine in ten residents
@@ -139,7 +139,9 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
   const widest = Math.max(0, ...gaps.map((row) => row.shortfall ?? 0))
   // a shortlist first: the verdict names the top three, the next rows are one tap away
   const [limit, showMore] = useShowMore(10, `${city}|${label}`)
-  const verdict = result?.residents_per_business != null ? gapsVerdict(gaps, label, result.residents_per_business) : null
+  // the top district's population kind (counted, from buildings, or a density grid), so a guessed population is said
+  const topSource = gaps[0] ? rows.find((row) => row.name === gaps[0].district_ar)?.populationSource ?? null : null
+  const verdict = result?.residents_per_business != null ? gapsVerdict(gaps, label, result.residents_per_business, populationKind(topSource)) : null
   // the industrial and labour-housing districts come last, usually past the first rows shown: a line under the visible
   // rows counts them, and a click shows the list down to them
   const [reveal, setReveal] = useState(false)
@@ -153,7 +155,7 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-      <h2 className="text-xl font-bold">أين ينقص نشاطي؟</h2>
+      <h2 className="text-xl font-bold max-lg:-order-2">أين ينقص نشاطي؟</h2>
       {/* a search form like the other steps': a named field, the phone keyboard's «بحث» key, Enter submits */}
       <form role="search" className="flex gap-2" onSubmit={(e) => { e.preventDefault(); study(query.trim()) }}>
         <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="نشاطك" enterKeyHint="search"
@@ -240,7 +242,7 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
       {status !== 'loading' && result && result.residents_per_business != null && (
         <>
           {/* the answer first (the district, what it has and needs at the city rate, the next two), then the evidence */}
-          <Verdict verdict={verdict} next={next} />
+          <Verdict lift verdict={verdict} next={next} />
           {gaps.length > 0 && (
             <p className="text-sm font-semibold text-muted-foreground">{counted(gaps.length, 'district')} {gaps.length === 1 ? 'فيه' : 'فيها'} نقص، الأكبر أولاً</p>
           )}

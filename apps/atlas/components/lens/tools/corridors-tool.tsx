@@ -145,7 +145,7 @@ export function CorridorsTool({ city, rows = [], onOverlay, next }: {
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-      <h2 className="text-xl font-bold">شوارع النشاط</h2>
+      <h2 className="text-xl font-bold max-lg:-order-2">شوارع النشاط</h2>
       <form role="search" className="flex gap-2" onSubmit={(e) => { e.preventDefault(); study(query.trim()) }}>
         <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="النشاط" enterKeyHint="search"
           placeholder="اكتب النشاط: أدوات صحية، ورش سيارات…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
@@ -177,7 +177,7 @@ export function CorridorsTool({ city, rows = [], onOverlay, next }: {
       )}
       {mode === 'cluster' && status !== 'loading' && corridors.length > 0 && (
         <>
-          <Verdict verdict={corridorVerdict(corridors.map((item) => item.properties), studied.label)} next={next} />
+          <Verdict lift verdict={corridorVerdict(corridors.map((item) => item.properties), studied.label)} next={next} />
           <p className="text-sm text-muted-foreground">{counted(corridors.length, 'street')} يتجمع {corridors.length === 1 ? 'فيه' : 'فيها'} «{studied.label}»، الأكثر محلات أولاً. اضغط شارعاً لترى المحلات المتاحة عليه وإيجارها.</p>
           <ol className="divide-y text-base lg:max-h-[45vh] lg:overflow-y-auto">
             {corridors.slice(0, visible).map(({ properties: corridor }, index) => (
