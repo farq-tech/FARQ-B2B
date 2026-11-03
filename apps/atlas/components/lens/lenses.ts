@@ -124,3 +124,27 @@ export function nextStep(lens: Lens, tool: ToolId): Lens['steps'][number] | null
   const at = lens.steps.findIndex((step) => step.tool === tool)
   return at < 0 ? null : lens.steps[at + 1] ?? null
 }
+
+/**
+ * The tables each step reads from the district rows besides the golden two (population and the directory's counts,
+ * which every step, card and pick reads). A city's other tables wait until these have answered and the page is idle:
+ * the map opened with eleven requests at once, most of them for layers nobody was looking at.
+ */
+export const STEP_TABLES: Record<ToolId, CityTable[]> = {
+  gaps: [], competitors: [], corridors: [], homes: [], territories: [], businesses: [], district: [],
+  audience: ['income'],
+  around: ['income', 'housing'],
+  growth: ['growth'],
+  compare: ['income', 'housing', 'realEstate', 'growth'],
+}
+
+/** The tables the open step cannot answer without: a failure among them is said over the panel. A layer that failed
+ * is said in the map's key once picked, and marked «غير متاح الآن» in «طبقات» until then. */
+export function stepTables(tool: ToolId): CityTable[] {
+  return ['population', 'counts', ...STEP_TABLES[tool]]
+}
+
+/** What the open step and the layer in view need first, the layer's table ahead (it colours the map). */
+export function neededTables(tool: ToolId, metric: MetricId): CityTable[] {
+  return [...new Set<CityTable>([METRIC_TABLE[metric], ...stepTables(tool)])]
+}
