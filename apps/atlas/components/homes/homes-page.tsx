@@ -10,7 +10,7 @@ import { LoadError } from '@/components/shared/load-error'
 import { ChipRow } from '@/components/shared/search-pill'
 import { Chip } from '@/components/ui/chip'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket, useCities } from '@/lib/insights-api'
@@ -154,7 +154,9 @@ export function HomesPage() {
           </Link>
         </div>
         {/* a row of toggles, not links: a group, not a navigation landmark */}
-        <div role="group" aria-label="نوع العقار" className="mx-auto flex w-full max-w-5xl gap-6 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:justify-center">
+        {/* on a phone the row is wider than the screen: both edges fade, so a type cut in half reads as «more this way»
+            and not as a broken icon */}
+        <div role="group" aria-label="نوع العقار" className="mx-auto flex w-full max-w-5xl gap-6 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:[mask-image:linear-gradient(to_left,transparent,black_1.5rem,black_calc(100%-1.5rem),transparent)] sm:justify-center">
           {kindTypes.map((item) => {
             const on = types.length === 1 && types[0] === item.id
             return (
@@ -201,29 +203,29 @@ export function HomesPage() {
           </div>
           {result.status === 'loading' && (
             // card-shaped placeholders: the grid keeps its place while the listings load
-            <ul className="grid grid-cols-1 gap-x-5 gap-y-7 sm:grid-cols-2" aria-busy="true" aria-label="جارٍ تحميل العروض">
+            <SkeletonStatus label="جارٍ تحميل العروض" className="grid grid-cols-1 gap-x-5 gap-y-7 sm:grid-cols-2">
               {Array.from({ length: 4 }, (_, i) => (
-                <li key={i} className="flex flex-col gap-2">
+                <div key={i} className="flex flex-col gap-2">
                   <Skeleton className="aspect-[20/19] rounded-2xl" /><Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-1/2" />
-                </li>
+                </div>
               ))}
-            </ul>
+            </SkeletonStatus>
           )}
           {result.status === 'error' && <LoadError what="العروض" onRetry={() => setAttempt((n) => n + 1)} />}
           {result.status === 'ready' && !result.available && (
-            <EmptyState icon={Building2} title="غير متاحة بعد" body={`عروض العقار غير متاحة في ${cityAr} بعد.`}
+            <EmptyState heading="h2" icon={Building2} title="غير متاحة بعد" body={`عروض العقار غير متاحة في ${cityAr} بعد.`}
               action={city !== 'Riyadh' ? <Chip onClick={() => setCity('Riyadh')}>اعرض عروض الرياض</Chip> : undefined} />
           )}
           {/* an empty list says which of the three narrowings emptied it, and offers the one step that undoes it */}
           {result.status === 'ready' && result.available && visible.length === 0 && (
             filtered.length > 0 ? (
-              <EmptyState icon={MapIcon} title="لا عروض في ما تُظهره الخريطة" body={`حرّك الخريطة أو صغّرها، أو اعرض كل عروض ${cityAr}.`}
+              <EmptyState heading="h2" icon={MapIcon} title="لا عروض في ما تُظهره الخريطة" body={`حرّك الخريطة أو صغّرها، أو اعرض كل عروض ${cityAr}.`}
                 action={<Chip onClick={() => setInView(false)}>اعرض كل عروض {cityAr}</Chip>} />
             ) : result.listings.length > 0 ? (
-              <EmptyState icon={SearchX} title="لا عروض بهذه الفلاتر" body={`في ${cityAr} ${offersLabel(result.listings.length)} بهذه الصفقة والنوع، والفلاتر المطبقة تستبعدها كلها.`}
+              <EmptyState heading="h2" icon={SearchX} title="لا عروض بهذه الفلاتر" body={`في ${cityAr} ${offersLabel(result.listings.length)} بهذه الصفقة والنوع، والفلاتر المطبقة تستبعدها كلها.`}
                 action={<Chip onClick={() => change({ ...DEFAULT_FILTERS, kind, rentDeal: filters.rentDeal, types: types.slice(0, 1) })}>مسح الفلاتر</Chip>} />
             ) : (
-              <EmptyState icon={SearchX} title="لا عروض حالية من هذا النوع"
+              <EmptyState heading="h2" icon={SearchX} title="لا عروض حالية من هذا النوع"
                 body={kind === 'rent' ? 'جرّب مدة إيجار أخرى أو نوعاً آخر من الأعلى.' : 'جرّب نوعاً آخر من الأعلى.'}
                 action={(
                   <div className="flex flex-wrap justify-center gap-2">
@@ -269,15 +271,15 @@ export function HomesPage() {
         {compare.length === 1 && (
           <p role="status" className="pointer-events-auto inline-flex items-center gap-2 rounded-full border bg-card px-4 py-2 text-sm font-semibold shadow-lg">
             <Scale className="size-4 text-primary" aria-hidden /> عقار واحد في المقارنة · أضف الثاني
-            <button onClick={() => setCompare([])} aria-label="أفرغ المقارنة" className="-me-1 grid size-6 pointer-coarse:size-9 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-3.5" aria-hidden /></button>
+            <button onClick={() => setCompare([])} aria-label="أفرغ المقارنة" className="-me-1 grid size-7 pointer-coarse:size-9 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><X className="size-3.5" aria-hidden /></button>
           </p>
         )}
         {compare.length === 2 && (
-          <button onClick={() => setSideBySide(true)} className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg">
+          <button onClick={() => setSideBySide(true)} className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
             <Scale className="size-4" aria-hidden /> قارن العرضين
           </button>
         )}
-        <button onClick={() => setMobileMap((value) => !value)} className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-background shadow-lg lg:hidden">
+        <button onClick={() => setMobileMap((value) => !value)} className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-background shadow-lg lg:hidden outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
           {mobileMap ? <><List className="size-4" aria-hidden /> القائمة</> : <><MapIcon className="size-4" aria-hidden /> الخريطة</>}
         </button>
       </div>
