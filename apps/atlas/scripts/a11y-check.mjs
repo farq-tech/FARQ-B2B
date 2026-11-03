@@ -29,6 +29,7 @@ const PAGES = [
   ['/inbox', 'الوارد'],
   [`/inbox?m=${SEED_INBOX[0].id}`, 'رسالة'],
   ['/login', 'الدخول'],
+  ['/request-access', 'اطلب حساباً'],
   ['/no-such-page', 'غير موجودة'],
 ]
 const VIEWPORTS = [['phone', 390, 844], ['desktop', 1366, 900]]

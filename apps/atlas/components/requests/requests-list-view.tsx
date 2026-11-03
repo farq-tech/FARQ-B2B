@@ -12,6 +12,7 @@ import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { normalizeArabic } from '@/lib/search'
 import { useAppStore } from '@/lib/store'
 import { signInHref, useSignedIn } from '@/lib/use-signed-in'
+import { requestAccessHref } from '@/lib/access-request'
 import type { RequestStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { STATUS_ICON, StatusBadge, TypeLabel } from './request-badges'
@@ -62,7 +63,10 @@ export function RequestsListView() {
       {none && signedIn === null ? null : none && !signedIn ? (
         <EmptyState heading="h2" icon={LogIn} title="سجّل الدخول لترى طلباتك"
           body="هنا قوائم المنشآت التي حفظتها وطلبات التسعير ومسودات الحملات، تراجعها قبل أي إرسال."
-          action={<Button nativeButton={false} render={<Link href={signInHref('/requests')} />}><LogIn data-icon="inline-start" />سجّل الدخول</Button>} />
+          action={<div className="flex flex-wrap items-center justify-center gap-2">
+            <Button nativeButton={false} render={<Link href={signInHref('/requests')} />}><LogIn data-icon="inline-start" />سجّل الدخول</Button>
+            <Button variant="outline" nativeButton={false} render={<Link href={requestAccessHref('/requests')} />}>اطلب حساباً</Button>
+          </div>} />
       ) : none ? (
         <EmptyState heading="h2" icon={ClipboardList} title="لا طلبات بعد"
           body="الطلب قائمة منشآت تحفظها، أو طلب تسعير لموردين، أو مسودة حملة. يبدأ كل طلب من الخريطة، ويبقى هنا للمراجعة قبل أي إرسال."

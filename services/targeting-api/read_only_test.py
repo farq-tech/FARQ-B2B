@@ -15,6 +15,7 @@ READ_ONLY_PATHS = frozenset({
     "/send-test-template",
     "/send-farq",
     "/log",
+    "/access-requests",
 })
 
 
