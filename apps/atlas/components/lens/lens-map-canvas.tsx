@@ -205,15 +205,14 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         const firstLabel = layers.find((layer) => layer.type === 'symbol')?.id
         // the shading sits under the streets and the place names, so both stay readable through it
         const firstRoad = layers.find((layer) => layer.type === 'line' && /road|street|bridge|tunnel/.test(layer.id))?.id ?? firstLabel
-        instance.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: {
-          'fill-color': ['coalesce', ['get', '__color'], ['match', ['coalesce', ['get', '__step'], -1], 0, SHADES[0], 1, SHADES[1], 2, SHADES[2], 3, SHADES[3], 4, SHADES[4], 'rgba(0,0,0,0)']],
-          // lighter as the map zooms in to street level
-          'fill-opacity': ['interpolate', ['linear'], ['zoom'],
-            10, ['case', ['boolean', ['get', '__selected'], false], 0.8, 0.6],
-            14, ['case', ['boolean', ['get', '__selected'], false], 0.55, 0.3]],
-        } }, firstRoad)
+        const fillColor = ['coalesce', ['get', '__color'], ['match', ['coalesce', ['get', '__step'], -1], 0, SHADES[0], 1, SHADES[1], 2, SHADES[2], 3, SHADES[3], 4, SHADES[4], 'rgba(0,0,0,0)']] as unknown as string
+        // lighter as the map zooms in to street level
+        instance.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: { 'fill-color': fillColor, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 14, 0.3] } }, firstRoad)
+        // the picked districts: the same colour once more over them (0.6 → 0.8 at city scale, 0.3 → 0.55 in the
+        // streets), shown by a filter on their ids, so a pick never sends every outline to the map again
+        instance.addLayer({ id: 'district-picked', type: 'fill', source: 'districts', filter: ['in', ['get', 'id'], ['literal', []]], paint: { 'fill-color': fillColor, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 0.36] } }, firstRoad)
         instance.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': PALETTE.olive, 'line-width': 0.6, 'line-opacity': 0.35 } }, firstLabel)
-        instance.addLayer({ id: 'district-selected', type: 'line', source: 'districts', filter: ['==', ['get', '__selected'], true], paint: { 'line-color': PALETTE.ink, 'line-width': 3 } })
+        instance.addLayer({ id: 'district-selected', type: 'line', source: 'districts', filter: ['in', ['get', 'id'], ['literal', []]], paint: { 'line-color': PALETTE.ink, 'line-width': 3 } })
         instance.addLayer({ id: 'district-hover', type: 'line', source: 'districts', filter: ['==', ['get', 'id'], ''], paint: { 'line-color': PALETTE.ink, 'line-width': 2, 'line-dasharray': [2, 1] } })
         instance.addLayer({ id: 'district-name', type: 'symbol', source: 'districts', layout: {
           'text-field': ['coalesce', ['get', 'ar'], ['get', 'district_ar'], ''],
@@ -303,13 +302,23 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   useEffect(() => {
     const instance = map.current
     if (!ready || !instance) return
-    const chosen = new Set(selected)
     const painted = features.map((feature) => {
       const id = String(feature.properties.id)
-      return { ...feature, properties: { ...feature.properties, id, __step: colors ? null : steps.get(id) ?? null, __color: colors?.get(id) ?? null, __selected: chosen.has(id) } }
+      return { ...feature, properties: { ...feature.properties, id, __step: colors ? null : steps.get(id) ?? null, __color: colors?.get(id) ?? null } }
     })
     ;(instance.getSource('districts') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: painted })
-  }, [ready, features, steps, selected, colors])
+  }, [ready, features, steps, colors])
+
+  // the picked districts as a filter on their ids (a pick used to send every outline, 0.5 MB in Riyadh, to the map
+  // again), keyed by the ids: the array itself is new on every pick
+  const selectedKey = selected.join(',')
+  useEffect(() => {
+    const instance = map.current
+    if (!ready || !instance?.getLayer('district-selected')) return
+    const filter = ['in', ['get', 'id'], ['literal', selectedKey ? selectedKey.split(',') : []]] as Parameters<MapboxMap['setFilter']>[1]
+    instance.setFilter('district-selected', filter)
+    instance.setFilter('district-picked', filter)
+  }, [ready, selectedKey])
 
   useEffect(() => {
     const instance = map.current
