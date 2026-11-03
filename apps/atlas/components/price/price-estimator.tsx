@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Calculator, ExternalLink, Loader2, Pencil, SearchX } from 'lucide-react'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -9,6 +9,8 @@ import { ListingFace } from '@/components/shared/listing-face'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
 import { LoadError } from '@/components/shared/load-error'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchSelect } from '@/components/shared/search-select'
 import { Chip } from '@/components/ui/chip'
 import { counted, numberFormat, postMarket, useCities } from '@/lib/insights-api'
 import { SHOW_LISTING_PHOTOS, typeLabel } from '@/lib/real-estate'
@@ -98,7 +100,9 @@ export function PriceEstimator() {
       .catch(() => { if (live) setDistricts('error') })
     return () => { live = false }
   }, [city, districtsAttempt])
-  const districtList = Array.isArray(districts) ? districts : []
+  const districtList = useMemo(() => (Array.isArray(districts) ? districts : []), [districts])
+  const districtItems = useMemo(() => districtList.map((item) => ({ id: item.id, label: item.name })), [districtList])
+  const cityItems = useMemo(() => cities.map((item) => ({ value: item.en, label: item.ar || item.en })), [cities])
 
   const areaNumber = Number(area.replace(/[^0-9]/g, ''))
   const ready = district && areaNumber >= 10
@@ -131,16 +135,19 @@ export function PriceEstimator() {
           <p className="mt-1 text-sm leading-7 text-muted-foreground">أجب عن الأسئلة، ونعطيك السعر المتوقع من أقرب العروض الحالية المشابهة لعقارك، مع سبب كل فرق.</p>
         </header>
         <div className="grid grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1 text-sm font-semibold">المدينة
-            <select value={city} onChange={(e) => setCity(e.target.value)} className="h-11 rounded-lg border border-input bg-background px-3 text-base font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              {cities.map((item) => <option key={item.en} value={item.en}>{item.ar || item.en}</option>)}
-            </select>
-          </label>
+          <div className="flex flex-col gap-1">
+            <span id="price-city" className="text-sm font-semibold">المدينة</span>
+            <Select items={cityItems} value={city} onValueChange={(next) => { if (next) setCity(next as string) }}>
+              <SelectTrigger aria-labelledby="price-city" className="h-11 w-full bg-background text-base"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {cityItems.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {/* a city has up to 200 districts: a list that is typed into, not one to scroll */}
           <label className="flex flex-col gap-1 text-sm font-semibold">الحي
-            <select value={district} onChange={(e) => setDistrict(e.target.value)} disabled={!districtList.length} className="h-11 rounded-lg border border-input bg-background px-3 text-base font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">
-              <option value="">{districts === null ? 'جارٍ التحميل…' : districts === 'error' ? 'تعذر التحميل' : districts.length ? 'اختر الحي' : 'غير متاح'}</option>
-              {districtList.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
+            <SearchSelect items={districtItems} value={district} onChange={setDistrict} disabled={!districtList.length} className="font-normal"
+              placeholder={districts === null ? 'جارٍ التحميل…' : districts === 'error' ? 'تعذر التحميل' : districts.length ? 'اكتب أو اختر الحي' : 'غير متاح'} />
           </label>
         </div>
         {districts === 'error' && <LoadError what="أحياء المدينة" onRetry={() => setDistrictsAttempt((n) => n + 1)} />}
