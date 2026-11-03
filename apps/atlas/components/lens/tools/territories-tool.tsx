@@ -246,7 +246,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
           <NoResult title="لا مناطق لهذا الاختيار" body={mainId ? 'لا منشآت من هذا النشاط في أحياء المدينة. اختر «كل المنشآت» أو نشاطاً آخر.' : 'أحياء المدينة بلا منشآت معروفة الموقع بعد.'} className="mt-2" />
         )}
         {/* how even the split is, before the reps' rows: a spread over a quarter is said, with what evens it */}
-        {groups && status !== 'loading' && groups.length > 0 && <Verdict verdict={territoriesVerdict(groups.map((group) => group.weight), weight)} className="mt-2" />}
+        {groups && status !== 'loading' && groups.length > 0 && <Verdict verdict={territoriesVerdict(groups.map((group) => ({ weight: group.weight, districts: group.districts.length })), weight)} className="mt-2" />}
         {groups && status !== 'loading' && groups.length > 0 && (
           <ol className="mt-2 space-y-1.5 lg:max-h-56 lg:overflow-y-auto">
             {groups.map((group, index) => (
