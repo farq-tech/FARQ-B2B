@@ -50,7 +50,7 @@ const MAX_DISTRICTS = 5
  * activity, picked and turned into a request — a quote request, a WhatsApp campaign or a saved list. The request
  * opens in «الطلبات» for review; nothing is sent from here (docs/atlas-product-foundation.md §5).
  */
-export function BusinessesPanel({ city, districts, query, onLocate, located, onMarkers, pointed = null, onPoint }: {
+export function BusinessesPanel({ city, districts, query, onLocate, located, onMarkers, pointed = null, onPoint, bounds = null, prefill = null }: {
   city: string
   districts: string[]
   query?: string
@@ -64,6 +64,10 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
   pointed?: string | null
   /** A row under the pointer or focus: its dot on the map is lit. */
   onPoint?: (id: string | null) => void
+  /** What the map shows now (west, south, east, north): with «حدّث القائمة عند تحريك الخريطة» the list keeps only those. */
+  bounds?: [number, number, number, number] | null
+  /** The activity the step before already studied: the list opens on it at once for a picked district, typed in the field. */
+  prefill?: string | null
 }) {
   const router = useRouter()
   const cities = useCities()
@@ -116,6 +120,14 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
       void load(kept.q)
     } else if (query) void load()
   }, [query, city]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // a district picked from an answer that already studied an activity (gaps, a business audience) opens its list on it:
+  // the activity is typed in the field and searched at once, never asked again
+  useEffect(() => {
+    if (!prefill || !districts.length || query || (kept && kept.scope === scope)) return
+    setActivity(prefill)
+    void load(prefill)
+  }, [key, city, prefill]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load(text: string = activity) {
     const typed = text.trim()
@@ -170,7 +182,15 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
     }
   }
 
-  const shown = rows
+  // the list can follow the map: only the businesses in view, as «العقار» does; the dots outside stay on the map
+  const [followMap, setFollowMap] = useState(false)
+  const inView = (row: PublicDirectoryEntity) => {
+    if (!bounds || row.latitude == null || row.longitude == null) return false
+    const [w, so, e, n] = bounds
+    return row.longitude >= w && row.longitude <= e && row.latitude >= so && row.latitude <= n
+  }
+  const byMap = followMap && bounds != null
+  const shown = byMap ? rows.filter(inView) : rows
   const allPicked = shown.length > 0 && shown.every((row) => picked.has(row.id))
   const toggle = (id: string) => setPicked((current) => {
     const next = new Set(current)
@@ -303,8 +323,18 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
         // plays once on mount, never again on a pick toggle, and collapses to instant when motion is reduced
         <Reveal className="flex min-h-0 flex-col gap-3">
           <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>{numberFormat.format(shown.length)} منشأة معروضة{total != null && total > rows.length ? ` من ${numberFormat.format(total)}` : ''}{searched != null && searched < districts.length ? ` · في ${numberFormat.format(searched)} من ${counted(districts.length, 'district')} محددة` : ''}</span>
+            <span>{byMap
+              ? `${numberFormat.format(shown.length)} منشأة في ما تُظهره الخريطة من ${numberFormat.format(rows.length)}`
+              : `${numberFormat.format(shown.length)} منشأة معروضة${total != null && total > rows.length ? ` من ${numberFormat.format(total)}` : ''}${searched != null && searched < districts.length ? ` · في ${numberFormat.format(searched)} من ${counted(districts.length, 'district')} محددة` : ''}`}</span>
           </div>
+          {/* the same switch as «العقار»: the list narrows to what the map shows as it moves */}
+          {onMarkers && bounds && rows.some((row) => row.latitude != null && row.longitude != null) && (
+            <label className="flex min-h-9 items-center gap-2 text-sm text-muted-foreground">
+              <input type="checkbox" checked={followMap} onChange={(event) => setFollowMap(event.target.checked)} className="size-4 accent-primary" />
+              حدّث القائمة عند تحريك الخريطة
+            </label>
+          )}
+          {byMap && !shown.length && <p className="text-sm text-muted-foreground">لا منشأة من هذه القائمة في ما تُظهره الخريطة. حرّك الخريطة أو صغّرها.</p>}
           {shown.length > 0 && (
             <label className="flex items-center gap-2 text-sm font-medium">
               <input type="checkbox" checked={allPicked} onChange={() => setPicked(allPicked ? new Set() : new Set(shown.map((row) => row.id)))} className="size-4 accent-primary" />
