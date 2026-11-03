@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Modal } from '@/components/shared/modal'
+import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { TEMPLATES, businessById } from '@/lib/mock-data'
 import { formatDate, formatDateTime, requestCity, nextStep, statusLabel } from '@/lib/format'
@@ -173,13 +174,7 @@ export function RequestDetailView({ id }: { id: string }) {
       {request.type === 'list' ? (
         <label className="flex flex-col gap-1 rounded-2xl border bg-card p-4">
           <span className="font-semibold">ملاحظات</span>
-          <textarea
-            disabled={!editable}
-            rows={3}
-            value={request.notes ?? ''}
-            onChange={(e) => patch({ notes: e.target.value })}
-            className="rounded-lg border border-input bg-background p-2.5 text-sm outline-none focus-visible:border-primary disabled:bg-muted/40"
-          />
+          <Textarea disabled={!editable} rows={3} value={request.notes ?? ''} onChange={(e) => patch({ notes: e.target.value })} className="bg-background font-normal" />
         </label>
       ) : null}
 

@@ -3,6 +3,7 @@
 import { CircleCheck, ChevronLeft, ChevronRight, CircleQuestionMark, Clock, Minus, ShieldCheck, CircleX, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AUTO_VARIABLES, TEMPLATES, businessById, districtById } from '@/lib/mock-data'
 import type { Business, CampaignDetails, LiveBusinessSnapshot } from '@/lib/types'
@@ -76,8 +77,6 @@ interface CampaignEditorProps {
   onChange: (v: CampaignDetails) => void
 }
 
-const fieldClass =
-  'h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring disabled:bg-muted/40'
 
 export function CampaignEditor({ value, businessIds, liveBusinesses = [], editable, onChange }: CampaignEditorProps) {
   const template = TEMPLATES.find((t) => t.id === value.templateId)
@@ -135,14 +134,14 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
             {vars.map((v) => (
               <label key={v} className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">{v.replace(/_/g, ' ')}</span>
-                <input
+                <Input
                   disabled={!editable}
                   required
                   aria-invalid={!value.variables[v]?.trim() || undefined}
                   aria-describedby={!value.variables[v]?.trim() ? `var-missing-${v}` : undefined}
                   value={value.variables[v] ?? ''}
                   onChange={(e) => onChange({ ...value, variables: { ...value.variables, [v]: e.target.value } })}
-                  className={cn(fieldClass, !value.variables[v]?.trim() && 'border-destructive/60')}
+                  className={cn('bg-background', !value.variables[v]?.trim() && 'border-destructive/60')}
                 />
                 {/* said in words, not by the red edge alone (WCAG 1.4.1) */}
                 {!value.variables[v]?.trim() && <span id={`var-missing-${v}`} className="text-xs text-destructive">مطلوب قبل المراجعة</span>}
