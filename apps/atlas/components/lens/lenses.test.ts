@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { GOAL_LENS, LENSES, LENS_GOALS, METRICS, METRIC_TABLE, TOOL_INPUTS, journeyStart, lensById, metricAvailability, nextStep, type MetricId } from './lenses.ts'
+import { readMapQuery } from './map-query.ts'
+import { LENSES, LENS_GOALS, METRICS, METRIC_TABLE, STEP_TABLES, TOOL_INPUTS, journeyStart, lensById, metricAvailability, neededTables, nextStep, stepTables, type MetricId } from './lenses.ts'
 
 test('the next step follows the lens order and ends on its last step', () => {
   const shops = lensById('shops')
@@ -31,11 +32,8 @@ test('a figure whose table failed is «failed», one no district has is «missin
   assert.equal(metricAvailability('population', [], []), 'ready')
 })
 
-test('every step says what to do on it, and the landing goals open the lens whose words they share', () => {
+test('every step says what to do on it', () => {
   for (const lens of LENSES) for (const step of lens.steps) assert.ok(step.ask.trim().length > 0, `${lens.id}/${step.tool}`)
-  for (const lens of LENSES) assert.equal(GOAL_LENS[LENS_GOALS[lens.id].goal], lens.id)
-  // the landing's ids that existing links carry keep opening the same lenses
-  assert.deepEqual(GOAL_LENS, { explore: 'analysts', expand: 'shops', target: 'marketers', network: 'distributors', property: 'property' })
 })
 
 test('a step that takes a district starts from the nearest earlier step that put one first', () => {
@@ -53,4 +51,25 @@ test('a step that takes a district starts from the nearest earlier step that put
   assert.equal(journeyStart(shops, 'corridors', { gaps: 'd2' }, known), null)
   const property = lensById('property')
   assert.equal(journeyStart(property, 'district', { homes: 'd3' }, known)?.from.tool, 'homes')
+})
+
+test('the open step and the layer in view load first; the rest wait', () => {
+  const needed = neededTables('audience', 'population')
+  assert.equal(needed[0], 'population')
+  assert.deepEqual([...needed].sort(), ['counts', 'income', 'population'])
+  // the layer's table leads, so the map colours before the step's own tables answer
+  assert.equal(neededTables('gaps', 'unmet')[0], 'demand')
+  // a layer that failed is not the step's: no notice over the panel for it
+  assert.ok(!stepTables('audience').includes('demand'))
+  for (const lens of LENSES) for (const step of lens.steps) assert.ok(STEP_TABLES[step.tool], `${lens.id}/${step.tool}`)
+})
+
+test('every lens has one goal wording, and its landing link opens that lens on its first step', () => {
+  assert.deepEqual(Object.keys(LENS_GOALS).sort(), LENSES.map((lens) => lens.id).sort())
+  const steps = Object.fromEntries(LENSES.map((lens) => [lens.id, lens.steps.map((step) => step.tool)]))
+  for (const lens of LENSES) {
+    const view = readMapQuery(`?lens=${lens.id}`, steps)
+    assert.equal(view.lens, lens.id)
+    assert.equal(view.tool, null) // no tool named: the lens opens on its first step
+  }
 })

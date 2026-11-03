@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isTargetingAllowed, sessionForRequest, setSession, verifySession } from '@/lib/atlas-session'
 import { isMapQuery, sanitizeLiveDirectoryEntity } from '@/lib/live-directory'
 import { issueTileAccess } from '@/lib/map-tile-access'
+import { GUEST_PREVIEW, guestPreview } from '@/lib/guest-preview'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,9 +25,42 @@ function asText(value: unknown, max: number) {
   return typeof value === 'string' ? value.trim().slice(0, max) : ''
 }
 
+const signIn = () => NextResponse.json({ error: 'سجّل الدخول لعرض الجهات المطابقة.' }, { status: 401, headers: { 'cache-control': 'no-store' } })
+
+/**
+ * A signed-out visitor who searched an activity sees value before the sign-in wall: how many businesses match and
+ * the first GUEST_PREVIEW of them (name, district, activity). The answer is cut here on the server (guestPreview), so
+ * it never carries contact fields, ids, coordinates or more rows, whatever the client asks for. Browsing a district
+ * without an activity, paging and every other field stay behind sign-in (401, as before).
+ */
+async function guestSearch(request: NextRequest) {
+  let input: { q?: unknown; city?: unknown; district?: unknown }
+  try { input = await request.json() } catch { return signIn() }
+  const q = asText(input.q, 200)
+  const city = cityNames[asText(input.city, 32).toLowerCase()] || asText(input.city, 64)
+  const district = asText(input.district, 100)
+  const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
+  const headers = targetingHeaders()
+  if (!q || !city || !origin || !headers) return signIn()
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 15_000)
+  try {
+    // a few spare rows so a closed business at the top does not leave the preview short
+    const upstream = await fetch(`${origin}/search`, {
+      method: 'POST', headers, cache: 'no-store', signal: controller.signal,
+      body: JSON.stringify({ q, city, limit: GUEST_PREVIEW + 5, offset: 0, objective: 'purchase', only_sendable: false, ...(district ? { filters: { district } } : {}) }),
+    })
+    const payload = await upstream.json().catch(() => null) as { rows?: unknown; total?: unknown } | null
+    if (!upstream.ok || !payload) return signIn()
+    return NextResponse.json(guestPreview(payload.rows, payload.total), { headers: { 'cache-control': 'no-store' } })
+  } catch {
+    return signIn()
+  } finally { clearTimeout(timeout) }
+}
+
 export async function POST(request: NextRequest) {
   const { session, refreshed } = await sessionForRequest(request)
-  if (!session) return NextResponse.json({ error: 'سجّل الدخول لعرض الجهات المطابقة.' }, { status: 401, headers: { 'cache-control': 'no-store' } })
+  if (!session) return guestSearch(request)
   if (!isTargetingAllowed(session) || !(await verifySession(session))) return NextResponse.json({ error: 'حسابك غير مخول لعرض دليل الجهات.' }, { status: 403, headers: { 'cache-control': 'no-store' } })
   let input: { q?: unknown; city?: unknown; objective?: unknown; limit?: unknown; offset?: unknown; district?: unknown }
   try { input = await request.json() } catch { return NextResponse.json({ error: 'طلب البحث غير صالح.' }, { status: 400 }) }

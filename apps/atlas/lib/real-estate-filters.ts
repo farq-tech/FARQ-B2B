@@ -35,7 +35,7 @@ export const DEFAULT_FILTERS: HomeFilters = {
 }
 
 export const SORTS: { id: SortId; label: string }[] = [
-  { id: 'best', label: 'الأنسب (الأقل من وسيط الحي أولاً)' },
+  { id: 'best', label: 'الأنسب (الأقل من وسيط الحي والأحدث أولاً)' },
   { id: 'price_asc', label: 'السعر: الأقل أولاً' },
   { id: 'price_desc', label: 'السعر: الأعلى أولاً' },
   { id: 'area_desc', label: 'المساحة: الأكبر أولاً' },

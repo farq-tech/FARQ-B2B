@@ -1,38 +1,42 @@
 'use client'
 
 import { useEffect, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
-import { CircleHelp, Info, MousePointerClick, X } from 'lucide-react'
+import { CircleHelp, Info, MousePointerClick, Target, X } from 'lucide-react'
 import { setMapTourShowing } from '@/components/shared/whats-new'
 import { trackOnboardingStep } from '@/lib/commercial-metrics'
-import { LENSES, LENS_GOALS, type LensId } from './lenses'
+import { LENS_GOALS, LENSES, type LensId } from './lenses'
 
 /**
- * The first visit to the map (skills: product-adoption, interactive-onboarding, onboarding-state-machine): one question
- * about the visitor's goal at the top of the map's panel, then two one-line hints on the real map that advance when the visitor does the thing, not on «التالي»:
+ * The first visit to the map (skills: product-adoption, interactive-onboarding, onboarding-state-machine): one line of
+ * goal chips pinned to the top of the map (never over the panel or its open step, and it never raises a phone's sheet),
+ * asked on the first visit only, then two one-line hints on the real map that advance when the visitor does the thing, not on «التالي»:
  * pick a district, then open how one of its figures was worked out. A step already done is skipped. The state lives in
  * this browser only; the «؟» button runs it again.
  */
 type CoachState = 'not_started' | 'goal' | 'waiting_pick' | 'waiting_explain' | 'completed' | 'skipped'
 
 const KEY = 'atlas.onboarding.map'
+// set once the goal row has been shown: a visitor who left without picking or closing it is not asked again
+const ASKED_KEY = 'atlas.onboarding.map.asked'
 const EXPLAINED = '[aria-label="لوحة الخريطة"] [data-explained]'
 
 function read(): CoachState {
   try { return (localStorage.getItem(KEY) as CoachState | null) ?? 'not_started' } catch { return 'completed' }
 }
+function asked(): boolean {
+  try { return localStorage.getItem(ASKED_KEY) != null } catch { return true }
+}
+function markAsked() {
+  try { localStorage.setItem(ASKED_KEY, '1') } catch { /* private window: the row may show again next time */ }
+}
 function write(state: CoachState) {
   try { localStorage.setItem(KEY, state) } catch { /* private window: the tour simply shows again next time */ }
 }
 
-export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, onAsk, onShowMe, showMeName = null, firstAsk = null }: {
+export function MapOnboarding({ lens, onLens, picked, paused = false, onShowMe, showMeName = null, firstAsk = null }: {
   lens: LensId
   onLens: (lens: LensId) => void
   picked: boolean
-  /** Where the goal question goes: the top of the map's panel. */
-  goalSlot?: HTMLElement | null
-  /** Told when the goal question opens, so a phone's sheet can rise to show it. */
-  onAsk?: () => void
   /** Picks the district the open step ranks first, so a first visit reaches an answer in one tap; absent when none. */
   onShowMe?: (() => void) | null
   /** The name of the district «أرني» opens, so the offer says where it goes («أو اعرض طويق») instead of «الأعلى» in what. */
@@ -40,8 +44,7 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, 
   /** What the open step needs before a district means anything (its activity, «اختر نشاطك…»): the pick hint says this
    * first, so the tour and the panel never ask for two different things; once it is done the hint asks for the pick. */
   firstAsk?: string | null
-  /** The map failed to open: the tour keeps its place and shows no hint over the failure notice (the goal question,
-   * in the panel, still asks). */
+  /** The map failed to open: the tour keeps its place and shows nothing over the failure notice. */
   paused?: boolean
 }) {
   // null until mounted, so the server render and a returning visitor never flash the tour
@@ -50,14 +53,12 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, 
   const [hidden, setHidden] = useState(false)
   useEffect(() => { setHidden(false) }, [state])
   // «ما الجديد» waits while the tour has something on screen, so the two never cover each other
-  // the goal question sits in the panel, not on the map, so a map that failed to open (or a city without district
-  // outlines) does not hold it back: the panel's steps and figures still work, and the goal still picks them. Only the
-  // two hints, which point at the map, wait.
-  const showing = state === 'goal' || (!paused && (state === 'waiting_pick' || state === 'waiting_explain') && !hidden)
+  // a map that failed to open holds the whole tour back: its notice takes the top of the map, where the row would sit
+  const showing = !paused && (state === 'goal' || ((state === 'waiting_pick' || state === 'waiting_explain') && !hidden))
   useEffect(() => { setMapTourShowing(showing) }, [showing])
   useEffect(() => () => setMapTourShowing(false), [])
-  const asking = state === 'goal'
-  useEffect(() => { if (asking) onAsk?.() }, [asking, onAsk])
+  // counted as asked only once the row is actually on screen
+  useEffect(() => { if (state === 'goal' && !paused) markAsked() }, [state, paused])
   const go = (next: CoachState, via?: 'explain' | 'button') => {
     if (next === 'completed') trackOnboardingStep('completed', { via })
     if (next === 'skipped') trackOnboardingStep('skipped', { at: state ?? undefined })
@@ -67,9 +68,10 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, 
 
   useEffect(() => {
     const saved = read()
-    // a link that already names a goal (?lens= / ?goal=) has answered the first question
+    // a link that already names a goal (?lens= / ?goal=) has answered the first question, and so has an earlier visit
+    // that was shown it
     const query = new URLSearchParams(window.location.search)
-    const first = saved === 'not_started' ? (query.get('lens') || query.get('goal') ? 'waiting_pick' : 'goal') : saved
+    const first = saved === 'not_started' ? (query.get('lens') || query.get('goal') || asked() ? 'waiting_pick' : 'goal') : saved
     if (saved === 'not_started') trackOnboardingStep('shown', { at: first })
     setState(first)
   }, [])
@@ -107,7 +109,7 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, 
   )
 
   if (state === null || state === 'completed' || state === 'skipped' || state === 'not_started') return help
-  if (paused && state !== 'goal') return help
+  if (paused) return help
 
   const skip = <button onClick={() => go('skipped')} className="shrink-0 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">تخطَّ الجولة</button>
   // the two hints on the map are one small line pinned to its top, under the phone's floating filters: they never sit
@@ -128,38 +130,39 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, 
   )
 
   if (state === 'goal') {
-    // the first question sits at the top of the panel (on a phone, the sheet opened halfway), not over the map: the
-    // map stays in view, and the goal picked folds into «أنا من»
-    const ask = (
-      <section aria-labelledby="coach-goal" className="flex flex-col gap-2.5 rounded-2xl border border-primary/40 bg-primary/5 p-3 animate-in fade-in duration-300">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 id="coach-goal" className="text-base font-bold">وش تبي تحقق؟</h2>
-            <p className="text-sm text-muted-foreground">اختر هدفك ونجهّز لك الخريطة وخطواتها.</p>
-          </div>
-          <button onClick={() => go('skipped')} aria-label="إغلاق" className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60"><X className="size-4" aria-hidden /></button>
+    // one line of chips at the top of the map, under the phone's floating filters (clear of the map's «؟» and link buttons from lg):
+    // the panel and its open step stay as they are, and the row scrolls sideways when the goals do not fit
+    return (
+      <>
+        {help}
+        <div className="pointer-events-none absolute inset-x-3 top-[7.5rem] z-[15] flex justify-center lg:start-3 lg:end-52 lg:top-3">
+          <section aria-label="اختر هدفك" className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full border bg-card/95 py-1 ps-3 pe-1 text-sm shadow-md backdrop-blur animate-in fade-in slide-in-from-top-1 duration-300">
+            <Target className="size-4 shrink-0 text-primary" aria-hidden />
+            <span className="shrink-0 font-semibold">هدفك:</span>
+            {/* relative: the chips' screen-reader words are clipped with the row, so they never widen a phone's page */}
+            <ul className="relative flex min-w-0 gap-1.5 overflow-x-auto [scrollbar-width:none]">
+              {LENSES.map((item) => (
+                <li key={item.id} className="shrink-0">
+                  <button onClick={() => {
+                    trackOnboardingStep('goal_picked', { lens: item.id })
+                    // a district picked before the goal still counts as the pick step
+                    if (picked) trackOnboardingStep('district_picked')
+                    onLens(item.id)
+                    setState(picked ? 'waiting_explain' : 'waiting_pick')
+                  }}
+                    title={item.label}
+                    className="min-h-8 rounded-full border bg-card px-3 py-1 font-medium whitespace-nowrap transition-colors outline-none hover:border-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring/60 data-[current=true]:border-primary data-[current=true]:text-primary"
+                    data-current={item.id === lens}>
+                    {LENS_GOALS[item.id]}<span className="sr-only"> ({item.label})</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button onClick={() => go('skipped')} aria-label="إخفاء الأهداف" className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60"><X className="size-4" aria-hidden /></button>
+          </section>
         </div>
-        <ul className="flex flex-wrap gap-2">
-          {LENSES.map((item) => (
-            <li key={item.id}>
-              <button onClick={() => {
-                trackOnboardingStep('goal_picked', { lens: item.id })
-                // a district picked before the goal still counts as the pick step
-                if (picked) trackOnboardingStep('district_picked')
-                onLens(item.id)
-                setState(picked ? 'waiting_explain' : 'waiting_pick')
-              }}
-                className="flex flex-col items-start rounded-xl border bg-card px-3 py-1.5 text-start transition-colors outline-none hover:border-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring/60 data-[current=true]:border-primary"
-                data-current={item.id === lens}>
-                <span className="text-sm font-semibold">{LENS_GOALS[item.id].title}</span>
-                <span className="text-xs text-muted-foreground">{item.label}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
+      </>
     )
-    return <>{help}{goalSlot ? createPortal(ask, goalSlot) : null}</>
   }
 
   if (state === 'waiting_pick') {

@@ -112,21 +112,6 @@ export const LENSES: Lens[] = [
 ]
 
 /**
- * The goal each group comes with, in its own words: the landing's goal cards and the map's first question say the
- * same sentence, so the choice made on one is recognised on the other. `goal` is the landing link's id (?goal=).
- */
-export const LENS_GOALS: Record<LensId, { goal: string; title: string; text: string }> = {
-  analysts: { goal: 'explore', title: 'أفهم السوق والأحياء', text: 'رتّب الأحياء بأي مقياس وقارن بين حيين.' },
-  shops: { goal: 'expand', title: 'أختار موقعاً لمحلي', text: 'أين ينقص نشاطك، ومن منافسوك، وأي موقع أنسب.' },
-  marketers: { goal: 'target', title: 'أصل إلى جمهوري بحملة', text: 'أين جمهورك، ومنشآت أحيائه لحملتك.' },
-  distributors: { goal: 'network', title: 'أوزّع وأغطي مدينتي', text: 'مناطق متوازنة لمندوبيك ومسار كل يوم.' },
-  property: { goal: 'property', title: 'أبحث عن عقار', text: 'العروض على الخريطة بسعرها مقارنة بحيّها.' },
-}
-
-/** The lens a landing goal (?goal=) opens; «find a supplier» has none, it opens the business search instead. */
-export const GOAL_LENS: Record<string, LensId> = Object.fromEntries(Object.entries(LENS_GOALS).map(([id, item]) => [item.goal, id as LensId]))
-
-/**
  * What a step that takes a district can start from when none is picked yet: the district an earlier step of the same
  * journey put first (its `lead`), so the answer the customer just saw is one tap from the next question. The nearest
  * earlier step wins; a lead the city's districts do not hold is skipped. Null when there is nothing to offer.
@@ -143,6 +128,18 @@ export function journeyStart(lens: Lens, tool: ToolId, leads: Partial<Record<Too
 }
 
 export const lensById = (id: LensId) => LENSES.find((lens) => lens.id === id) ?? LENSES[0]
+
+/**
+ * Each lens said as the visitor's goal, in one voice (simple modern Arabic, first person). The landing's goal cards and
+ * the map's first-visit row both read it, so the goal picked on one is the goal named on the other.
+ */
+export const LENS_GOALS: Record<LensId, string> = {
+  shops: 'أفتح محلاً أو أوسّع نشاطي',
+  marketers: 'أصل إلى جمهوري بحملة',
+  distributors: 'أوزّع وأغطّي المناطق',
+  analysts: 'أفهم السوق والأحياء',
+  property: 'أبحث عن عقار مناسب',
+}
 
 /**
  * What each step takes from the steps before it: the studied activity (lib/sticky-state, shared by every step) and the
@@ -167,4 +164,28 @@ export const TOOL_INPUTS: Record<ToolId, { activity?: boolean; district?: boolea
 export function nextStep(lens: Lens, tool: ToolId): Lens['steps'][number] | null {
   const at = lens.steps.findIndex((step) => step.tool === tool)
   return at < 0 ? null : lens.steps[at + 1] ?? null
+}
+
+/**
+ * The tables each step reads from the district rows besides the golden two (population and the directory's counts,
+ * which every step, card and pick reads). A city's other tables wait until these have answered and the page is idle:
+ * the map opened with eleven requests at once, most of them for layers nobody was looking at.
+ */
+export const STEP_TABLES: Record<ToolId, CityTable[]> = {
+  gaps: [], competitors: [], corridors: [], homes: [], territories: [], businesses: [], district: [],
+  audience: ['income'],
+  around: ['income', 'housing'],
+  growth: ['growth'],
+  compare: ['income', 'housing', 'realEstate', 'growth'],
+}
+
+/** The tables the open step cannot answer without: a failure among them is said over the panel. A layer that failed
+ * is said in the map's key once picked, and marked «غير متاح الآن» in «طبقات» until then. */
+export function stepTables(tool: ToolId): CityTable[] {
+  return ['population', 'counts', ...STEP_TABLES[tool]]
+}
+
+/** What the open step and the layer in view need first, the layer's table ahead (it colours the map). */
+export function neededTables(tool: ToolId, metric: MetricId): CityTable[] {
+  return [...new Set<CityTable>([METRIC_TABLE[metric], ...stepTables(tool)])]
 }

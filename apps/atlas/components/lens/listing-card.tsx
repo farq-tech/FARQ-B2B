@@ -35,28 +35,43 @@ export function NoPhoto({ type, caption = false, className }: { type: string; ca
  * Every photo of the ad, swiped sideways, each once (some ads repeat one); a photo that fails to load drops out.
  * With `type`, an ad with no photo left shows the type's tile at the same height, so cards side by side stay level.
  */
-export function Gallery({ photos, className = 'h-40', type, fallbackClassName, fallback }: {
+export function Gallery({ photos, className = 'h-40', type, fallbackClassName, fallback, priority = false }: {
   photos: string[]
   className?: string
-  /** What takes the slot when no photo is left (a ListingFace); wins over `type`. */
-  fallback?: ReactNode
+  /** What takes the slot when no photo is left (a ListingFace); wins over `type`. Given as a function it learns whether
+   * the ad had photos that all failed to load, so it can say so rather than «no photos». */
+  fallback?: ReactNode | ((failed: boolean) => ReactNode)
   type?: string
   /** The tile's height when it differs from the photos' (a card gives a missing photo less room). */
   fallbackClassName?: string
+  /** A card in the first screen: its first photo is fetched ahead of the rest of the page. */
+  priority?: boolean
 }) {
   const [broken, setBroken] = useState<Set<string>>(new Set())
+  const [loaded, setLoaded] = useState<Set<string>>(new Set())
   const [open, setOpen] = useState<number | null>(null)
   const shown = [...new Set(photos)].filter((photo) => !broken.has(photo))
-  if (!shown.length) return fallback ? <>{fallback}</> : type ? <NoPhoto type={type} caption className={cn('w-full', fallbackClassName ?? className)} /> : null
+  if (!shown.length) {
+    if (fallback) return <>{typeof fallback === 'function' ? fallback(photos.length > 0) : fallback}</>
+    return type ? <NoPhoto type={type} caption className={cn('w-full', fallbackClassName ?? className)} /> : null
+  }
   return (
     <div className="relative">
       <div className={cn('flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)} dir="ltr">
         {shown.map((photo, index) => (
-          // the ad's own photos, shown from where they are published; a tap opens them full screen
+          // the ad's own photos, shown from where they are published; a tap opens them full screen. Until a photo
+          // arrives its slot pulses, so a slow photo reads as loading, not as an empty frame under a photo count.
           <button key={photo} type="button" onClick={(event) => { event.stopPropagation(); setOpen(index) }} aria-label={`افتح الصورة ${numberFormat.format(index + 1)}`}
-            className="h-full w-full shrink-0 snap-center cursor-zoom-in outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+            className={cn('h-full w-full shrink-0 snap-center cursor-zoom-in bg-muted outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', !loaded.has(photo) && 'animate-pulse')}>
+            {/* the first photo is the one in sight: fetched at once, not lazily. A lazy image inside a sideways
+                scroller could wait for a scroll that never came, leaving the card's slot empty. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo} alt="" loading="lazy" decoding="async" onError={() => setBroken((current) => new Set(current).add(photo))} className="h-full w-full object-cover" />
+            <img src={photo} alt="" loading={index === 0 ? 'eager' : 'lazy'} fetchPriority={index === 0 && priority ? 'high' : undefined} decoding="async"
+              // a photo already in the cache can be complete before its load event is heard: read it off the element too
+              ref={(node) => { if (node?.complete && node.naturalWidth && !loaded.has(photo)) setLoaded((current) => new Set(current).add(photo)) }}
+              onLoad={() => setLoaded((current) => (current.has(photo) ? current : new Set(current).add(photo)))}
+              onError={() => setBroken((current) => new Set(current).add(photo))}
+              className={cn('h-full w-full object-cover transition-opacity duration-200', loaded.has(photo) ? 'opacity-100' : 'opacity-0')} />
           </button>
         ))}
       </div>

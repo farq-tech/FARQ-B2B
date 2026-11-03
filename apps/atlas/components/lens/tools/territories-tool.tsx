@@ -18,6 +18,7 @@ import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { useMainActivities } from '@/lib/main-activities'
 import { duration, territoriesSummary, weekSummary } from './tool-answers'
 import { useAnswer } from './use-answer'
+import { territoryFacts } from './district-facts'
 import { Choice, StillWorking } from './choice'
 
 type Territory = { territory: number; weight: number; districts: { district_ar: string; district_id: string | number }[] }
@@ -215,13 +216,15 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
       : customers
     onOverlay({
       colors: groups ? colors : null,
+      // the card on a clicked district: the rep whose territory holds it, and that territory's share
+      facts: groups?.length ? territoryFacts(groups, ids, weight) : null,
       points: painted,
       start,
       lines: parts.filter((part) => part?.line).map((part) => part.line as GeoJSON.LineString),
       onPick: picking ? pickStart : null,
       summary,
     })
-  }, [groups, rows, rep, customers, plan, day, start, parts, picking, pickStart, onOverlay, summary])
+  }, [groups, rows, rep, customers, plan, day, start, parts, picking, pickStart, onOverlay, summary, weight])
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">

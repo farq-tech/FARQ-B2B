@@ -12,16 +12,17 @@ import { Explained } from '@/components/shared/explained'
 import { EXPLAIN, populationMethod } from '@/lib/explanations'
 import { counted, ltr, numberFormat, useCities } from '@/lib/insights-api'
 import { useMainActivities } from '@/lib/main-activities'
-import { stickyHas, useStudiedActivity } from '@/lib/sticky-state'
+import { getSticky, setSticky, stickyHas, useStudiedActivity, watchSticky } from '@/lib/sticky-state'
 import { cn } from '@/lib/utils'
+import { AnimatePresence, DURATION, EASE, SPRING, motion, useReducedMotion } from '@/lib/motion'
 import { useCityData, type CityTable, type DistrictRow } from './city-data'
 import { DistrictPanel } from './district-panel'
 import { LensMapCanvas, SHADES, shadeSteps } from './lens-map-canvas'
 import { MapOnboarding } from './map-onboarding'
 import { MoreRows, ResultRow, useShowMore } from './result-row'
-import { cleanQuery, readMapQuery, writeMapQuery } from './map-query'
+import { cleanQuery, readMapOptions, readMapQuery, writeMapOptions, writeMapQuery } from './map-query'
 import { HALF, MapSheet, PEEK_PX, type SheetSnap } from './map-sheet'
-import { GOAL_LENS, LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, journeyStart, lensById, metricAvailability, nextStep, type LensId, type MetricId, type ToolId } from './lenses'
+import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, journeyStart, lensById, metricAvailability, neededTables, nextStep, stepTables, type LensId, type MetricId, type ToolId } from './lenses'
 import { CompareStart, JourneySummary, StartFrom } from './journey'
 import { AroundTool } from './tools/around-tool'
 import { AudienceTool } from './tools/audience-tool'
@@ -222,10 +223,16 @@ const tabId = (tool: ToolId) => `map-step-${tool}`
 const STEP_PANEL = 'map-step-panel'
 
 function StepTab({ tool, index, label, active, done, onClick }: { tool: ToolId; index: number; label: string; active: boolean; done: boolean; onClick: () => void }) {
+  const reduce = useReducedMotion()
   return (
     <button role="tab" id={tabId(tool)} aria-controls={STEP_PANEL} aria-selected={active} tabIndex={active ? 0 : -1} onClick={onClick}
-      className={cn('flex shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
-        active ? 'border-primary bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground')}>
+      className={cn('relative flex shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+        active ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')}>
+      {/* the olive fill slides from the step that was open to this one (shared layoutId); framer measures the real DOM
+          boxes, so it lands right in RTL as in LTR. Motion reduced: it simply appears under the active step. */}
+      {active && (reduce
+        ? <span aria-hidden className="absolute inset-0 -z-10 rounded-xl bg-primary/10" />
+        : <motion.span aria-hidden layoutId="map-step-indicator" className="absolute inset-0 -z-10 rounded-xl bg-primary/10" transition={SPRING} />)}
       <span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full text-sm font-bold', active ? 'bg-primary text-primary-foreground' : 'bg-muted')}>{numberFormat.format(index + 1)}</span>
       {label}
       {done && <><Check className="size-4 shrink-0 text-primary" strokeWidth={3} aria-hidden /><span className="sr-only">، فيها نتيجة</span></>}
@@ -394,6 +401,15 @@ const TABLE_LABEL: Record<CityTable, string> = {
 /** The steps whose first district is a place to go on to (a gap, a matching audience, the best listing's district), not one to avoid. */
 const LEADS_TO_START: readonly ToolId[] = ['gaps', 'audience', 'homes']
 
+// the choices made inside the lens's steps (sort orders, filters, the second activity, the open business), beside the view
+const withOptions = (search: string, lens: LensId) => writeMapOptions(search, lens, lensById(lens).steps.map((step) => step.tool), getSticky)
+const replaceAddress = (search: string) => {
+  if (search !== window.location.search) window.history.replaceState(window.history.state, '', `${window.location.pathname}${search}${window.location.hash}`)
+}
+
+// a landing goal opens the lens that serves it; «find a supplier» opens the business search instead
+const GOAL_LENS: Record<string, LensId> = { explore: 'analysts', expand: 'shops', target: 'marketers', network: 'distributors', property: 'property' }
+
 // the fixed district filter writes into the same `selected` as a map tap; this value marks «several chosen on the map»
 const DISTRICTS_MULTI = '__multi__'
 
@@ -403,6 +419,7 @@ const DISTRICTS_MULTI = '__multi__'
  */
 export function LensMap() {
   const cities = useCities()
+  const reduce = useReducedMotion()
   const [city, setCity] = useState('Riyadh')
   const [lens, setLens] = useState<LensId>('shops')
   const [metric, setMetric] = useState<MetricId>(lensById('shops').metric)
@@ -428,16 +445,14 @@ export function LensMap() {
   useLayoutEffect(() => { openTool.current = tool }, [tool])
   // a map that failed to open: its notice takes the map, and the tour waits (there is nothing to tap)
   const [mapFailed, setMapFailed] = useState(false)
-  // the top of the panel, where the tour asks its goal question
-  const [goalSlot, setGoalSlot] = useState<HTMLDivElement | null>(null)
-  const raiseSheet = useCallback(() => setSheet((current) => (current === 'peek' ? 'half' : current)), [])
   // the district a click on the map opened a card on, where the click landed, and where that is on screen now
   const [card, setCard] = useState<{ id: string; lon: number; lat: number } | null>(null)
   const [cardAt, setCardAt] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
   // a pick made by a click on the map answers in its card, so the phone's sheet stays down and the map in view
   const mapPick = useRef(false)
-  // the table the map is coloured by is asked first, so the map colours before the slower tables answer
-  const data = useCityData(city, METRIC_TABLE[metric])
+  // only what the layer in view and the open step read is asked at once, the layer's table first so the map colours
+  // early; the city's other tables follow when the page is idle (lenses.ts neededTables)
+  const data = useCityData(city, neededTables(tool, metric))
   // a control that removes itself (closing the search, clearing the pick, «التالي») hands focus to this element once
   // the page has re-rendered, instead of dropping it on the page's body
   const focusAfter = useRef<string | null>(null)
@@ -514,6 +529,8 @@ export function LensMap() {
   const [studied, setStudied] = useStudiedActivity()
   const activities = useMainActivities(city)
   const presetMain = useRef<string | null>(null)
+  // the second activity of «قارن بنشاط آخر» named by a main activity's id, waiting for the city's list for its name
+  const presetRival = useRef<string | null>(null)
   useEffect(() => {
     const query = new URLSearchParams(window.location.search)
     const preset = readMapQuery(window.location.search, Object.fromEntries(LENSES.map((item) => [item.id, item.steps.map((s) => s.tool)])), GOAL_LENS,
@@ -537,6 +554,13 @@ export function LensMap() {
       if (preset.layer) setMetric(preset.layer as MetricId)
     }
     if (preset.q) { setDraft(preset.q); setSearch({ q: preset.q, nonce: Date.now() }) }
+    // the steps' own choices, each checked against what its step offers; the steps already open hear them
+    const openLens = (preset.lens ?? lens) as LensId
+    for (const [key, value] of Object.entries(readMapOptions(window.location.search, openLens, lensById(openLens).steps.map((step) => step.tool)))) {
+      const main = key === 'competitors.rival' ? (value as { main_id?: string; label?: string }).main_id : undefined
+      if (main && !(value as { label?: string }).label) presetRival.current = main
+      else setSticky(key, value)
+    }
     if (query.get('goal') === 'find-supplier' || query.get('search') != null) (window.matchMedia('(min-width: 64rem)').matches ? searchBox : phoneSearch).current?.focus()
     setHydrated(true)
     // read once on arrival; later changes come from the page itself
@@ -549,6 +573,16 @@ export function LensMap() {
     const item = activities.find((activity) => activity.main_id === wanted)
     if (item) setStudied({ main_id: item.main_id, label: item.main_ar })
   }, [activities, setStudied])
+  useEffect(() => {
+    const wanted = presetRival.current
+    if (!wanted || !activities.length) return
+    presetRival.current = null
+    const item = activities.find((activity) => activity.main_id === wanted)
+    if (item) setSticky('competitors.rival', { main_id: item.main_id, label: item.main_ar })
+    else replaceAddress(withOptions(window.location.search, lens))
+    // the lens is read as it stands when the list arrives
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activities])
   useEffect(() => {
     const wanted = presetCity.current
     if (!wanted || cities.length < 2) return
@@ -572,7 +606,8 @@ export function LensMap() {
     // a main activity still waiting for its city's list keeps its place in the address
     const main = presetMain.current ?? studied.main_id ?? null
     const next = writeMapQuery(window.location.search, { city, lens, tool, districts: selected, q: search?.q ?? null, main, activity: main ? null : studied.q ?? null, layer: metric }, lensById(lens).steps[0].tool, lensById(lens).metric)
-    if (next !== window.location.search) window.history.replaceState(window.history.state, '', `${window.location.pathname}${next}${window.location.hash}`)
+    // a second activity still waiting for its name keeps its place too
+    replaceAddress(presetRival.current ? next : withOptions(next, lens))
   }, [hydrated, city, lens, tool, selected, search, studied, metric])
   // a city still being checked against the list is not saved until it is known (presetCity clears once it is)
   useEffect(() => {
@@ -582,6 +617,11 @@ export function LensMap() {
     const main = presetMain.current ?? (picked ? studied.main_id : undefined)
     writeLast({ city, lens, main, activity: !main && picked ? studied.q : undefined })
   }, [hydrated, city, lens, cities, studied])
+  // a choice made inside a step goes to the address as it is made
+  useEffect(() => {
+    if (!hydrated) return
+    return watchSticky(() => { if (!presetRival.current) replaceAddress(withOptions(window.location.search, lens)) })
+  }, [hydrated, lens])
   useEffect(() => {
     const quiet = mapPick.current
     mapPick.current = false
@@ -639,14 +679,22 @@ export function LensMap() {
   const unshaded = data.status === 'ready' && !metricPending ? data.early.length - steps.size : 0
   // which of the lens's figures can colour this city: in a small city most are missing, and a table can fail to load
   // (Riyadh's searches answered 502 for a while); «طبقات» marks both, and the key offers the first figure that does
-  // colour the map instead of «choose another» blind. A failed table is a retry, never «غير متاح».
+  // colour the map instead of «choose another» blind. A failed table is «غير متاح الآن» (this time), and a retry.
   const availability = useMemo(() => new Map(active.metrics.map((id) => [id, data.status === 'ready' ? metricAvailability(id, data.rows, data.failed, data.pending) : 'ready'] as const)),
     [data.status, data.rows, data.failed, data.pending, active.metrics])
   const failedTable = (id: MetricId) => data.status === 'ready' && data.failed.includes(METRIC_TABLE[id])
   const metricFailed = failedTable(metric)
   const fallbackMetric = metricMissing || metricFailed ? active.metrics.find((id) => id !== metric && availability.get(id) === 'ready') ?? null : null
-  const layerOptions = active.metrics.map((id): [string, string] => [id,
-    `${METRICS[id].label}${availability.get(id) === 'missing' ? ' · غير متاح' : availability.get(id) === 'failed' ? ' · تعذّر التحميل' : ''}`])
+  // a layer that failed while nobody was looking at it is marked in «طبقات», not announced over the page; picking it
+  // asks its table again, and only then does its key say it failed (with a retry) if it fails once more
+  const layerOptions = active.metrics.map((id): [string, string, string?] => [id, METRICS[id].label,
+    availability.get(id) === 'missing' ? 'غير متاح' : availability.get(id) === 'failed' ? 'غير متاح الآن' : undefined])
+  const pickLayer = (id: MetricId) => {
+    setMetric(id)
+    if (id !== metric && availability.get(id) === 'failed') data.reload?.()
+  }
+  // a notice over the panel only for a table the open step reads; a layer's own failure is said in the map's key
+  const stepFailed = data.status === 'ready' && data.failed.some((table) => stepTables(tool).includes(table))
   // one district's value of the shading figure, as the card and the pointer's label show it
   const metricText = (row: DistrictRow) => (metricPending ? 'جارٍ التحميل' : metricFailed ? 'تعذّر التحميل' : format(METRICS[metric].value(row), METRICS[metric].unit))
   // the district the open step puts first, or else the top of the shading figure (as «الأعلى في» ranks it)
@@ -789,7 +837,7 @@ export function LensMap() {
           )}
           <PointerTip store={pointer} describe={describePointed} />
           <p aria-live="polite" className="sr-only">{pickedSay}</p>
-          <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed || noDistricts} goalSlot={goalSlot} onAsk={raiseSheet}
+          <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed || noDistricts}
             onShowMe={leadId ? () => pickFromList(leadId) : null} showMeName={leadRow?.name ?? null}
             // «أين ينقص نشاطي؟» is the step that waits for the activity before it colours anything (the others start on one)
             firstAsk={tool === 'gaps' && !chosenActivity ? step?.ask ?? null : null} />
@@ -842,7 +890,7 @@ export function LensMap() {
                   {!toolColors && <>
                   <div className="flex items-center justify-between gap-2">
                     <LegendTitle>ألوان الخريطة: {METRICS[metric].label}</LegendTitle>
-                    <LayerPicker options={layerOptions} value={metric} onChange={(id) => setMetric(id as MetricId)} />
+                    <LayerPicker options={layerOptions} value={metric} onChange={(id) => pickLayer(id as MetricId)} />
                   </div>
                   {metricFailed ? (
                     <div role="alert" className="flex flex-col items-start gap-1.5">
@@ -898,13 +946,12 @@ export function LensMap() {
               )}
               {!search && (
                 <>
-                  <div ref={setGoalSlot} className="empty:hidden" />
                   {/* a table that failed empties its figures in every district: said once at the top, with a retry, so a
                       «غير متاح» further down is not read as the city lacking the figure */}
-                  {data.status === 'ready' && data.failed.length > 0 && (
+                  {stepFailed && (
                     <div role="alert" className="flex flex-wrap items-center gap-2 rounded-2xl border border-dashed bg-card p-3 text-sm">
                       {/* named, so the rest of the city's figures read as sound and the customer knows what is missing */}
-                      <span className="min-w-0 flex-1">تعذّر تحميل {data.failed.map((table) => `«${TABLE_LABEL[table]}»`).join(' و')} في {cityName} الآن، وما يعتمد عليه مكتوب «تعذّر التحميل». بقية الأرقام محمّلة.</span>
+                      <span className="min-w-0 flex-1">تعذّر تحميل {data.failed.filter((table) => stepTables(tool).includes(table)).map((table) => `«${TABLE_LABEL[table]}»`).join(' و')} في {cityName} الآن، وما يعتمد عليه مكتوب «تعذّر التحميل». بقية الأرقام محمّلة.</span>
                       {data.reload && <Chip onClick={data.reload}>أعد المحاولة</Chip>}
                     </div>
                   )}
@@ -914,15 +961,25 @@ export function LensMap() {
                       onDetails={() => document.getElementById('picked-summary')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />
                   )}
                   {start && startRow && <StartFrom name={startRow.name} from={start.from} onPick={() => pickFromList(startRow.id)} />}
-                  {tool === 'gaps' && <GapsTool city={city} cityName={cityName} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} selected={selected} onHover={setHovered} />}
-                  {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggleFromList} onHover={setHovered} />}
-                  {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} onOverlay={onOverlay} onHover={setHovered} onSelect={pickFromList} onActivity={setRival}
-                    onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} />}
-                  {tool === 'corridors' && <CorridorsTool city={city} onOverlay={onOverlay} />}
-                  {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} />}
-                  {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
-                  {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} />}
-                  {tool === 'compare' && <CompareTool rows={data.rows} selected={chosen} />}
+                  {/* the open step's tool crossfades as the step changes — a short, gentle swap so the panel reads as one
+                      surface answering, not a flicker. mode="wait" keeps one tool mounted at a time (no racing overlays);
+                      the shared panels below (summary, businesses) stay put and never remount here. */}
+                  <AnimatePresence mode="wait" initial={false}>
+                    {tool !== 'businesses' && (
+                      <motion.div key={tool} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        transition={{ duration: reduce ? 0 : DURATION.fast, ease: EASE }}>
+                        {tool === 'gaps' && <GapsTool city={city} cityName={cityName} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} selected={selected} onHover={setHovered} />}
+                        {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggleFromList} onHover={setHovered} />}
+                        {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} onOverlay={onOverlay} onHover={setHovered} onSelect={pickFromList} onActivity={setRival}
+                          onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} />}
+                        {tool === 'corridors' && <CorridorsTool city={city} rows={data.rows} onOverlay={onOverlay} />}
+                        {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} />}
+                        {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
+                        {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} />}
+                        {tool === 'compare' && <CompareTool rows={data.rows} selected={chosen} />}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   {compareStart && <CompareStart names={[compareStart.rows[0].name, compareStart.rows[1].name]} why={compareStart.why}
                     onPick={() => { const ids = compareStart.rows.map((row) => row.id); setSelected(ids); flyTo(...ids) }} />}
                   {tool === 'businesses' && !selected.length && !start && (
