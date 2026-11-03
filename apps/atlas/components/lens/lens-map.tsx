@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
-import { ChevronDown, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { ArrowLeft, Check, ChevronDown, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
 import { CopyLinkButton } from '@/components/shared/copy-link'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
@@ -21,7 +21,7 @@ import { MapOnboarding } from './map-onboarding'
 import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { readMapQuery, writeMapQuery } from './map-query'
 import { HALF, MapSheet, PEEK, PEEK_PX, type SheetSnap } from './map-sheet'
-import { LENSES, METRICS, lensById, type LensId, type MetricId, type ToolId } from './lenses'
+import { LENSES, METRICS, TOOL_INPUTS, lensById, nextStep, type LensId, type MetricId, type ToolId } from './lenses'
 import { AroundTool } from './tools/around-tool'
 import { AudienceTool } from './tools/audience-tool'
 import { CompareTool } from './tools/compare-tool'
@@ -187,17 +187,17 @@ function ScrollRow({ label, role = 'group', active, className, style, onKeyDown,
 }
 
 /**
- * The step of a journey as a numbered tab: a chip in the phone's scrolling row, and from lg one cell of a stepper
- * (number over a short label) so the panel's results start near its top.
+ * The step of a journey as a numbered tab, on one line in a row that scrolls sideways (phone and desktop alike) and
+ * keeps the open step in view. A ✓ marks a step that has given an answer in this visit.
  */
-function StepTab({ index, label, active, onClick }: { index: number; label: string; active: boolean; onClick: () => void }) {
+function StepTab({ index, label, active, done, onClick }: { index: number; label: string; active: boolean; done: boolean; onClick: () => void }) {
   return (
     <button role="tab" aria-selected={active} tabIndex={active ? 0 : -1} onClick={onClick}
-      className={cn('flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
-        'lg:min-w-0 lg:flex-col lg:justify-start lg:gap-1 lg:px-1 lg:py-2 lg:text-center lg:leading-snug',
-        active ? 'border-primary bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground lg:border-transparent lg:hover:bg-muted/60')}>
+      className={cn('flex shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+        active ? 'border-primary bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground')}>
       <span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full text-sm font-bold', active ? 'bg-primary text-primary-foreground' : 'bg-muted')}>{numberFormat.format(index + 1)}</span>
       {label}
+      {done && <Check className="size-4 shrink-0 text-primary" strokeWidth={3} aria-label="فيها نتيجة" />}
     </button>
   )
 }
@@ -308,6 +308,8 @@ export function LensMap() {
   // the district under the mouse, named beside the pointer with its figure, before any click
   const [pointed, setPointed] = useState<{ id: string; x: number; y: number; width: number; height: number } | null>(null)
   useEffect(() => { setHovered(null) }, [tool, city])
+  // a layout effect runs before the tools' own effects post their overlay, so an answer is credited to its own step
+  useLayoutEffect(() => { openTool.current = tool }, [tool])
   // a map that failed to open: its notice takes the map, and the tour waits (there is nothing to tap)
   const [mapFailed, setMapFailed] = useState(false)
   // the top of the panel, where the tour asks its goal question
@@ -319,7 +321,15 @@ export function LensMap() {
   // a pick made by a click on the map answers in its card, so the phone's sheet stays down and the map in view
   const mapPick = useRef(false)
   const data = useCityData(city)
-  const onOverlay = useCallback((next: Overlay) => setOverlay(next), [])
+  // the steps that gave an answer in this visit (a ✓ on their tab): a tool's answer is the one-line summary or the
+  // sites it posts with its overlay, read against the step that is open when it posts
+  const [done, setDone] = useState<ToolId[]>([])
+  const markDone = useCallback((id: ToolId) => setDone((current) => (current.includes(id) ? current : [...current, id])), [])
+  const openTool = useRef<ToolId | null>(null)
+  const onOverlay = useCallback((next: Overlay) => {
+    setOverlay(next)
+    if (openTool.current && (next.summary || next.sites?.length)) markDone(openTool.current)
+  }, [markDone])
   const active = lensById(lens)
 
   useEffect(() => { setSelected([]); setCard(null) }, [city])
@@ -425,6 +435,14 @@ export function LensMap() {
   const toggleFromList = (id: string) => { if (!selected.includes(id)) flyTo(id); toggle(id) }
   const cityName = cities.find((item) => item.en === city)?.ar || city
   const step = active.steps.find((item) => item.tool === tool)
+  // a step whose answer is the picked districts' summary is done once a district is picked on it
+  useEffect(() => { if (selected.length && TOOL_INPUTS[tool].pickAnswers) markDone(tool) }, [selected.length, tool, markDone])
+  // «التالي»: the next step of the journey, named with what it carries over (the studied activity, the picked district)
+  const next = nextStep(active, tool)
+  const carried = next ? [
+    TOOL_INPUTS[next.tool].activity && TOOL_INPUTS[tool].activity ? `«${studied.label}»` : null,
+    TOOL_INPUTS[next.tool].district && chosen.length ? (chosen.length === 1 ? chosen[0].name : counted(chosen.length, 'district')) : null,
+  ].filter(Boolean).join(' · ') : ''
   // the fixed «الحي» filter: a non-map way to focus one district, kept in sync with map taps and steady across lenses
   const districtOptions = useMemo<[string, string][]>(() => {
     const sorted = [...data.rows].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map((row) => [row.id, row.name] as [string, string])
@@ -609,7 +627,15 @@ export function LensMap() {
             </div>
           </div>
         </div>
-        <MapSheet snap={sheet} onSnap={setSheet} title={sheetTitle} summary={!search && !chosen.length ? peekLine : null}>
+        <MapSheet snap={sheet} onSnap={setSheet} title={sheetTitle} summary={!search && !chosen.length ? peekLine : null} resetKey={search ? `search|${search.nonce}` : `${lens}|${tool}`}
+          header={!search && data.status !== 'error' ? (
+            // the steps stay above the scrolling body at every stop of the sheet, and on one line from lg too
+            <ScrollRow role="tablist" label={`خطوات ${active.label}`} active={tool} onKeyDown={tabKeys} className="-mx-3 gap-1.5 px-3 pb-1">
+              {active.steps.map((item, index) => (
+                <StepTab key={item.tool} index={index} label={item.label} active={tool === item.tool} done={done.includes(item.tool)} onClick={() => setTool(item.tool)} />
+              ))}
+            </ScrollRow>
+          ) : null}>
           {data.status === 'error' ? (
             <LoadError what="بيانات المدينة" onRetry={data.reload} />
           ) : (
@@ -623,13 +649,6 @@ export function LensMap() {
               {!search && (
                 <>
                   <div ref={setGoalSlot} className="empty:hidden" />
-                  <ScrollRow role="tablist" label={`خطوات ${active.label}`} active={tool} onKeyDown={tabKeys}
-                    style={{ '--steps': active.steps.length } as CSSProperties}
-                    className="-mx-3 shrink-0 gap-1.5 px-3 pb-1 lg:mx-0 lg:grid lg:grid-cols-[repeat(var(--steps),minmax(0,1fr))] lg:gap-1 lg:overflow-visible lg:rounded-2xl lg:border lg:bg-card lg:p-1">
-                    {active.steps.map((item, index) => (
-                      <StepTab key={item.tool} index={index} label={item.label} active={tool === item.tool} onClick={() => setTool(item.tool)} />
-                    ))}
-                  </ScrollRow>
                   {/* a tap answers first: the picked district leads, then the step's tool, then the full summary */}
                   {chosen.length > 0 && !['district', 'growth', 'compare', 'around', 'homes'].includes(tool) && (
                     <PickedStrip chosen={chosen} onClear={() => setSelected([])}
@@ -657,6 +676,18 @@ export function LensMap() {
                   )}
                   {showBusinesses && <BusinessesPanel key={`${tool}|${rival ?? ''}`} city={city} districts={chosen.map((row) => row.name)} query={tool === 'competitors' ? rival ?? undefined : undefined} />}
                   {data.status !== 'loading' && (tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full={lens === 'analysts' || tool === 'growth'} />}
+                  {/* once the step has answered, the journey goes on: the next step opens with the same activity and districts */}
+                  {next && done.includes(tool) && (
+                    <button onClick={() => setTool(next.tool)}
+                      className="flex shrink-0 items-center gap-3 rounded-2xl border border-primary/40 bg-primary/5 p-3 text-start outline-none hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring/60">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">{numberFormat.format(active.steps.indexOf(next) + 1)}</span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate font-bold">التالي: {next.label}</span>
+                        {carried && <span className="truncate text-sm text-muted-foreground">يكمل على {carried}</span>}
+                      </span>
+                      <ArrowLeft className="size-5 shrink-0 text-primary" aria-hidden />
+                    </button>
+                  )}
                 </>
               )}
             </>

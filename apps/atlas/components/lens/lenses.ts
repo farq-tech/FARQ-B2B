@@ -70,3 +70,28 @@ export const LENSES: Lens[] = [
 ]
 
 export const lensById = (id: LensId) => LENSES.find((lens) => lens.id === id) ?? LENSES[0]
+
+/**
+ * What each step takes from the steps before it: the studied activity (lib/sticky-state, shared by every step) and the
+ * districts picked on the map. «التالي» names what it carries into the next step. `pickAnswers` marks a step whose
+ * answer is the picked districts' summary, so it counts as done once a district is picked on it.
+ */
+export const TOOL_INPUTS: Record<ToolId, { activity?: boolean; district?: boolean; pickAnswers?: boolean }> = {
+  gaps: { activity: true, district: true },
+  competitors: { activity: true, district: true },
+  corridors: { activity: true },
+  around: { activity: true },
+  homes: { district: true },
+  audience: { district: true },
+  businesses: { district: true, pickAnswers: true },
+  territories: {},
+  growth: { district: true, pickAnswers: true },
+  district: { district: true, pickAnswers: true },
+  compare: { district: true, pickAnswers: true },
+}
+
+/** The step after `tool` in the lens's journey, or null on its last step (or a tool the lens does not have). */
+export function nextStep(lens: Lens, tool: ToolId): Lens['steps'][number] | null {
+  const at = lens.steps.findIndex((step) => step.tool === tool)
+  return at < 0 ? null : lens.steps[at + 1] ?? null
+}
