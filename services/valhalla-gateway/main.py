@@ -8,8 +8,19 @@ from urllib.request import Request, urlopen
 
 UPSTREAM = os.environ.get("VALHALLA_UPSTREAM", "").rstrip("/")
 TOKEN = os.environ.get("VALHALLA_GATEWAY_TOKEN", "")
+# Extra client tokens (comma-separated), one per client app, so a client can be
+# added or rotated without touching the others. Sary Albarq uses one of these.
+EXTRA_TOKENS = [t.strip() for t in os.environ.get("VALHALLA_GATEWAY_EXTRA_TOKENS", "").split(",") if t.strip()]
 PORT = int(os.environ.get("PORT", "8080"))
-ALLOWED_ACTIONS = {"route", "optimized_route", "isochrone", "sources_to_targets"}
+ALLOWED_ACTIONS = {
+    "route",
+    "optimized_route",
+    "isochrone",
+    "sources_to_targets",
+    # Map matching for recorded trails (Sary Albarq).
+    "trace_route",
+    "trace_attributes",
+}
 MAX_REQUEST_BYTES = 65536
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 
@@ -45,9 +56,12 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self.respond(404, b'{"error":"not found"}')
             return
 
-        expected = f"Bearer {TOKEN}"
         supplied = self.headers.get("authorization", "")
-        if not hmac.compare_digest(supplied, expected):
+        # Compare against every token without short-circuiting.
+        ok = False
+        for token in [TOKEN, *EXTRA_TOKENS]:
+            ok |= hmac.compare_digest(supplied, f"Bearer {token}")
+        if not ok:
             self.respond(401, b'{"error":"unauthorized"}')
             return
 
