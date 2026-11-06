@@ -1,0 +1,42 @@
+{
+  "originHash" : "e0ded7d57e7c394843b4d901ac926aa86a51f250fe1006f02906ae6d0d3c6e01",
+  "pins" : [
+    {
+      "identity" : "autolayout",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/componentskit/AutoLayout",
+      "state" : {
+        "revision" : "fb4d7ea7ad5cfbaaf972506e6e23f87824345e4d",
+        "version" : "1.0.1"
+      }
+    },
+    {
+      "identity" : "componentskit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/componentskit/ComponentsKit",
+      "state" : {
+        "revision" : "0bfa4ff32bb990d7e21b731050579b74fdafed2b",
+        "version" : "1.7.1"
+      }
+    },
+    {
+      "identity" : "pow",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/EmergeTools/Pow",
+      "state" : {
+        "revision" : "1b4b1dda28c50b95f0872927ee2226fe8b58950e",
+        "version" : "1.0.6"
+      }
+    },
+    {
+      "identity" : "swiftuix",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SwiftUIX/SwiftUIX",
+      "state" : {
+        "revision" : "3a99044b7045fb5907a7df18c7fe323e5656c6ab",
+        "version" : "0.3.2"
+      }
+    }
+  ],
+  "version" : 3
+}

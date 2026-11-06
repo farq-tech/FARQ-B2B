@@ -1,0 +1,528 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00C24980DFBE7C63909C8645 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 78528B238B6E547EA36AC276 /* Assets.xcassets */; };
+		0D69903A89C8E58D44FCA2D6 /* Screens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E590ED53620D81CE5907B3B /* Screens.swift */; };
+		1860E16DDF35C7F69B344BB0 /* LiquidSwitch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65382BDF42600FDEF4148DCF /* LiquidSwitch.swift */; };
+		1985158DDE3AD85564499256 /* SkeletonLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3068E9753BB05CCE11CE73F /* SkeletonLoader.swift */; };
+		1B3D937FD5F171270772E0B4 /* API.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9C1FF2FDA99CB1EDDB6697E /* API.swift */; };
+		292DC16FC687FAABF640E3BA /* OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 1EBA5B4035BB13A0DCCAE2C3 /* OFL.txt */; };
+		2C3492DF12CF62AC29373BAA /* ComponentsKit in Frameworks */ = {isa = PBXBuildFile; productRef = 812740E4D0837BBCB251F31B /* ComponentsKit */; };
+		2E1DB2354BA22BF4BB99758E /* Lenses.swift in Sources */ = {isa = PBXBuildFile; fileRef = E64118EB1960D13B9BD2E129 /* Lenses.swift */; };
+		38EC7C313DF81EB09A33A779 /* LiveStat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 928A2B1699FAC0B42A0C9295 /* LiveStat.swift */; };
+		76F9651EAF307F2E834F1F15 /* FarqAtlasApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE11E80D4731E1AC1AC074EF /* FarqAtlasApp.swift */; };
+		78600D6359FB08C39936254D /* Explain.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F9AE7DE8BD02C9CE26968E /* Explain.swift */; };
+		7AC7E0332558CB18DE4EA6D6 /* TextReveal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 933286C46F9F50AD99B541D7 /* TextReveal.swift */; };
+		8221C210BAE3DB461116C4FB /* Panel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5818158355207E82D75776E8 /* Panel.swift */; };
+		84FEB2788198554B14B3E30D /* FilterRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7728E273023771E00C4A58A2 /* FilterRail.swift */; };
+		8D3108C71165749A8A8F51E7 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = 1A955592765F5B775FD5A721 /* Pow */; };
+		8D488BAD890DAC8DD4DD777E /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8447AC4BC14A8AD9277E8D03 /* Theme.swift */; };
+		8E6578A11FD7DCA0FD9883D8 /* MapScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F00061EF194DD28E2BE949D /* MapScreen.swift */; };
+		9228F96B705B2D7F1CFEECD2 /* Kit.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD1BE9530D757A70AAE05880 /* Kit.swift */; };
+		9B2BDD0B1093131E18B0AAE8 /* RingBreakdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FB86B90BB076C507F5D08C /* RingBreakdown.swift */; };
+		A2779EE408F12FF6D9F19CE1 /* DistrictCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0907DDD0F94A47C44DBB5B4 /* DistrictCard.swift */; };
+		A9AAA840B75C7EC2350F0A67 /* AtlasStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C691BBB9A6B3729E8B55ECC /* AtlasStore.swift */; };
+		ADD9711F56B817C331EC12C2 /* IBMPlexSansArabic-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = EC1DCFB2856797093E081609 /* IBMPlexSansArabic-Medium.ttf */; };
+		B60419E3C81AC380DCB74CCE /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35F9BF36461FECE1730ED9CE /* DesignSystem.swift */; };
+		B7D198A4E5D89B85A05AF68F /* SwiftUIX in Frameworks */ = {isa = PBXBuildFile; productRef = 245BB6196BDB50E5DC692D3D /* SwiftUIX */; };
+		BB5FBFE60466781DF58BEDBE /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 4F7CBDE69011C098117B34B1 /* InfoPlist.strings */; };
+		BBA8A871B7F690A629E10342 /* IBMPlexSansArabic-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9F4E3067741DE5CBD2D1AC0F /* IBMPlexSansArabic-Regular.ttf */; };
+		C00118DFD891D039AB54B8D9 /* LICENSE-SwiftPieces.txt in Resources */ = {isa = PBXBuildFile; fileRef = 9EACF1A466BE78CA5D768AD9 /* LICENSE-SwiftPieces.txt */; };
+		C131082A4C26D3757B51A6C1 /* IBMPlexSansArabic-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D8DF901C384EB5A24E69C436 /* IBMPlexSansArabic-Bold.ttf */; };
+		C1DE43F508C832D9793A325E /* IBMPlexSansArabic-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A8605863C0B53CF09A5FBB69 /* IBMPlexSansArabic-SemiBold.ttf */; };
+		C3155BE9BF03BBC6F8113241 /* FarqAtlasTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AF0CB8717C581FB24396350 /* FarqAtlasTests.swift */; };
+		C47C554F32F7F49EC6EFBC7F /* Odometer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF973FAA9BCC5B75E80C44F /* Odometer.swift */; };
+		CAE4BB66A0F504AC8FA02185 /* ElasticButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0567A595CD298D1AA859289 /* ElasticButton.swift */; };
+		D60CBA340C930A78DDE0B280 /* Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0F6AC2BF579489177761A5 /* Toast.swift */; };
+		D77723A69313DBAF46DB4D46 /* StepTrail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14D74BDD503D3FDC00C6DDA7 /* StepTrail.swift */; };
+		D857837C2854F747214D18D4 /* LensTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7D9CBF74358EFD71D9D471 /* LensTools.swift */; };
+		E65D95A4BEF372D0CA9034BD /* Format.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FEA089D7120D8329A89B42 /* Format.swift */; };
+		FD85F667F07280FB9969F8E8 /* GlassSegments.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59EFBD91DBFCEA227666D14 /* GlassSegments.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A0F41306F7B1070A6BAE18ED /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0DA6FA01993E717343E1FD55 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6F468DFC1742953B8BE48E79;
+			remoteInfo = FarqAtlas;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		14D74BDD503D3FDC00C6DDA7 /* StepTrail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepTrail.swift; sourceTree = "<group>"; };
+		1EBA5B4035BB13A0DCCAE2C3 /* OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = OFL.txt; sourceTree = "<group>"; };
+		22CE1BF3B7BE6722361E8A8E /* FarqAtlas.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FarqAtlas.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		35F9BF36461FECE1730ED9CE /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		3C49E16E2DB6DDE52ED5F1BC /* FarqAtlasTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FarqAtlasTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		47FB86B90BB076C507F5D08C /* RingBreakdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingBreakdown.swift; sourceTree = "<group>"; };
+		4AF0CB8717C581FB24396350 /* FarqAtlasTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FarqAtlasTests.swift; sourceTree = "<group>"; };
+		5818158355207E82D75776E8 /* Panel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panel.swift; sourceTree = "<group>"; };
+		65382BDF42600FDEF4148DCF /* LiquidSwitch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidSwitch.swift; sourceTree = "<group>"; };
+		688E88653F4B92E1D08378E4 /* ar */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ar; path = ar.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		6E590ED53620D81CE5907B3B /* Screens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Screens.swift; sourceTree = "<group>"; };
+		7728E273023771E00C4A58A2 /* FilterRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterRail.swift; sourceTree = "<group>"; };
+		78528B238B6E547EA36AC276 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		8447AC4BC14A8AD9277E8D03 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		8C691BBB9A6B3729E8B55ECC /* AtlasStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasStore.swift; sourceTree = "<group>"; };
+		8F00061EF194DD28E2BE949D /* MapScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapScreen.swift; sourceTree = "<group>"; };
+		8F7D9CBF74358EFD71D9D471 /* LensTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LensTools.swift; sourceTree = "<group>"; };
+		928A2B1699FAC0B42A0C9295 /* LiveStat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveStat.swift; sourceTree = "<group>"; };
+		933286C46F9F50AD99B541D7 /* TextReveal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReveal.swift; sourceTree = "<group>"; };
+		9EACF1A466BE78CA5D768AD9 /* LICENSE-SwiftPieces.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "LICENSE-SwiftPieces.txt"; sourceTree = "<group>"; };
+		9F4E3067741DE5CBD2D1AC0F /* IBMPlexSansArabic-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "IBMPlexSansArabic-Regular.ttf"; sourceTree = "<group>"; };
+		A0567A595CD298D1AA859289 /* ElasticButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElasticButton.swift; sourceTree = "<group>"; };
+		A8605863C0B53CF09A5FBB69 /* IBMPlexSansArabic-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "IBMPlexSansArabic-SemiBold.ttf"; sourceTree = "<group>"; };
+		AE0F6AC2BF579489177761A5 /* Toast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Toast.swift; sourceTree = "<group>"; };
+		AE11E80D4731E1AC1AC074EF /* FarqAtlasApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FarqAtlasApp.swift; sourceTree = "<group>"; };
+		B7CA4B391132EE8741CF9444 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B9FEA089D7120D8329A89B42 /* Format.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Format.swift; sourceTree = "<group>"; };
+		BD1BE9530D757A70AAE05880 /* Kit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kit.swift; sourceTree = "<group>"; };
+		BEF973FAA9BCC5B75E80C44F /* Odometer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Odometer.swift; sourceTree = "<group>"; };
+		C0907DDD0F94A47C44DBB5B4 /* DistrictCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DistrictCard.swift; sourceTree = "<group>"; };
+		C3068E9753BB05CCE11CE73F /* SkeletonLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkeletonLoader.swift; sourceTree = "<group>"; };
+		C59EFBD91DBFCEA227666D14 /* GlassSegments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassSegments.swift; sourceTree = "<group>"; };
+		C8F9AE7DE8BD02C9CE26968E /* Explain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Explain.swift; sourceTree = "<group>"; };
+		C9C1FF2FDA99CB1EDDB6697E /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
+		D8DF901C384EB5A24E69C436 /* IBMPlexSansArabic-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "IBMPlexSansArabic-Bold.ttf"; sourceTree = "<group>"; };
+		E64118EB1960D13B9BD2E129 /* Lenses.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Lenses.swift; sourceTree = "<group>"; };
+		EC1DCFB2856797093E081609 /* IBMPlexSansArabic-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "IBMPlexSansArabic-Medium.ttf"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B83B61D3D25886D1E7F392CA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8D3108C71165749A8A8F51E7 /* Pow in Frameworks */,
+				B7D198A4E5D89B85A05AF68F /* SwiftUIX in Frameworks */,
+				2C3492DF12CF62AC29373BAA /* ComponentsKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		59053769F7E27B3248802557 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				22CE1BF3B7BE6722361E8A8E /* FarqAtlas.app */,
+				3C49E16E2DB6DDE52ED5F1BC /* FarqAtlasTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		95F0565E57669509502ADEE8 = {
+			isa = PBXGroup;
+			children = (
+				BBFD3FD54BED752EB1B6D607 /* FarqAtlas */,
+				F2F3AF91BDE53F9C6C1D1DC2 /* FarqAtlasTests */,
+				59053769F7E27B3248802557 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		BBFD3FD54BED752EB1B6D607 /* FarqAtlas */ = {
+			isa = PBXGroup;
+			children = (
+				C9C1FF2FDA99CB1EDDB6697E /* API.swift */,
+				78528B238B6E547EA36AC276 /* Assets.xcassets */,
+				8C691BBB9A6B3729E8B55ECC /* AtlasStore.swift */,
+				35F9BF36461FECE1730ED9CE /* DesignSystem.swift */,
+				C0907DDD0F94A47C44DBB5B4 /* DistrictCard.swift */,
+				C8F9AE7DE8BD02C9CE26968E /* Explain.swift */,
+				AE11E80D4731E1AC1AC074EF /* FarqAtlasApp.swift */,
+				B9FEA089D7120D8329A89B42 /* Format.swift */,
+				B7CA4B391132EE8741CF9444 /* Info.plist */,
+				BD1BE9530D757A70AAE05880 /* Kit.swift */,
+				E64118EB1960D13B9BD2E129 /* Lenses.swift */,
+				8F7D9CBF74358EFD71D9D471 /* LensTools.swift */,
+				8F00061EF194DD28E2BE949D /* MapScreen.swift */,
+				5818158355207E82D75776E8 /* Panel.swift */,
+				6E590ED53620D81CE5907B3B /* Screens.swift */,
+				8447AC4BC14A8AD9277E8D03 /* Theme.swift */,
+				F6455632157A195378E08BB4 /* Fonts */,
+				4F7CBDE69011C098117B34B1 /* InfoPlist.strings */,
+				EF74EF1A0EC0056F9AF7F0D9 /* Pieces */,
+			);
+			path = FarqAtlas;
+			sourceTree = "<group>";
+		};
+		EF74EF1A0EC0056F9AF7F0D9 /* Pieces */ = {
+			isa = PBXGroup;
+			children = (
+				A0567A595CD298D1AA859289 /* ElasticButton.swift */,
+				7728E273023771E00C4A58A2 /* FilterRail.swift */,
+				C59EFBD91DBFCEA227666D14 /* GlassSegments.swift */,
+				9EACF1A466BE78CA5D768AD9 /* LICENSE-SwiftPieces.txt */,
+				65382BDF42600FDEF4148DCF /* LiquidSwitch.swift */,
+				928A2B1699FAC0B42A0C9295 /* LiveStat.swift */,
+				BEF973FAA9BCC5B75E80C44F /* Odometer.swift */,
+				47FB86B90BB076C507F5D08C /* RingBreakdown.swift */,
+				C3068E9753BB05CCE11CE73F /* SkeletonLoader.swift */,
+				14D74BDD503D3FDC00C6DDA7 /* StepTrail.swift */,
+				933286C46F9F50AD99B541D7 /* TextReveal.swift */,
+				AE0F6AC2BF579489177761A5 /* Toast.swift */,
+			);
+			path = Pieces;
+			sourceTree = "<group>";
+		};
+		F2F3AF91BDE53F9C6C1D1DC2 /* FarqAtlasTests */ = {
+			isa = PBXGroup;
+			children = (
+				4AF0CB8717C581FB24396350 /* FarqAtlasTests.swift */,
+			);
+			path = FarqAtlasTests;
+			sourceTree = "<group>";
+		};
+		F6455632157A195378E08BB4 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				D8DF901C384EB5A24E69C436 /* IBMPlexSansArabic-Bold.ttf */,
+				EC1DCFB2856797093E081609 /* IBMPlexSansArabic-Medium.ttf */,
+				9F4E3067741DE5CBD2D1AC0F /* IBMPlexSansArabic-Regular.ttf */,
+				A8605863C0B53CF09A5FBB69 /* IBMPlexSansArabic-SemiBold.ttf */,
+				1EBA5B4035BB13A0DCCAE2C3 /* OFL.txt */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		6F468DFC1742953B8BE48E79 /* FarqAtlas */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FD4C547C98DA51B43C4878D8 /* Build configuration list for PBXNativeTarget "FarqAtlas" */;
+			buildPhases = (
+				DEBF7440CB1985F330E73664 /* Sources */,
+				0BD978E3F61A26193B56886B /* Resources */,
+				B83B61D3D25886D1E7F392CA /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FarqAtlas;
+			packageProductDependencies = (
+				1A955592765F5B775FD5A721 /* Pow */,
+				245BB6196BDB50E5DC692D3D /* SwiftUIX */,
+				812740E4D0837BBCB251F31B /* ComponentsKit */,
+			);
+			productName = FarqAtlas;
+			productReference = 22CE1BF3B7BE6722361E8A8E /* FarqAtlas.app */;
+			productType = "com.apple.product-type.application";
+		};
+		873928C5885C61D4B427AFF0 /* FarqAtlasTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7DE1B099CFD4958EEBBAB865 /* Build configuration list for PBXNativeTarget "FarqAtlasTests" */;
+			buildPhases = (
+				7633F94B9D915C7886526C3C /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				59F297F6EB7969326D94B529 /* PBXTargetDependency */,
+			);
+			name = FarqAtlasTests;
+			packageProductDependencies = (
+			);
+			productName = FarqAtlasTests;
+			productReference = 3C49E16E2DB6DDE52ED5F1BC /* FarqAtlasTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		0DA6FA01993E717343E1FD55 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					6F468DFC1742953B8BE48E79 = {
+						DevelopmentTeam = MH7J92HV9N;
+						ProvisioningStyle = Automatic;
+					};
+					873928C5885C61D4B427AFF0 = {
+						DevelopmentTeam = MH7J92HV9N;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = CA8D14D143C6C12110AB4F0A /* Build configuration list for PBXProject "FarqAtlas" */;
+			developmentRegion = ar;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				ar,
+			);
+			mainGroup = 95F0565E57669509502ADEE8;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7CF9115A3A5219E7ACC1F6BC /* XCRemoteSwiftPackageReference "ComponentsKit" */,
+				A6ACFE05E903793353E8593E /* XCRemoteSwiftPackageReference "Pow" */,
+				396D0F17EFD8C9A470BCFA63 /* XCRemoteSwiftPackageReference "SwiftUIX" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 59053769F7E27B3248802557 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				6F468DFC1742953B8BE48E79 /* FarqAtlas */,
+				873928C5885C61D4B427AFF0 /* FarqAtlasTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		0BD978E3F61A26193B56886B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				00C24980DFBE7C63909C8645 /* Assets.xcassets in Resources */,
+				C131082A4C26D3757B51A6C1 /* IBMPlexSansArabic-Bold.ttf in Resources */,
+				ADD9711F56B817C331EC12C2 /* IBMPlexSansArabic-Medium.ttf in Resources */,
+				BBA8A871B7F690A629E10342 /* IBMPlexSansArabic-Regular.ttf in Resources */,
+				C1DE43F508C832D9793A325E /* IBMPlexSansArabic-SemiBold.ttf in Resources */,
+				BB5FBFE60466781DF58BEDBE /* InfoPlist.strings in Resources */,
+				C00118DFD891D039AB54B8D9 /* LICENSE-SwiftPieces.txt in Resources */,
+				292DC16FC687FAABF640E3BA /* OFL.txt in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		7633F94B9D915C7886526C3C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C3155BE9BF03BBC6F8113241 /* FarqAtlasTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DEBF7440CB1985F330E73664 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1B3D937FD5F171270772E0B4 /* API.swift in Sources */,
+				A9AAA840B75C7EC2350F0A67 /* AtlasStore.swift in Sources */,
+				B60419E3C81AC380DCB74CCE /* DesignSystem.swift in Sources */,
+				A2779EE408F12FF6D9F19CE1 /* DistrictCard.swift in Sources */,
+				CAE4BB66A0F504AC8FA02185 /* ElasticButton.swift in Sources */,
+				78600D6359FB08C39936254D /* Explain.swift in Sources */,
+				76F9651EAF307F2E834F1F15 /* FarqAtlasApp.swift in Sources */,
+				84FEB2788198554B14B3E30D /* FilterRail.swift in Sources */,
+				E65D95A4BEF372D0CA9034BD /* Format.swift in Sources */,
+				FD85F667F07280FB9969F8E8 /* GlassSegments.swift in Sources */,
+				9228F96B705B2D7F1CFEECD2 /* Kit.swift in Sources */,
+				D857837C2854F747214D18D4 /* LensTools.swift in Sources */,
+				2E1DB2354BA22BF4BB99758E /* Lenses.swift in Sources */,
+				1860E16DDF35C7F69B344BB0 /* LiquidSwitch.swift in Sources */,
+				38EC7C313DF81EB09A33A779 /* LiveStat.swift in Sources */,
+				8E6578A11FD7DCA0FD9883D8 /* MapScreen.swift in Sources */,
+				C47C554F32F7F49EC6EFBC7F /* Odometer.swift in Sources */,
+				8221C210BAE3DB461116C4FB /* Panel.swift in Sources */,
+				9B2BDD0B1093131E18B0AAE8 /* RingBreakdown.swift in Sources */,
+				0D69903A89C8E58D44FCA2D6 /* Screens.swift in Sources */,
+				1985158DDE3AD85564499256 /* SkeletonLoader.swift in Sources */,
+				D77723A69313DBAF46DB4D46 /* StepTrail.swift in Sources */,
+				7AC7E0332558CB18DE4EA6D6 /* TextReveal.swift in Sources */,
+				8D488BAD890DAC8DD4DD777E /* Theme.swift in Sources */,
+				D60CBA340C930A78DDE0B280 /* Toast.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		59F297F6EB7969326D94B529 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6F468DFC1742953B8BE48E79 /* FarqAtlas */;
+			targetProxy = A0F41306F7B1070A6BAE18ED /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		4F7CBDE69011C098117B34B1 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				688E88653F4B92E1D08378E4 /* ar */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		2E91142519B2455DABDA1584 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FarqAtlas/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = sa.farq.atlas;
+				PRODUCT_NAME = FarqAtlas;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		3D2D0F37FE0903627BCBDF53 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FarqAtlas/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = sa.farq.atlas;
+				PRODUCT_NAME = FarqAtlas;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		995618177935804F6D386CA6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = sa.farq.atlas.tests;
+				PRODUCT_NAME = FarqAtlasTests;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FarqAtlas.app/FarqAtlas";
+			};
+			name = Release;
+		};
+		B5BAFD5FD1639512276853DB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 4;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = MH7J92HV9N;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		C32670DE8F041D91E53B554A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 4;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = MH7J92HV9N;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		F8A7A54F3B3AA09F97CA95ED /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = sa.farq.atlas.tests;
+				PRODUCT_NAME = FarqAtlasTests;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FarqAtlas.app/FarqAtlas";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7DE1B099CFD4958EEBBAB865 /* Build configuration list for PBXNativeTarget "FarqAtlasTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F8A7A54F3B3AA09F97CA95ED /* Debug */,
+				995618177935804F6D386CA6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		CA8D14D143C6C12110AB4F0A /* Build configuration list for PBXProject "FarqAtlas" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B5BAFD5FD1639512276853DB /* Debug */,
+				C32670DE8F041D91E53B554A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		FD4C547C98DA51B43C4878D8 /* Build configuration list for PBXNativeTarget "FarqAtlas" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2E91142519B2455DABDA1584 /* Debug */,
+				3D2D0F37FE0903627BCBDF53 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		396D0F17EFD8C9A470BCFA63 /* XCRemoteSwiftPackageReference "SwiftUIX" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SwiftUIX/SwiftUIX";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.3.2;
+			};
+		};
+		7CF9115A3A5219E7ACC1F6BC /* XCRemoteSwiftPackageReference "ComponentsKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/componentskit/ComponentsKit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.7.1;
+			};
+		};
+		A6ACFE05E903793353E8593E /* XCRemoteSwiftPackageReference "Pow" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/EmergeTools/Pow";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.5;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1A955592765F5B775FD5A721 /* Pow */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A6ACFE05E903793353E8593E /* XCRemoteSwiftPackageReference "Pow" */;
+			productName = Pow;
+		};
+		245BB6196BDB50E5DC692D3D /* SwiftUIX */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 396D0F17EFD8C9A470BCFA63 /* XCRemoteSwiftPackageReference "SwiftUIX" */;
+			productName = SwiftUIX;
+		};
+		812740E4D0837BBCB251F31B /* ComponentsKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7CF9115A3A5219E7ACC1F6BC /* XCRemoteSwiftPackageReference "ComponentsKit" */;
+			productName = ComponentsKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 0DA6FA01993E717343E1FD55 /* Project object */;
+}
