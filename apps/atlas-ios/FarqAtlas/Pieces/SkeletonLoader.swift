@@ -1,0 +1,407 @@
+// swiftpieces:
+// title: Skeleton Loader
+// description: Solid placeholder bones and a self-masking modifier that turns any layout, color blocks included, into one quiet shape sweeping a soft diagonal highlight on a shared clock, then hands off as content unblurs and rises row by row. The bones stand in for content, so they stay solid rather than glass.
+// category: feedback
+// minIOSVersion: "17.0"
+// version: "2.2.0"
+// pro: ghost-state
+// tags: [loading, skeleton, shimmer, placeholder, error, redacted]
+
+import SwiftUI
+
+/// Standalone placeholder bone. Use `.skeleton(isLoading:)` to redact real content instead.
+///
+/// Bones stand in for content, not chrome, so they stay solid in the liquid glass language: glass is for the controls
+/// that load around them.
+///
+/// - Parameters:
+///   - shape: `.rounded(radius)`, `.circle`, `.capsule`, or `.text(lines:)` for a stack of text lines with a shorter last line.
+///   - isFailed: Stops the sweep and dims the bone so the slot reads as empty.
+///   - style: Bone and highlight colors and the sweep period. `.standard` is a solid warm grey that adapts to light and dark.
+public struct SkeletonLoader: View {
+    public enum Kind: Sendable {
+        case rounded(CGFloat = 12)
+        case circle
+        case capsule
+        case text(lines: Int)
+    }
+
+    /// Colors and timing for bones and redacted content. Defaults follow the SwiftPieces house palette.
+    public struct Style: Sendable {
+        /// Solid bone color.
+        public var fill: Color
+        /// Color at the center of the sweeping band.
+        public var highlight: Color
+        /// Bone color under Reduce Transparency, where the sweep is also removed.
+        public var opaqueFill: Color
+        /// Seconds from one sweep to the next, rest included. Every skeleton reads the same clock, so they stay in phase.
+        public var period: Double
+        /// Bone opacity once loading has failed.
+        public var failedOpacity: Double
+
+        public init(
+            fill: Color = Style.adaptive(0xE6E3DB, 0x2F2F2F),
+            highlight: Color = Style.adaptive(0xF7F5F1, 0x3D3D3D),
+            opaqueFill: Color = Style.adaptive(0xDEDCD5, 0x333333),
+            period: Double = 1.6,
+            failedOpacity: Double = 0.5
+        ) {
+            self.fill = fill
+            self.highlight = highlight
+            self.opaqueFill = opaqueFill
+            self.period = period
+            self.failedOpacity = failedOpacity
+        }
+
+        public static let standard = Style()
+
+        /// A color that resolves to `light` or `dark` hex by the current appearance.
+        public static func adaptive(_ light: UInt32, _ dark: UInt32) -> Color {
+            Color(uiColor: UIColor { @Sendable traits in traits.userInterfaceStyle == .dark ? rgb(dark) : rgb(light) })
+        }
+
+        nonisolated private static func rgb(_ hex: UInt32) -> UIColor {
+            UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+        }
+    }
+
+    @ScaledMetric(relativeTo: .body) private var lineHeight: CGFloat = 12
+
+    private let shape: Kind
+    private let isFailed: Bool
+    private let style: Style
+
+    public init(shape: Kind = .rounded(), isFailed: Bool = false, style: Style = .standard) {
+        self.shape = shape
+        self.isFailed = isFailed
+        self.style = style
+    }
+
+    public var body: some View {
+        Group {
+            if case .text(let lines) = shape {
+                VStack(alignment: .leading, spacing: lineHeight * 0.75) {
+                    ForEach(0..<max(lines, 1), id: \.self) { index in
+                        Bone(shape: AnyShape(Capsule()), isFailed: isFailed, style: style)
+                            .frame(height: lineHeight)
+                            .frame(maxWidth: .infinity)
+                            .scaleEffect(x: index == lines - 1 && lines > 1 ? 0.62 : 1, anchor: .leading)
+                    }
+                }
+            } else {
+                Bone(shape: base, isFailed: isFailed, style: style)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(isFailed ? "تعذر التحميل" : "جارٍ التحميل")
+    }
+
+    private var base: AnyShape {
+        switch shape {
+        case .rounded(let radius): AnyShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+        case .circle: AnyShape(Circle())
+        case .capsule: AnyShape(Capsule())
+        case .text: AnyShape(Capsule())
+        }
+    }
+
+    private struct Bone: View {
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+        @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+        let shape: AnyShape
+        let isFailed: Bool
+        let style: Style
+
+        var body: some View {
+            let motion = PieceMotion(reduceMotion: reduceMotion)
+            ZStack {
+                shape.fill(reduceTransparency ? style.opaqueFill : style.fill)
+                if !isFailed, !reduceTransparency {
+                    Sweep(color: style.highlight, period: style.period).clipShape(shape)
+                }
+            }
+            .opacity(isFailed ? style.failedOpacity : 1)
+            // Failing, the light goes out and the bone dims firmly. A retry brings both back.
+            .animation(isFailed ? motion.error : motion.reveal, value: isFailed)
+        }
+    }
+
+    /// Redacts content while loading, then hands off: the placeholder lifts away, then the content unblurs and rises.
+    fileprivate struct Modifier: ViewModifier {
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+        @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+        let isLoading: Bool
+        let isFailed: Bool
+        let staggerIndex: Int
+        let style: Style
+
+        /// Rows hand off this far apart, so a list reveals top to bottom.
+        private let stagger = 0.06
+        /// The content surfaces this long after the placeholder starts to lift, so the two barely overlap out of register.
+        private let gap = 0.05
+
+        private var showsPlaceholder: Bool { isLoading || isFailed }
+
+        func body(content: Content) -> some View {
+            let motion = PieceMotion(reduceMotion: reduceMotion)
+            // Handing off, row by row: the placeholder lifts first and the content surfaces a moment behind it.
+            // Under Reduce Motion the two crossfade, so the slot never flashes empty.
+            let delay = reduceMotion ? 0 : stagger * Double(max(staggerIndex, 0))
+            let lift = motion.dismiss.delay(delay)
+            let surface = motion.reveal.delay(reduceMotion ? 0 : gap + delay)
+            ZStack {
+                content
+                    .opacity(showsPlaceholder ? 0 : 1)
+                    .blur(radius: showsPlaceholder && !reduceMotion ? 8 : 0)
+                    .offset(y: showsPlaceholder && !reduceMotion ? 6 : 0)
+                    // Loading again is one beat for every row: the content leaves as the placeholder settles back.
+                    .animation(showsPlaceholder ? motion.dismiss : surface, value: showsPlaceholder)
+                    .accessibilityHidden(showsPlaceholder)
+                if showsPlaceholder {
+                    content
+                        .hidden()
+                        .overlay {
+                            ZStack {
+                                reduceTransparency ? style.opaqueFill : style.fill
+                                if !isFailed, !reduceTransparency {
+                                    Sweep(color: style.highlight, period: style.period)
+                                }
+                            }
+                            .mask { Silhouette(content: content) }
+                        }
+                        .opacity(isFailed ? style.failedOpacity : 1)
+                        .animation(isFailed ? motion.error : motion.reveal, value: isFailed)
+                        .allowsHitTesting(false)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(isFailed ? "تعذر التحميل" : "جارٍ التحميل")
+                        .transition(.asymmetric(insertion: .opacity.animation(motion.dismiss), removal: .opacity.animation(lift)))
+                }
+            }
+            .allowsHitTesting(!showsPlaceholder)
+        }
+    }
+
+    /// Every shape the redacted layout draws (text bars, color blocks, symbols) as one fully opaque mask,
+    /// so the placeholder reads as a single solid bone color whatever the content's own colors and opacities.
+    private struct Silhouette<Source: View>: View {
+        let content: Source
+
+        var body: some View {
+            Canvas { context, size in
+                context.addFilter(.alphaThreshold(min: 0.02, color: .black))
+                context.addFilter(.blur(radius: 0.4))
+                if let symbol = context.resolveSymbol(id: 0) {
+                    context.draw(symbol, at: CGPoint(x: size.width / 2, y: size.height / 2))
+                }
+            } symbols: {
+                content.redacted(reason: .placeholder).tag(0)
+            }
+        }
+    }
+
+    /// A soft diagonal light on the shared reference clock. Each pass crosses a bone edge to edge in the first part of
+    /// the period, easing in and out, then rests until the next, so every bone on screen is lit in the same moments
+    /// whatever its width. Only a surface too large to cross calmly in that time takes longer, from the same beat.
+    /// Under Reduce Motion the light holds still and the bone breathes toward the highlight instead.
+    private struct Sweep: View {
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+        let color: Color
+        let period: Double
+
+        /// The share of each period the light spends crossing. It rests for the remainder.
+        private let travel = 0.75
+        /// The light's fastest average pace in points a second, about a full-width phone row's. A larger surface
+        /// crosses more slowly instead, taking from the rest, up to `longestTravel` of the period.
+        private let pace = 500.0
+        private let longestTravel = 0.9
+
+        var body: some View {
+            let motion = PieceMotion(reduceMotion: reduceMotion)
+            // The Reduce Motion breath is slow enough that 30 frames a second looks the same at a fraction of the cost.
+            TimelineView(.animation(minimumInterval: motion.allowsAmbient ? nil : 1.0 / 30)) { context in
+                let time = context.date.timeIntervalSinceReferenceDate
+                if motion.allowsAmbient {
+                    GeometryReader { proxy in
+                        let width = proxy.size.width
+                        let band = max(72, width * 0.45)
+                        // Just clear of each edge: half the band, plus the 18 degree lean across half the height.
+                        let reach = band * 0.53 + max(proxy.size.height, 40) * 0.17
+                        let distance = width + reach * 2
+                        let share = min(max(travel, Double(distance) / (pace * period)), longestTravel)
+                        let center = -reach + distance * pass(at: time, over: share)
+                        LinearGradient(
+                            stops: [
+                                .init(color: color.opacity(0), location: 0),
+                                .init(color: color, location: 0.5),
+                                .init(color: color.opacity(0), location: 1),
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: band, height: max(proxy.size.height * 3, 120))
+                        .rotationEffect(.degrees(18))
+                        .offset(x: center - band / 2, y: -max(proxy.size.height, 40))
+                    }
+                } else {
+                    // Still loading without moving: every bone breathes in unison, never a frozen frame.
+                    color.opacity(breath(at: time))
+                }
+            }
+            .allowsHitTesting(false)
+        }
+
+        /// How far the light is through its pass: a smoothstep from 0 to 1 over `share` of the period, then 1 at rest.
+        private func pass(at time: TimeInterval, over share: Double) -> CGFloat {
+            let t = min((time / period).truncatingRemainder(dividingBy: 1) / share, 1)
+            return CGFloat(t * t * (3 - 2 * t))
+        }
+
+        /// The highlight's opacity under Reduce Motion: a slow breath between none and 0.75, two periods long.
+        private func breath(at time: TimeInterval) -> Double {
+            0.375 * (1 - cos(2 * .pi * (time / (period * 2)).truncatingRemainder(dividingBy: 1)))
+        }
+    }
+}
+
+/// Redacts the view while loading, sweeps it, then hands off to the real content.
+///
+/// - Parameters:
+///   - isLoading: Show the placeholder while `true`.
+///   - isFailed: Keep the placeholder but stop the sweep and dim it; flip `isLoading` back on to retry.
+///   - staggerIndex: Delays this view's handoff by 60 ms per index so lists reveal top to bottom.
+///   - style: Bone color, highlight and sweep period. Defaults to `SkeletonLoader.Style.standard`.
+public extension View {
+    func skeleton(isLoading: Bool, isFailed: Bool = false, staggerIndex: Int = 0, style: SkeletonLoader.Style = .standard) -> some View {
+        modifier(SkeletonLoader.Modifier(isLoading: isLoading, isFailed: isFailed, staggerIndex: staggerIndex, style: style))
+    }
+}
+
+// MARK: - Example
+
+/// The modifier and the rows it replaces: three rows redact into one quiet shape, then reveal top to bottom.
+private struct SkeletonLoaderExample: View {
+    @State private var loading = true
+
+    private let items: [(String, String, String, Color)] = [
+        ("9:30", "Design review", "Studio B · 45 min", Color(red: 1, green: 0.851, blue: 0.463)),
+        ("11:00", "Lunch with Priya", "Ferro Kitchen · 1 h", Color(red: 0.663, green: 0.863, blue: 0.718)),
+        ("16:15", "Ship build 4.2", "Release room · 30 min", Color(red: 0.612, green: 0.761, blue: 1)),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            ForEach(items.indices, id: \.self) { index in
+                let item = items[index]
+                HStack(spacing: 18) {
+                    Text(item.0)
+                        .font(.system(size: 21, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color(red: 0.078, green: 0.078, blue: 0.078))
+                        .frame(width: 92, height: 76)
+                        .background(item.3, in: .rect(cornerRadius: 24, style: .continuous))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.1).font(.system(size: 22, weight: .semibold))
+                        Text(item.2).font(.system(size: 19, weight: .semibold)).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .skeleton(isLoading: loading, staggerIndex: index)
+            }
+        }
+        .fontWeight(.semibold)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 28)
+        .background(SkeletonLoader.Style.adaptive(0xF3F2EE, 0x121212))
+        .onTapGesture { loading.toggle() }
+    }
+}
+
+#Preview("Light") {
+    SkeletonLoaderExample()
+}
+
+#Preview("Dark") {
+    SkeletonLoaderExample().preferredColorScheme(.dark)
+}
+
+#Preview("Bones") {
+    HStack(spacing: 14) {
+        SkeletonLoader(shape: .rounded(18)).frame(width: 64, height: 52)
+        SkeletonLoader(shape: .text(lines: 2))
+    }
+    .padding()
+}
+
+// MARK: - Piece motion
+//
+// The SwiftPieces motion language: shared spring tokens and gesture physics, with the same values in every
+// piece. Each piece carries a copy of only the parts it uses, so this file stands alone. Generated from
+// registry/foundation/PieceMotion.swift in the SwiftPieces repo; edit it there, not here.
+// swiftpieces-motion: 1.1.0 (core)
+
+/// The SwiftPieces motion language: five spring tiers, and a named role for every moment a piece moves,
+/// each with its Reduce Motion substitute.
+///
+/// Build one from the environment, `PieceMotion(reduceMotion: reduceMotion)`, and pick the role that names
+/// what just happened. Never animate the tracking of a finger: set gesture state directly in `onChanged`, so the
+/// surface stays under the finger, and spring only the release.
+private struct PieceMotion {
+    var reduceMotion = false
+
+    // Tiers. Overshoot and settle times are measured from rest with SwiftUI's Spring.
+    /// No overshoot, 90% in about 90ms. A press arriving under the finger.
+    static var tight: Spring { Spring(duration: 0.14, bounce: 0) }
+    /// About 2.8% overshoot, 90% in about 140ms. Snapping to a detent, page or segment.
+    static var responsive: Spring { Spring(duration: 0.32, bounce: 0.25) }
+    /// About 8.4% overshoot. Visible give: a release, a return from past an edge, a drag settling home.
+    static var elastic: Spring { Spring(duration: 0.42, bounce: 0.38) }
+    /// About 15% overshoot. A resolved action landing. At most once per interaction.
+    static var expressive: Spring { Spring(duration: 0.48, bounce: 0.48) }
+    /// About 1.5% overshoot, unhurried. Opening large surfaces and ambient change.
+    static var calm: Spring { Spring(duration: 0.5, bounce: 0.2) }
+
+    /// Reduce Motion: settles become this short spring with no overshoot.
+    private static var still: Animation { .spring(duration: 0.25, bounce: 0) }
+
+    // Roles.
+    /// Touch-down. Starts on the same frame and never bounces under the finger.
+    var press: Animation { .spring(Self.tight) }
+    /// The finger lifts off a pressed surface, which springs back through rest.
+    var release: Animation { reduceMotion ? Self.still : .spring(Self.elastic) }
+    /// A dragged thing comes to rest. With a gesture's velocity, use `settle(velocity:from:to:)` instead.
+    var settle: Animation { reduceMotion ? Self.still : .spring(Self.elastic) }
+    /// Lands on a detent, page or segment.
+    var snap: Animation { reduceMotion ? Self.still : .spring(Self.responsive) }
+    /// A number, a chart value or anything else people read moves to its new value. Never overshoots, so it
+    /// never shows a value that isn't true.
+    var value: Animation { reduceMotion ? Self.still : .spring(duration: 0.35, bounce: 0) }
+    /// Comes back from past a limit: a pull beyond the edge, a value pushed against its bound.
+    var rebound: Animation { reduceMotion ? Self.still : .spring(Self.elastic) }
+    /// A shape or container changes size, corner radius or form, with a little give at the end.
+    var morph: Animation { reduceMotion ? Self.still : .spring(duration: 0.4, bounce: 0.2) }
+    /// Something appears, opens or expands. Opening is a little slower than closing.
+    var reveal: Animation { reduceMotion ? .easeOut(duration: 0.2) : .spring(Self.calm) }
+    /// Something leaves, closes or collapses. Quick and firm, out of the way.
+    var dismiss: Animation { reduceMotion ? .easeIn(duration: 0.18) : .spring(duration: 0.3, bounce: 0.08) }
+    /// A resolved action lands: a check, a sent state, a reaction.
+    var success: Animation { reduceMotion ? .easeOut(duration: 0.24) : .spring(Self.expressive) }
+    /// A refused action. Firm, no wobble; `pieceShake` adds the movement.
+    var error: Animation { reduceMotion ? .easeOut(duration: 0.2) : .spring(Self.responsive) }
+    /// Slow ambient change. Loops themselves stop under Reduce Motion: check `allowsAmbient`.
+    var ambient: Animation { reduceMotion ? .easeInOut(duration: 0.3) : .spring(Self.calm) }
+
+    /// Loops, drifts, idle breathing and parallax run only when this is true.
+    var allowsAmbient: Bool { !reduceMotion }
+
+    /// A moving transition, or a plain fade under Reduce Motion.
+    func transition(_ transition: AnyTransition) -> AnyTransition {
+        reduceMotion ? .opacity : transition
+    }
+
+    /// For content replaced inside a container that stays put (a label, a glyph, a count): the old content
+    /// blurs out as the new one sharpens in. A fade under Reduce Motion.
+    @MainActor var swap: AnyTransition {
+        reduceMotion ? .opacity : AnyTransition(.blurReplace)
+    }
+}
+
+// swiftpieces-motion: end
