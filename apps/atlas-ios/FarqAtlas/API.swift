@@ -1,5 +1,6 @@
 import Foundation
 import CoreLocation
+import CryptoKit
 
 // MARK: - Models (the same read-only resources the Atlas web map reads through /api/market)
 
@@ -17,6 +18,57 @@ struct DistrictShape: Identifiable {
     let name: String
     let areaKm2: Double?
     let polygons: [[[CLLocationCoordinate2D]]]
+    /// Outer rings simplified for drawing only (about 15 m tolerance); hit-testing keeps the full outline.
+    let drawRings: [[CLLocationCoordinate2D]]
+
+    init(id: String, name: String, areaKm2: Double?, polygons: [[[CLLocationCoordinate2D]]]) {
+        self.id = id
+        self.name = name
+        self.areaKm2 = areaKm2
+        self.polygons = polygons
+        self.drawRings = polygons.compactMap(\.first).map { Self.simplify($0, tolerance: 0.00015) }.filter { $0.count >= 3 }
+    }
+
+    /// Douglas–Peucker: drops points that sit within `tolerance` degrees of the line between their neighbours.
+    /// A closed ring (first point = last point) is split at its farthest point from the start and each half simplified,
+    /// because a segment from a point to itself measures every other point at distance zero and would erase the ring.
+    static func simplify(_ ring: [CLLocationCoordinate2D], tolerance: Double) -> [CLLocationCoordinate2D] {
+        guard ring.count > 4 else { return ring }
+        let first = ring[0], last = ring[ring.count - 1]
+        if abs(first.latitude - last.latitude) < 1e-12 && abs(first.longitude - last.longitude) < 1e-12 {
+            func gap(_ p: CLLocationCoordinate2D) -> Double {
+                let dx = p.longitude - first.longitude, dy = p.latitude - first.latitude
+                return dx * dx + dy * dy
+            }
+            let split = (1..<(ring.count - 1)).max { gap(ring[$0]) < gap(ring[$1]) } ?? ring.count / 2
+            let head = line(Array(ring[0...split]), tolerance: tolerance)
+            let tail = line(Array(ring[split...]), tolerance: tolerance)
+            return head + tail.dropFirst()
+        }
+        return line(ring, tolerance: tolerance)
+    }
+
+    /// Douglas–Peucker on an open line: keeps both ends and every point farther than `tolerance` from the chord.
+    private static func line(_ points: [CLLocationCoordinate2D], tolerance: Double) -> [CLLocationCoordinate2D] {
+        guard points.count > 2 else { return points }
+        var keep = [Bool](repeating: false, count: points.count)
+        keep[0] = true; keep[points.count - 1] = true
+        var stack = [(0, points.count - 1)]
+        while let (a, b) = stack.popLast() {
+            guard b > a + 1 else { continue }
+            let p = points[a], q = points[b]
+            let dx = q.longitude - p.longitude, dy = q.latitude - p.latitude
+            let length = max((dx * dx + dy * dy).squareRoot(), 1e-12)
+            var far = 0.0, index = a
+            for i in (a + 1)..<b {
+                let r = points[i]
+                let distance = abs(dy * (r.longitude - p.longitude) - dx * (r.latitude - p.latitude)) / length
+                if distance > far { far = distance; index = i }
+            }
+            if far > tolerance { keep[index] = true; stack.append((a, index)); stack.append((index, b)) }
+        }
+        return points.indices.filter { keep[$0] }.map { points[$0] }
+    }
 
     var center: CLLocationCoordinate2D {
         let ring = polygons.max(by: { ($0.first?.count ?? 0) < ($1.first?.count ?? 0) })?.first ?? []
@@ -197,12 +249,22 @@ final class AtlasAPI {
     let base = URL(string: "https://atlas.farq.sa/api/market/")!
     private let session: URLSession = {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 20
+        config.timeoutIntervalForRequest = 45
         config.requestCachePolicy = .reloadRevalidatingCacheData
         return URLSession(configuration: config)
     }()
 
-    private func data(_ resource: String, query: [URLQueryItem] = [], body: [String: Any]? = nil) async throws -> Data {
+    /// Every response is kept on the phone. A fresh copy (under `fresh` old) is served at once and refreshed quietly in
+    /// the background; with no network, the last copy is served whatever its age, so a weak connection never freezes a
+    /// screen. Data on the server changes at most daily.
+    private let fresh: TimeInterval = 6 * 3600
+    private let cacheDir: URL = {
+        let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("atlas-api", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
+    private func request(_ resource: String, query: [URLQueryItem], body: [String: Any]?) throws -> URLRequest {
         var components = URLComponents(url: base.appendingPathComponent(resource), resolvingAgainstBaseURL: false)!
         if !query.isEmpty { components.queryItems = query }
         var request = URLRequest(url: components.url!)
@@ -210,14 +272,42 @@ final class AtlasAPI {
         if let body {
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "content-type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            request.httpBody = try JSONSerialization.data(withJSONObject: body, options: .sortedKeys)
         }
+        return request
+    }
+
+    private func cacheFile(_ request: URLRequest) -> URL {
+        let key = (request.url?.absoluteString ?? "") + "|" + String(decoding: request.httpBody ?? Data(), as: UTF8.self)
+        let digest = SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
+        return cacheDir.appendingPathComponent(digest)
+    }
+
+    private func fetch(_ request: URLRequest, into file: URL) async throws -> Data {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let message = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? String
             throw APIError.server(message ?? "تعذر تحميل البيانات.")
         }
+        try? data.write(to: file, options: .atomic)
         return data
+    }
+
+    private func data(_ resource: String, query: [URLQueryItem] = [], body: [String: Any]? = nil) async throws -> Data {
+        let request = try request(resource, query: query, body: body)
+        let file = cacheFile(request)
+        let cached = try? Data(contentsOf: file)
+        let age = (try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate).map { Date().timeIntervalSince($0) }
+        if let cached, let age, age < fresh {
+            Task.detached(priority: .utility) { [self] in _ = try? await fetch(request, into: file) }
+            return cached
+        }
+        do {
+            return try await fetch(request, into: file)
+        } catch {
+            if let cached { return cached }
+            throw error
+        }
     }
 
     /// Cities with districts in the golden atlas, largest first (same filter as useCities on the web).
@@ -246,9 +336,11 @@ final class AtlasAPI {
         try await decode(GapTable.self, "market-gaps", ["city": city, "main_id": mainId, "limit": 200])
     }
 
-    func territories(city: String, count: Int, weight: String) async throws -> [Territory] {
+    func territories(city: String, count: Int, weight: String, mainId: String? = nil) async throws -> [Territory] {
         struct Envelope: Decodable { let territories: [Territory] }
-        return try await decode(Envelope.self, "territories", ["city": city, "count": count, "weight": weight]).territories
+        var body: [String: Any] = ["city": city, "count": count, "weight": weight]
+        if let mainId { body["main_id"] = mainId }
+        return try await decode(Envelope.self, "territories", body).territories
     }
 
     func around(_ point: CLLocationCoordinate2D, radius: Double) async throws -> Around {

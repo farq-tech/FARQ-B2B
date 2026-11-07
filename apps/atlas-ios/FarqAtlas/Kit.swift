@@ -26,63 +26,66 @@ enum Tokens {
 /// English digits everywhere, whatever the app's Arabic locale would pick (foundation §5).
 let englishNumber = FloatingPointFormatStyle<Double>.number.locale(Locale(identifier: "en_US")).precision(.fractionLength(0))
 
-// MARK: - Segments (SwiftPieces GlassSegments)
+// MARK: - Buttons
 
-struct FarqSegments<Value: Hashable>: View {
-    let options: [(Value, String)]
-    @Binding var selection: Value
-    var height: CGFloat = 40
+/// A press with no gesture of its own: it reads only the system's `isPressed`, so a tap inside a scrolling screen always
+/// reaches the action. (A drag gesture on every button swallowed taps in scroll views; see the improvement log.)
+struct FarqButtonStyle: SwiftUI.ButtonStyle {
+    enum Kind { case primary, secondary, press }
+    var kind: Kind
+    var compact = false
 
-    var body: some View {
-        GlassSegments(options: options.map(\.0), selection: $selection, height: height,
-                      style: GlassSegmentsStyle(ink: Tokens.mutedForeground, selectedInk: .white, indicatorTint: Palette.brand,
-                                                font: Typo.font(14, .semibold)),
-                      label: { value in options.first { $0.0 == value }?.1 ?? "" })
+    func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed
+        return Group {
+            switch kind {
+            case .press:
+                configuration.label
+            case .primary, .secondary:
+                configuration.label
+                    .font(Typo.font(compact ? 18 : 16, .bold))
+                    .foregroundStyle(kind == .primary ? Color.white : Tokens.primaryInk)
+                    .padding(.horizontal, compact ? 14 : 18)
+                    .frame(maxWidth: compact ? nil : .infinity, minHeight: compact ? 44 : 52)
+                    .background(kind == .primary ? AnyShapeStyle(Palette.brand) : AnyShapeStyle(Tokens.secondary),
+                                in: .rect(cornerRadius: Tokens.radius, style: .continuous))
+            }
+        }
+        .contentShape(.rect)
+        .scaleEffect(pressed ? 0.96 : 1)
+        .opacity(pressed && kind == .press ? 0.85 : 1)
+        .animation(.spring(response: 0.22, dampingFraction: 0.7), value: pressed)
+        .sensoryFeedback(.impact(weight: .light), trigger: pressed) { _, now in now }
     }
 }
 
-// MARK: - Switch (SwiftPieces LiquidSwitch)
-
-struct FarqSwitch: View {
-    let title: String
-    @Binding var isOn: Bool
-    var symbol: String? = nil
-
-    var body: some View {
-        LiquidSwitch(title, isOn: $isOn, symbol: symbol,
-                     style: LiquidSwitchStyle(onTint: Palette.brand, symbol: Palette.brand, label: Tokens.foreground, font: Typo.font(15, .semibold)))
-    }
+extension SwiftUI.ButtonStyle where Self == FarqButtonStyle {
+    /// The one primary action of a screen.
+    static var farqPrimary: FarqButtonStyle { FarqButtonStyle(kind: .primary) }
+    /// A quiet secondary action.
+    static var farqSecondary: FarqButtonStyle { FarqButtonStyle(kind: .secondary) }
+    /// Cards and rows: a soft squish and a haptic tick.
+    static var farqPress: FarqButtonStyle { FarqButtonStyle(kind: .press) }
+    /// A small square stepper button.
+    static func farqStep(primary: Bool) -> FarqButtonStyle { FarqButtonStyle(kind: primary ? .primary : .secondary, compact: true) }
 }
 
-// MARK: - Buttons (SwiftPieces ElasticButton)
+// MARK: - Numbers
 
-extension SwiftUI.ButtonStyle where Self == ElasticButton {
-    /// The one primary action: olive glass, white ink, squash-and-stretch with haptics.
-    static var farqPrimary: ElasticButton { .elastic(style: .init(fill: Palette.brand, ink: .white, radius: Tokens.radius, height: 50, padding: 18)) }
-    /// A quiet secondary action on the shadcn secondary surface.
-    static var farqSecondary: ElasticButton { .elastic(style: .init(fill: Tokens.secondary, ink: Tokens.primaryInk, radius: Tokens.radius, height: 50, padding: 18, depth: false)) }
-    /// Motion only, for cards and rows.
-    static var farqPress: ElasticButton { .elastic(squash: 0.97, bounce: 0.15) }
-}
-
-// MARK: - Numbers (SwiftPieces Odometer)
-
-/// A figure whose digits roll like a counter; «غير متاح» when missing.
+/// A figure in English digits; it rolls digit by digit only when its value changes, never on its own. «غير متاح» when missing.
 struct RollingFigure: View {
     let value: Double?
     var unit: String = ""
     var font: Font = Typo.figure
-    var showsDelta = false
 
     var body: some View {
         if let value, value.isFinite {
             HStack(spacing: 4) {
-                Odometer(value: value.rounded(), format: englishNumber, showsDelta: showsDelta,
-                         style: OdometerStyle(up: Palette.accent, down: Color(hex: 0xB3261E), ink: Tokens.foreground, muted: Tokens.mutedForeground))
-                    .font(font)
+                Text(Fmt.int(value)).font(font).monospacedDigit().foregroundStyle(Tokens.foreground)
+                    .contentTransition(.numericText(value: value))
+                    .animation(.snappy, value: value)
                 if !unit.isEmpty { Text(unit).font(Typo.font(14, .semibold)).foregroundStyle(Tokens.mutedForeground) }
             }
-            .environment(\.layoutDirection, .leftToRight)
         } else {
             Text(Fmt.unavailable).font(Typo.callout).foregroundStyle(Tokens.mutedForeground)
         }
@@ -128,37 +131,6 @@ struct FarqProgress: View {
     }
 }
 
-// MARK: - Lens steps (SwiftPieces StepTrail)
-
-struct FarqSteps: View {
-    let steps: [String]
-    @Binding var current: Int
-
-    var body: some View {
-        StepTrail(steps: steps, selection: $current, reached: steps.count - 1, showsCaption: false,
-                  messages: .init(label: "خطوات العدسة",
-                                  caption: { p, c in "الخطوة \(p) من \(c)" },
-                                  value: { p, c, t in "الخطوة \(p) من \(c)، \(t)" },
-                                  complete: "اكتملت",
-                                  goTo: { t in "انتقل إلى \(t)" }),
-                  style: .init(accent: Palette.brand, accentInk: .white, label: Tokens.foreground, secondaryLabel: Tokens.mutedForeground, height: 32))
-    }
-}
-
-// MARK: - Chips (SwiftPieces FilterRail)
-
-/// One choice out of a rail of chips, bound to a single value.
-struct FarqChips: View {
-    let options: [String]
-    @Binding var selection: String?
-
-    var body: some View {
-        FilterRail(options: options,
-                   selection: Binding(get: { selection.map { Set([$0]) } ?? [] }, set: { selection = $0.first }),
-                   style: .init(label: Tokens.foreground, secondaryLabel: Tokens.mutedForeground, indicator: Palette.brand, onIndicator: .white, chipHeight: 36))
-    }
-}
-
 // MARK: - Surfaces
 
 /// The shadcn card: white, a hairline border, 13pt radius, a whisper of shadow.
@@ -177,11 +149,8 @@ struct ShadCard: ViewModifier {
     }
 }
 
-/// Farq's page wash: warm stone with a field of hex dots that slowly breathes (the web's .atlas-dots).
+/// Farq's page wash: warm stone with a still field of hex dots (the web's .atlas-dots), drawn once.
 struct FarqWash: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var breathe = false
-
     var body: some View {
         ZStack {
             Tokens.background
@@ -191,20 +160,15 @@ struct FarqWash: View {
                 while y < size.height {
                     var x: CGFloat = odd ? cell / 2 : 0
                     while x < size.width {
-                        context.fill(Path(ellipseIn: CGRect(x: x - 1, y: y - 1, width: 2, height: 2)), with: .color(Color(hex: 0x9C8F7B).opacity(0.5)))
+                        context.fill(Path(ellipseIn: CGRect(x: x - 1, y: y - 1, width: 2, height: 2)), with: .color(Color(hex: 0x9C8F7B).opacity(0.35)))
                         x += cell
                     }
                     y += row; odd.toggle()
                 }
             }
-            .opacity(breathe ? 0.55 : 0.3)
-            .scaleEffect(breathe ? 1.02 : 1, anchor: .center)
+            .drawingGroup()
         }
         .ignoresSafeArea()
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 5.2).repeatForever(autoreverses: true)) { breathe = true }
-        }
     }
 }
 
