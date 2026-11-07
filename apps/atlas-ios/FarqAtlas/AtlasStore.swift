@@ -2,25 +2,16 @@ import SwiftUI
 import MapKit
 import Observation
 
-/// A site the owner pinned, kept for side-by-side comparison in this session.
-struct Site: Identifiable, Hashable {
-    let id = UUID()
-    let coordinate: CLLocationCoordinate2D
-    let radius: Double
-    let population: Double?
-    let businesses: Double?
-    var residentsPer: Double? {
-        guard let population, let businesses, businesses > 0 else { return nil }
-        return population / businesses
-    }
-    static func == (a: Site, b: Site) -> Bool { a.id == b.id }
-    func hash(into hasher: inout Hasher) { hasher.combine(id) }
-}
-
+/// Where a flow screen leads (docs/atlas-ios-flows.md). Each flow is at most three screens.
 enum Route: Hashable {
-    case cities, search, ranking, compare, sites, listing(Listing)
+    case ownerActivity, ownerDistricts, ownerDistrict(String)
+    case marketerAudience, marketerDistricts, marketerDistrict(String)
+    case distributorSetup, distributorRegions, distributorRegion(Int)
+    case analystTable, compare
+    case realEstateKind, realEstateDeals, listing(Listing)
 }
 
+/// The data of one city and the choices made inside the flows. No layout state lives here.
 @MainActor
 @Observable
 final class AtlasStore {
@@ -29,73 +20,62 @@ final class AtlasStore {
     var city: City = City(en: "Riyadh", ar: "الرياض", districts: nil)
     var shapes: [DistrictShape] = []
     var summary: CitySummary?
-
-    // lens
-    var lens: Lens = .owners
-    var metric: Metric = .shortfall
-    var activity: Activity?
+    var loading = false
+    var error: String?
 
     // layers, keyed by the district's canonical Arabic name
     var counts: [String: DistrictCounts] = [:]
-    var activityCounts: [String: DistrictCounts] = [:]
-    var gaps: [String: Gap] = [:]
-    var gapRate: Double?
     var audience: [String: Audience] = [:]
     var income: [String: Income] = [:]
     var housing: [String: Housing] = [:]
     var growth: [String: Growth] = [:]
 
-    // selection
-    var selected: DistrictShape?
-    var compare: [DistrictShape] = []
+    // the chosen activity (owners, distributors)
+    var activity: Activity?
+    var activityCounts: [String: DistrictCounts] = [:]
+    var gaps: [String: Gap] = [:]
+    var activityLoading = false
 
-    // owners: pin and range
-    var pinMode = false
+    // owners: the exact spot
     var pin: CLLocationCoordinate2D?
-    var radius: Double = 1000
     var around: Around?
     var aroundLoading = false
-    var sites: [Site] = []
+    let radius: Double = 1000
 
-    // marketers: audience filters
+    // marketers
     var segment: Segment = .everyone
-    var minSaudi: Double = 0
     var minIncome: Double = 0
 
-    // distributors: territories
-    var showTerritories = false
-    var territoryCount = 5
-    var territoryWeight = "population"
+    // distributors
+    var repCount = 5
     var territories: [Territory] = []
     var territoryOf: [String: Int] = [:]
+    var territoriesLoading = false
+
+    // analysts and every «قارن مع حي آخر»
+    var compare: [String] = []
 
     // real estate
     var listingKind = "rent"
-    /// Only the opportunities: priced 10%–30% under their district median (past 30% is more often a typo than a bargain),
-    /// so the lens answers «أي عرض يناسبني» without the person filtering thousands of ads.
     static let opportunityRange: ClosedRange<Double> = -30 ... -10
     static let opportunityCount = 40
     var listings: [Listing] = []
     var listingsLoading = false
 
-    // panel
     var path = NavigationPath()
-    var detent: PresentationDetent = .fraction(0.32)
-    var loading = false
-    var error: String?
+
+    /// Bumped whenever a layer changes, so the map redraws only then (AtlasMap compares it).
+    private(set) var dataVersion = 0
 
     private let api = AtlasAPI.shared
     private var loadToken = UUID()
 
-    // MARK: values
+    // MARK: lookups
 
-    /// The current metric for every district; missing figures are absent (→ «غير متاح»).
-    func values(_ metric: Metric) -> [String: Double] {
-        var out: [String: Double] = [:]
-        for shape in shapes {
-            if let v = value(metric, shape.name) { out[shape.name] = v }
-        }
-        return out
+    func shape(named name: String) -> DistrictShape? { shapes.first { $0.name == name } }
+
+    func district(at coordinate: CLLocationCoordinate2D) -> DistrictShape? {
+        shapes.first { $0.contains(coordinate) }
     }
 
     func value(_ metric: Metric, _ name: String) -> Double? {
@@ -119,9 +99,25 @@ final class AtlasStore {
         }
     }
 
-    /// Segment size of a district if it passes the filters; nil when it does not or a needed figure is unmeasured.
+    func values(_ metric: Metric) -> [String: Double] {
+        var out: [String: Double] = [:]
+        for shape in shapes { if let v = value(metric, shape.name) { out[shape.name] = v } }
+        return out
+    }
+
+    /// The districts ranked by a metric, highest first; districts without the figure are left out.
+    func ranked(_ metric: Metric, ascending: Bool = false) -> [(shape: DistrictShape, value: Double)] {
+        shapes.compactMap { shape in value(metric, shape.name).map { (shape, $0) } }
+            .sorted { ascending ? $0.value < $1.value : $0.value > $1.value }
+    }
+
+    /// Score out of 100 within the city for a district on a metric.
+    func score(_ metric: Metric, _ name: String) -> Double? {
+        Quintiles.score(value(metric, name), among: Array(values(metric).values))
+    }
+
+    /// Segment size of a district if it passes the income bar; nil when it does not or a needed figure is unmeasured.
     func audienceSize(_ name: String) -> Double? {
-        if minSaudi > 0 { guard let pct = audience[name]?.saudi_pct, pct >= minSaudi else { return nil } }
         if minIncome > 0 { guard let pay = income[name]?.income_all, pay >= minIncome else { return nil } }
         switch segment {
         case .everyone: return counts[name]?.population
@@ -140,32 +136,13 @@ final class AtlasStore {
     var hasAudience: Bool { !audience.isEmpty }
     var hasIncome: Bool { !income.isEmpty }
 
-    // MARK: lens journey
-
-    /// Where the person is in the active lens's numbered steps, read from what they have done so far.
-    var lensStep: Int {
-        switch lens {
-        case .owners: return !sites.isEmpty ? 2 : pin != nil ? 1 : 0
-        case .marketers: return selected != nil ? 1 : 0
-        case .distributors: return metric == .underConstruction ? 1 : 0
-        case .analysts: return compare.count >= 2 ? 1 : 0
-        case .realEstate: return selected != nil ? 1 : 0
-        }
-    }
-
-    /// A tap on a step takes the person to that step's tool.
-    func goTo(step: Int) {
-        switch (lens, step) {
-        case (.owners, 0): pin = nil; around = nil; pinMode = false
-        case (.owners, 1): pinMode = true; detent = .medium
-        case (.owners, 2): if !sites.isEmpty { path.append(Route.sites); detent = .large }
-        case (.distributors, 0): metric = .activityBusinesses
-        case (.distributors, 1): metric = .underConstruction
-        case (.analysts, 0): path.append(Route.ranking); detent = .large
-        case (.analysts, 1): if compare.count >= 2 { path.append(Route.compare); detent = .large }
-        case (_, 0): selected = nil
-        default: break
-        }
+    /// The city map's fill for a metric: the city quintile of each district, grey when the figure is unavailable.
+    func fills(_ metric: Metric) -> [String: Color] {
+        let values = values(metric)
+        let quintiles = Quintiles(Array(values.values))
+        var out: [String: Color] = [:]
+        for shape in shapes { if let bin = quintiles.bin(values[shape.name]) { out[shape.id] = Palette.ramp[bin] } }
+        return out
     }
 
     // MARK: lifecycle
@@ -176,53 +153,12 @@ final class AtlasStore {
             if let match = rows.first(where: { $0.en == city.en }) { city = match }
         }
         await load()
-        #if DEBUG
-        let args = ProcessInfo.processInfo.arguments
-        if let i = args.firstIndex(of: "-lens"), i + 1 < args.count, let lens = Lens(rawValue: args[i + 1]) { choose(lens: lens) }
-        if let i = args.firstIndex(of: "-district"), i + 1 < args.count, let shape = shapes.first(where: { $0.name == args[i + 1] }) { select(shape) }
-        if args.contains("-pin"), let center = cityRegion?.center { await place(pin: center) }
-        if args.contains("-territories") { showTerritories = true; await loadTerritories() }
-        if args.contains("-large") { detent = .large }
-        if args.contains("-listing") { await loadListings(); if let first = listings.first { path.append(Route.listing(first)); detent = .large } }
-        if args.contains("-compare") { compare = Array(shapes.sorted { $0.name < $1.name }.prefix(3)); path.append(Route.compare); detent = .large }
-        #endif
     }
 
     func choose(city: City) async {
         guard city != self.city else { return }
         self.city = city
-        selected = nil
-        compare = []
-        pin = nil
-        around = nil
-        sites = []
         await load()
-    }
-
-    func choose(lens: Lens) {
-        self.lens = lens
-        if !lens.metrics.contains(metric) { metric = lens.metrics[0] }
-        pinMode = false
-        Task {
-            if lens == .realEstate && listings.isEmpty { await loadListings() }
-            if lens == .distributors && showTerritories && territories.isEmpty { await loadTerritories() }
-        }
-    }
-
-    func choose(activity: Activity) async {
-        self.activity = activity
-        await loadActivity()
-        if showTerritories && territoryWeight == "businesses" { await loadTerritories() }
-    }
-
-    func select(_ shape: DistrictShape?) {
-        selected = shape
-        if shape != nil { detent = .medium }
-    }
-
-    func toggleCompare(_ shape: DistrictShape) {
-        if let i = compare.firstIndex(where: { $0.id == shape.id }) { compare.remove(at: i) }
-        else if compare.count < 4 { compare.append(shape) }
     }
 
     func load() async {
@@ -230,9 +166,9 @@ final class AtlasStore {
         loadToken = token
         loading = true
         error = nil
-        shapes = []; counts = [:]; summary = nil
-        activityCounts = [:]; gaps = [:]; audience = [:]; income = [:]; housing = [:]; growth = [:]
-        territories = []; territoryOf = [:]; listings = []
+        shapes = []; counts = [:]; summary = nil; audience = [:]; income = [:]; housing = [:]; growth = [:]
+        activityCounts = [:]; gaps = [:]; territories = []; territoryOf = [:]; listings = []
+        compare = []; pin = nil; around = nil
         let name = city.en
         do {
             async let shapes = api.districts(city: name)
@@ -248,83 +184,83 @@ final class AtlasStore {
             return
         }
         loading = false
+        dataVersion += 1
 
-        // the rest fills in as it arrives; each layer that fails simply stays «غير متاح»
+        // the rest fills in as it arrives; a layer that fails simply stays «غير متاح»
         async let summary = try? api.summary(city: name)
         async let audience = try? api.audience(city: name)
         async let income = try? api.income(city: name)
         async let housing = try? api.housing(city: name)
         async let growth = try? api.growth(city: name)
-        let sum = await summary
+        let (sum, a, i, h, g) = await (summary, audience, income, housing, growth)
         guard token == loadToken else { return }
         self.summary = sum
-        if activity == nil || !(sum?.main_activities ?? []).contains(activity!) { activity = sum?.main_activities?.first }
-        async let activityLoad: Void = loadActivity()
-        let (a, i, h, g) = await (audience, income, housing, growth)
-        guard token == loadToken else { return }
         self.audience = Self.index(a ?? [], \.district_ar)
         self.income = Self.index(i ?? [], \.district_ar)
         self.housing = Self.index(h ?? [], \.district_ar)
         self.growth = Self.index(g ?? [], \.district_ar)
-        await activityLoad
-        if lens == .realEstate { await loadListings() }
-        if lens == .distributors && showTerritories { await loadTerritories() }
+        if let activity, !(sum?.main_activities ?? []).contains(activity) { self.activity = nil }
+        dataVersion += 1
     }
 
-    func loadActivity() async {
-        guard let id = activity?.main_id else { activityCounts = [:]; gaps = [:]; return }
+    func choose(activity: Activity) async {
+        self.activity = activity
+        guard let id = activity.main_id else { return }
+        activityLoading = true
         let name = city.en
         async let counts = try? api.counts(city: name, mainId: id)
         async let gaps = try? api.gaps(city: name, mainId: id)
         let (c, g) = await (counts, gaps)
-        guard name == city.en, id == activity?.main_id else { return }
+        guard name == city.en, id == self.activity?.main_id else { return }
         activityCounts = Self.index(c ?? [], \.district_ar)
         self.gaps = Self.index(g?.districts ?? [], \.district_ar)
-        gapRate = g?.residents_per_business
+        activityLoading = false
+        dataVersion += 1
     }
 
     func loadTerritories() async {
-        var body = (city: city.en, count: territoryCount, weight: territoryWeight)
-        if territoryWeight == "businesses" && activity?.main_id == nil { body.weight = "population" }
-        let rows: [Territory]
-        do { rows = try await api.territories(city: body.city, count: body.count, weight: body.weight) }
-        catch { return }
-        guard body.city == city.en else { return }
-        territories = rows
+        territoriesLoading = true
+        let name = city.en, count = repCount, id = activity?.main_id
+        let rows = try? await api.territories(city: name, count: count, weight: id == nil ? "population" : "businesses", mainId: id)
+        guard name == city.en, count == repCount else { return }
+        territories = rows ?? []
         var map: [String: Int] = [:]
-        for t in rows { for d in t.districts { map[d.district_ar] = t.territory } }
+        for t in territories { for d in t.districts { map[d.district_ar] = t.territory } }
         territoryOf = map
+        territoriesLoading = false
+        dataVersion += 1
     }
 
     func loadListings() async {
         listingsLoading = true
-        let name = city.en
-        let result = try? await api.listings(city: name, kind: listingKind, types: nil, maxPrice: nil, limit: 400)
-        guard name == city.en else { return }
+        let name = city.en, kind = listingKind
+        let result = try? await api.listings(city: name, kind: kind, types: nil, maxPrice: nil, limit: 400)
+        guard name == city.en, kind == listingKind else { return }
         // the server sends the best value first; keep the believable bargains only
         listings = Array((result?.rows ?? []).filter { row in
             row.check != true && row.vs_district_pct.map { Self.opportunityRange.contains($0) } == true
         }.prefix(Self.opportunityCount))
         listingsLoading = false
+        dataVersion += 1
     }
 
     func place(pin coordinate: CLLocationCoordinate2D) async {
         pin = coordinate
         around = nil
         aroundLoading = true
-        detent = .medium
-        around = try? await api.around(coordinate, radius: radius)
+        let result = try? await api.around(coordinate, radius: radius)
+        guard pin?.latitude == coordinate.latitude, pin?.longitude == coordinate.longitude else { return }
+        around = result
         aroundLoading = false
     }
 
-    func saveSite() {
-        guard let pin, let around else { return }
-        sites.append(Site(coordinate: pin, radius: radius, population: around.population, businesses: around.businesses))
-        if sites.count > 4 { sites.removeFirst() }
-    }
-
-    func district(at coordinate: CLLocationCoordinate2D) -> DistrictShape? {
-        shapes.first { $0.contains(coordinate) }
+    /// Adds a district to the comparison (up to four) and says whether it is now there.
+    @discardableResult
+    func addToCompare(_ name: String) -> Bool {
+        if compare.contains(name) { return true }
+        guard compare.count < 4 else { return false }
+        compare.append(name)
+        return true
     }
 
     private static func index<T>(_ rows: [T], _ key: KeyPath<T, String>) -> [String: T] {
@@ -339,7 +275,7 @@ final class AtlasStore {
         let midLat = centers.map(\.latitude).sorted()[centers.count / 2]
         let midLon = centers.map(\.longitude).sorted()[centers.count / 2]
         let core = shapes.filter { abs($0.center.latitude - midLat) < 1 && abs($0.center.longitude - midLon) < 1 }
-        let points = core.flatMap { $0.polygons.compactMap(\.first).flatMap { $0 } }
+        let points = core.flatMap { $0.drawRings.flatMap { $0 } }
         guard points.count > 2 else { return nil }
         func range(_ values: [Double]) -> (Double, Double) {
             let sorted = values.sorted()
@@ -347,8 +283,18 @@ final class AtlasStore {
         }
         let (minLat, maxLat) = range(points.map(\.latitude))
         let (minLon, maxLon) = range(points.map(\.longitude))
-        return MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2 - (maxLat - minLat) * 0.18, longitude: (minLon + maxLon) / 2),
-            span: MKCoordinateSpan(latitudeDelta: (maxLat - minLat) * 1.7, longitudeDelta: (maxLon - minLon) * 1.15))
+        return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2),
+                                  span: MKCoordinateSpan(latitudeDelta: (maxLat - minLat) * 1.08, longitudeDelta: (maxLon - minLon) * 1.08))
+    }
+
+    /// A camera around one district.
+    func region(of shape: DistrictShape) -> MKCoordinateRegion {
+        let points = shape.drawRings.flatMap { $0 }
+        let lats = points.map(\.latitude), lons = points.map(\.longitude)
+        guard let minLat = lats.min(), let maxLat = lats.max(), let minLon = lons.min(), let maxLon = lons.max() else {
+            return MKCoordinateRegion(center: shape.center, latitudinalMeters: 3000, longitudinalMeters: 3000)
+        }
+        return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2),
+                                  span: MKCoordinateSpan(latitudeDelta: max(0.01, (maxLat - minLat) * 1.6), longitudeDelta: max(0.01, (maxLon - minLon) * 1.6)))
     }
 }

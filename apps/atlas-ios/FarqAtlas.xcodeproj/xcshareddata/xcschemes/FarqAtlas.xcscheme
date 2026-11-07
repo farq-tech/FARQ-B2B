@@ -50,6 +50,17 @@
                ReferencedContainer = "container:FarqAtlas.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "8456C575D1478D2C2CB3660C"
+               BuildableName = "FarqAtlasUITests.xctest"
+               BlueprintName = "FarqAtlasUITests"
+               ReferencedContainer = "container:FarqAtlas.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

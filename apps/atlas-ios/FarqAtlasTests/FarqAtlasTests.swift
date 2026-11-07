@@ -44,4 +44,16 @@ final class FarqAtlasTests: XCTestCase {
         XCTAssertFalse(shapes[0].contains(CLLocationCoordinate2D(latitude: 24.5, longitude: 48.5)))
         XCTAssertTrue(shapes[1].contains(CLLocationCoordinate2D(latitude: 24.5, longitude: 48.5)))
     }
+
+    /// A closed outline must survive simplification: it keeps its corners and drops only points on a straight edge.
+    func testSimplifyKeepsClosedRings() {
+        func c(_ lat: Double, _ lon: Double) -> CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: lat, longitude: lon) }
+        // a square with extra points along each edge, closed back on its first point
+        let ring = [c(24, 46), c(24, 46.5), c(24, 47), c(24.5, 47), c(25, 47), c(25, 46.5), c(25, 46), c(24.5, 46), c(24, 46)]
+        let simple = DistrictShape.simplify(ring, tolerance: 0.001)
+        XCTAssertEqual(simple.count, 5, "a square keeps its 4 corners plus the closing point")
+        let shape = DistrictShape(id: "1", name: "x", areaKm2: nil, polygons: [[ring]])
+        XCTAssertEqual(shape.drawRings.count, 1, "the ring must not vanish")
+        XCTAssertGreaterThanOrEqual(shape.drawRings[0].count, 4)
+    }
 }

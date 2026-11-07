@@ -17,7 +17,7 @@ struct FarqAtlasApp: App {
 
     var body: some Scene {
         WindowGroup {
-            MapScreen()
+            RootView()
                 .environment(store)
                 .environment(\.layoutDirection, .rightToLeft)
                 .environment(\.locale, Locale(identifier: "ar@numbers=latn"))

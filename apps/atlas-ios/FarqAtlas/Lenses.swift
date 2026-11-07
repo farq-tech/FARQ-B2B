@@ -76,65 +76,10 @@ enum Metric: String, CaseIterable, Identifiable {
     }
 }
 
-/// One lens per audience (docs/atlas-product-foundation.md §4): numbered steps in decision order and three map metrics.
-enum Lens: String, CaseIterable, Identifiable {
-    case owners, marketers, distributors, analysts, realEstate
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .owners: return "المتاجر"
-        case .marketers: return "المسوّقون"
-        case .distributors: return "الموزّعون"
-        case .analysts: return "المحلّلون"
-        case .realEstate: return "العقار"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .owners: return "storefront.fill"
-        case .marketers: return "megaphone.fill"
-        case .distributors: return "shippingbox.fill"
-        case .analysts: return "chart.bar.xaxis"
-        case .realEstate: return "house.fill"
-        }
-    }
-
-    var question: String {
-        switch self {
-        case .owners: return "أين أفتح فرعي التالي؟"
-        case .marketers: return "أين أركّز ميزانيتي، وعلى مَن؟"
-        case .distributors: return "كيف أغطي مدينتي بكفاءة؟"
-        case .analysts: return "أرقام موثوقة قابلة للمقارنة"
-        case .realEstate: return "أي عرض يناسبني، وفي أي حي؟"
-        }
-    }
-
-    var steps: [String] {
-        switch self {
-        case .owners: return ["أين ينقص نشاطي؟", "المنافسون", "قارن المواقع"]
-        case .marketers: return ["أين جمهوري؟", "منشآت الأحياء"]
-        case .distributors: return ["المناطق", "أين يُبنى الآن؟"]
-        case .analysts: return ["الأحياء والترتيب", "قارن الأحياء"]
-        case .realEstate: return ["اختر عقاراً", "تعرّف على الحي"]
-        }
-    }
-
-    var metrics: [Metric] {
-        switch self {
-        case .owners: return [.shortfall, .activityResidentsPer, .activityPerKm2]
-        case .marketers: return [.audience, .density, .whatsapp]
-        case .distributors: return [.activityBusinesses, .wholesale, .underConstruction]
-        case .analysts: return [.population, .density, .businesses, .residentsPerBusiness, .whatsapp, .wholesale,
-                                .saudiPct, .malePct, .income, .villaShare, .underConstruction]
-        case .realEstate: return [.population, .density, .income]
-        }
-    }
-
-    /// Whether the lens needs an activity chosen.
-    var usesActivity: Bool { self == .owners || self == .distributors }
+/// The figures an analyst can rank and colour the city by.
+enum Lens {
+    static let analystMetrics: [Metric] = [.population, .density, .businesses, .residentsPerBusiness, .whatsapp, .wholesale,
+                                           .saudiPct, .malePct, .income, .villaShare, .underConstruction]
 }
 
 /// The audience segment a marketer targets. Sex and nationality are measured separately, so they are never multiplied.
