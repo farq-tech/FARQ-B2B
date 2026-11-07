@@ -69,6 +69,19 @@ targets:
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/FarqAtlas.app/FarqAtlas"
         BUNDLE_LOADER: "$(TEST_HOST)"
         GENERATE_INFOPLIST_FILE: YES
+  FarqAtlasUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: FarqAtlasUITests
+    dependencies:
+      - target: FarqAtlas
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: sa.farq.atlas.uitests
+        PRODUCT_NAME: FarqAtlasUITests
+        TEST_TARGET_NAME: FarqAtlas
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   FarqAtlas:
     build:
@@ -77,3 +90,4 @@ schemes:
     test:
       targets:
         - FarqAtlasTests
+        - FarqAtlasUITests
