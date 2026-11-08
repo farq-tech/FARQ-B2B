@@ -452,6 +452,8 @@ class MarketAnalytics:
         self._taxonomy_lock = threading.Lock()
         self._specialty_column = None
         self._specialty_column_lock = threading.Lock()
+        self._named_specialty_counts = collections.OrderedDict()
+        self._named_specialty_counts_lock = threading.Lock()
 
     @property
     def db(self):
@@ -583,8 +585,13 @@ class MarketAnalytics:
         # a typed specialty («حجامة») counts its own businesses, not its whole parent trades (owner 2026-11-03: accuracy
         # first); the same rule as directory search (taxonomy_search.search): the specialty tag, or the specialty in the name
         named_specs = []
-        if q and not specialty_ids and understood and understood.get("anchor") == "specialty" and objective != "marketing":
-            named_specs = [sid for sid in (understood.get("specialties") or []) if self._tx().specs.get(sid, {}).get("sub_id") in set(subs or [])]
+        if q and not specialty_ids and understood and objective != "marketing":
+            candidates = [sid for sid in (understood.get("specialties") or []) if self._tx().specs.get(sid, {}).get("sub_id") in set(subs or [])]
+            # Directory search also keeps specialties that refine a broader family reading (for example «مساج»
+            # resolves to family + the massage specialty). Once at least SPECIALTY_ENOUGH exact businesses exist,
+            # it drops the parent-trade fallback. Make every aggregate use that same city-scoped decision.
+            if candidates and self._named_specialty_count(city, subs, candidates) >= taxonomy_search.SPECIALTY_ENOUGH:
+                named_specs = candidates
         specialty_available = not specialty_ids or self._has_specialty_column()
         clauses = [
             self.tiles.search_sql,
@@ -634,6 +641,48 @@ class MarketAnalytics:
             if terms:
                 params.append(terms)
         return city, subs, " and ".join(clauses), params, specialty_available, bounds
+
+    def _named_specialty_count(self, city, subs, specialty_ids):
+        """Count exact tagged or named matches with the same city, trade and open-record scope as directory search."""
+        key = (city, tuple(subs), tuple(specialty_ids))
+        with self._named_specialty_counts_lock:
+            if key in self._named_specialty_counts:
+                self._named_specialty_counts.move_to_end(key)
+                return self._named_specialty_counts[key]
+        terms = self._tx().specialty_name_terms(specialty_ids)
+        patterns = type(self._tx()).name_patterns(terms) if terms else []
+        folded = ("' ' || regexp_replace(translate(lower(regexp_replace(concat_ws(' ', p.name_ar, p.name_en), "
+                  "'[ً-ْـ]', '', 'g')), 'أإآةىؤئ', 'اااهيوي'), "
+                  "'[^a-z0-9ء-ي]+', ' ', 'g') || ' '")
+        matches = []
+        if self._has_specialty_column():
+            matches.append("list_has_any(string_split(coalesce(p.specialty_ids, ''), '|'), ?::varchar[])")
+        if patterns:
+            matches.append(f"exists (select 1 from unnest(?::varchar[]) w(t) where regexp_matches({folded}, t))")
+        if not matches:
+            return 0
+        query = f"""
+            select count(distinct p.poi_key)
+            from read_parquet(?) p join read_parquet(?) c using (poi_key)
+            where {self.tiles.search_sql} and p.city_en = ?
+              and coalesce(nullif(p.name_ar, ''), p.name_en) is not null
+              and c.confidence in ('high', 'medium') and c.sub_id in (select unnest(?::varchar[]))
+              and ({' or '.join(matches)})
+        """
+        # Query parameters follow placeholder order in SQL, which starts with data, taxonomy, city and subcategories.
+        params = [self.data, taxonomy_path(), city, subs]
+        if self._has_specialty_column():
+            params.append(specialty_ids)
+        if patterns:
+            params.append(patterns)
+        with self.lock:
+            count = int(self.db.execute(query, params).fetchone()[0] or 0)
+        with self._named_specialty_counts_lock:
+            self._named_specialty_counts[key] = count
+            self._named_specialty_counts.move_to_end(key)
+            if len(self._named_specialty_counts) > 256:
+                self._named_specialty_counts.popitem(last=False)
+        return count
 
     def competitors_within(self, body, geometry, centre=None, limit=8):
         """The chosen activity's businesses inside a range (site_card): their count, per km² of the range, and the

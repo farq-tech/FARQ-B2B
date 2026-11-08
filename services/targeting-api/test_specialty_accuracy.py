@@ -32,6 +32,8 @@ PLACES = [
     ('c2', 'مجمع العيادات الطبية', None, 'health.clinic', ''),
     ('s1', 'سبا الراحة', None, 'beauty.spa_massage', ''),
     ('s2', 'نادي المساج', None, 'beauty.spa_massage', ''),
+    ('m1', 'مركز مساج علاجي', None, 'beauty.spa_massage', ''),
+    ('m2', 'مساج واسترخاء', None, 'beauty.spa_massage', ''),
 ]
 
 
@@ -93,6 +95,11 @@ class DirectorySearchTests(unittest.TestCase):
         self.assertEqual(result['total'], 5)
         self.assertTrue(all(row['match_level'] == 'specialty' for row in result['rows']))
 
+    def test_massage_family_query_narrows_when_enough_exact_specialties_exist(self):
+        result = self.tx.search(duckdb.connect(), str(self.targets), 'مساج', 'Riyadh', 'purchase')
+        self.assertEqual(sorted(row['poi_key'] for row in result['rows']), ['m1', 'm2', 's2'])
+        self.assertEqual(result['total'], 3)
+
 
 class MapCountTests(unittest.TestCase):
     def setUp(self):
@@ -116,6 +123,10 @@ class MapCountTests(unittest.TestCase):
     def test_hijama_counts_only_hijama_businesses(self):
         result = self.analytics.district_counts({'city': 'Riyadh', 'q': 'حجامة'})
         self.assertEqual(result['total'], 5, 'tagged or named hijama, not every clinic and spa')
+
+    def test_massage_count_matches_directory_specialty_narrowing(self):
+        result = self.analytics.district_counts({'city': 'Riyadh', 'q': 'مساج'})
+        self.assertEqual(result['total'], 3, 'same exact specialty matches as directory search')
 
     def test_a_trade_query_still_counts_the_whole_trade(self):
         result = self.analytics.district_counts({'city': 'Riyadh', 'sub_ids': ['health.clinic']})
