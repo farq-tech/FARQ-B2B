@@ -197,6 +197,7 @@ try {
     const massageRequest = asked.find((item) => item.path === '/api/market/district-counts' && item.body?.q === 'مساج')
     check(massageRequest != null && !Object.hasOwn(massageRequest.body, 'objective'), 'marketers: the exact specialty reaches the taxonomy resolver unchanged as «مساج»')
     check((await text(page)).includes('سبا ومساج') && (await text(page)).includes('340 منشأة'), 'marketers: a typed specialty shows the taxonomy interpretation and its measured count')
+    check(!(await text(page)).includes('أعلى حي لجمهورك (نساء)'), 'marketers: a remembered people segment never labels a business count')
     await panel(page).getByRole('button', { name: 'أستهدف أفراداً' }).click(); await settle(page, 800)
     const peek = await page.locator('[aria-label^="اللوحة"]').first().innerText()
     check(/حجم الجمهور|اختر جمهورك|جارٍ حساب/.test(peek), 'phone: the peeking sheet says the step\'s answer or what to do')

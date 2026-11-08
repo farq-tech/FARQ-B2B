@@ -18,7 +18,7 @@ import { trackDecisionMoment } from '@/lib/commercial-metrics'
 import { PALETTE } from '@/lib/palette'
 import { stickyHas, useStickyState, useStudiedActivity, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
-import { audienceMissing, audienceSummary, audienceVerdict, audienceWhere } from './tool-answers'
+import { audienceMissing, audienceSegmentLabel, audienceSummary, audienceVerdict, audienceWhere } from './tool-answers'
 import { Verdict } from './verdict'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
@@ -76,7 +76,9 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
   const [activityQuery, setActivityQuery] = useState(() => stickyHas('activity') && !studied.main_id ? studied.q ?? '' : '')
   // the marketer's decision moment (foundation §7): the filters changed, said by which are on (names, never values);
   // the filters as they open (a first look, a link) are not a change
-  const filtersOn = [mode === 'businesses' ? 'businesses' : null, sex !== 'all' ? 'sex' : null, nationality !== 'all' ? 'nationality' : null, minIncome > 0 ? 'income' : null, mode === 'businesses' && (mainId || activityQuery) ? 'activity' : null].filter((item): item is string => item != null)
+  const filtersOn = [mode === 'businesses' ? 'businesses' : null, mode === 'people' && sex !== 'all' ? 'sex' : null,
+    mode === 'people' && nationality !== 'all' ? 'nationality' : null, mode === 'people' && minIncome > 0 ? 'income' : null,
+    mode === 'businesses' && (mainId || activityQuery) ? 'activity' : null].filter((item): item is string => item != null)
   const filtersKey = filtersOn.join(',')
   const firstFilters = useRef(filtersKey)
   useEffect(() => {
@@ -187,7 +189,9 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
     const ids = new Set(selectedKey ? selectedKey.split('|') : [])
     const answerRows = mode === 'people' ? audienceScored : scored
     const list = ids.size ? answerRows.filter((item) => ids.has(item.row.id)) : answerRows
-    const segment = both ? (ranked === 'sex' ? SEX_WORD[sex] : NATIONALITY_WORD[nationality]) : ''
+    const segment = mode === 'people' && ranked !== 'none'
+      ? (ranked === 'sex' ? SEX_WORD[sex as Exclude<Sex, 'all'>] : NATIONALITY_WORD[nationality as Exclude<Nationality, 'all'>])
+      : ''
     const summary = pending ? null
       : audienceSummary({ selected: ids.size, scope: ids.size || rows.length, segment, sizes: list.map((item) => item.size), unit: mode === 'people' ? 'شخص' : 'منشأة', top: scored[0]?.row.name ?? null,
         ...(mode === 'businesses' ? { cityTotal: cityCount?.total ?? null } : {}) })
@@ -219,7 +223,8 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
   const segments = both ? 'both' : sex !== 'all' || nationality !== 'all' ? 'one' : 'none'
   const explain = mode === 'people' ? EXPLAIN.audiencePeople(segments, minIncome) : EXPLAIN.audienceBusinesses
   const unknownLine = (count: number) => (count ? [`${numberFormat.format(count)} حياً بلا رقم مقاس فلم تُحسب، وتظهر بلا لون.`] : [])
-  const segmentWord = (segment: Segment) => (segment === 'sex' && sex !== 'all' ? SEX_WORD[sex] : segment === 'nationality' && nationality !== 'all' ? NATIONALITY_WORD[nationality] : '')
+  const segmentWord = (segment: Segment) => audienceSegmentLabel(mode,
+    segment === 'sex' && sex !== 'all' ? SEX_WORD[sex] : segment === 'nationality' && nationality !== 'all' ? NATIONALITY_WORD[nationality] : '')
   /** The card's figures: one, or (both filters on) the sex figure then the nationality figure, each from its own share. */
   const figures = !other
     ? [{ key: 'one', label: '', list: audienceScope, unknown }]

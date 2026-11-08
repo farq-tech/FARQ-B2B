@@ -66,6 +66,11 @@ export function audienceWhere({ selected, measured, scope }: { selected: number;
   return `في ${numberFormat.format(measured)} من ${counted(scope, 'district')}${selected ? ' محددة' : ''} مقاسة`
 }
 
+/** A demographic segment labels people audiences only; it must never qualify a business count. */
+export function audienceSegmentLabel(mode: 'people' | 'businesses', segment: string): string {
+  return mode === 'people' ? segment : ''
+}
+
 /** «حجم الجمهور في المدينة: 120,400 شخص · الأعلى: النرجس»; the sizes are the service's segment figures, one per measured district. */
 export function audienceSummary({ selected, scope, segment, sizes, unit, top, cityTotal }: {
   selected: number; scope: number; segment: string; sizes: number[]; unit: string; top: string | null

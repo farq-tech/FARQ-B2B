@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { audienceMissing, audienceSummary, audienceWhere, comparePairs, competitorsSummary, densestDistrict, duration, placeSite, rankCompetition, sameActivity, territoriesSummary, weekSummary } from './tool-answers.ts'
+import { audienceMissing, audienceSegmentLabel, audienceSummary, audienceWhere, comparePairs, competitorsSummary, densestDistrict, duration, placeSite, rankCompetition, sameActivity, territoriesSummary, weekSummary } from './tool-answers.ts'
 import { answerSequence } from './use-answer.ts'
 
 const district = (id: string, name: string) => ({ id, name })
@@ -41,6 +41,13 @@ test('the audience line sums the service segment figures and names the top distr
   assert.equal(audienceSummary({ selected: 2, scope: 2, segment: 'نساء', sizes: [500, 300], unit: 'شخص', top: null }), 'حجم الجمهور في حيّان محددة: نساء: 800 شخص')
   // nothing measured: «غير متاح», never 0
   assert.equal(audienceSummary({ selected: 3, scope: 3, segment: '', sizes: [], unit: 'منشأة', top: null }), 'حجم الجمهور: غير متاح')
+})
+
+test('demographic labels never describe business counts', () => {
+  assert.equal(audienceSegmentLabel('people', 'رجال'), 'رجال')
+  assert.equal(audienceSegmentLabel('people', 'سعوديون'), 'سعوديون')
+  assert.equal(audienceSegmentLabel('businesses', 'رجال'), '')
+  assert.equal(audienceSegmentLabel('businesses', 'غير سعوديين'), '')
 })
 
 test('a total over part of the districts says how many it covers, never «في المدينة»', () => {
