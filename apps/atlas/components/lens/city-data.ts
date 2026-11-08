@@ -31,6 +31,10 @@ export type DistrictRow = {
   unmetSearches: number | null
   unmetTerms: DemandTerm[]
   income: number | null
+  incomeMale?: number | null
+  incomeFemale?: number | null
+  incomeSaudi?: number | null
+  incomeNonSaudi?: number | null
   underConstruction: number | null
   newBuildings: number | null
   /** Share of the district's homes that are villas (buildings layer), a stand-in for income where none is published. */
@@ -71,7 +75,14 @@ type PopulationRow = { district_id: string | number; district_ar: string; popula
 /** Counts plus the derived per-district figures, each computed once in the service (server.py enrich_district_counts):
  * area, residents per business, businesses per km², density. The map reads these; it never recomputes them. */
 type CountRow = { district_ar: string; n: number; area_km2?: number | null; residents_per?: number | null; per_km2?: number | null; density?: number | null }
-type IncomeRow = { district_ar: string; income_all?: number | null }
+type IncomeRow = {
+  district_ar: string
+  income_all?: number | null
+  income_male?: number | null
+  income_female?: number | null
+  income_saudi?: number | null
+  income_non_saudi?: number | null
+}
 type GrowthRow = { district_ar: string; under_construction: number; new_buildings: number }
 type HousingRow = { district_ar: string; villa_share_pct: number }
 type AgeBand = { listings: number; median_sar_per_sqm: number }
@@ -171,6 +182,10 @@ export function joinRows(features: DistrictFeature[], tables: Tables): DistrictR
       unmetSearches: wanted.get(id)?.unmet ?? null,
       unmetTerms: wanted.get(id)?.unmetTerms ?? [],
       income: pay.get(name)?.income_all ?? null,
+      incomeMale: pay.get(name)?.income_male ?? null,
+      incomeFemale: pay.get(name)?.income_female ?? null,
+      incomeSaudi: pay.get(name)?.income_saudi ?? null,
+      incomeNonSaudi: pay.get(name)?.income_non_saudi ?? null,
       underConstruction: g ? g.under_construction : null,
       newBuildings: g ? g.new_buildings : null,
       villaShare: homes.get(name)?.villa_share_pct ?? null,

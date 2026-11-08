@@ -95,19 +95,19 @@ test('the activity pair verdict counts the districts with the first and none of 
   assert.equal(pairsVerdict([], 'صيدلية', 'عيادة'), null)
 })
 
-test('the audience verdict names the top district and weighs its concentration against the city\'s size', () => {
+test('the audience verdict names the top district and describes measured concentration without forecasting campaign results', () => {
   const ranked = [40, 30, 20, 10, 10, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5].map((size, index) => ({ name: `حي ${index + 1}`, size: size * 1000 }))
   const verdict = audienceVerdict(ranked, 'شخص', 'نساء')!
-  assert.equal(verdict.lead, 'أعلى حي لجمهورك (نساء): حي 1')
+  assert.equal(verdict.lead, 'أعلى حي في المؤشر (نساء): حي 1')
   assert.equal(verdict.why[0], 'فيه 40,000 شخص، ويليه حي 2 وحي 3.')
   // 15 districts: the top three (a fifth of them) hold 90,000 of 160,000, 56%, under three times their 20%
-  assert.equal(verdict.why[1], 'أعلى 3 أحياء من 15 تجمع 56% من الجمهور، فالجمهور موزّع، وحملة على المدينة كلها لا تضيّع كثيراً.')
+  assert.equal(verdict.why[1], 'أعلى 3 أحياء من 15 حياً بدرجة متاحة تضم 56% من الجمهور المقاس في النطاق؛ هذا يصف توزيع العدد ولا يتنبأ بنتيجة الحملة.')
   // Riyadh as measured: the top 5 of 186 districts hold 15%, 5.6 times their share of the districts
   const riyadh = [...Array(5).fill(30000), ...Array(181).fill(850000 / 181)].map((size, index) => ({ name: `حي ${index + 1}`, size }))
-  assert.equal(audienceVerdict(riyadh, 'شخص', '')!.why[1], 'أعلى 5 أحياء من 186 تجمع 15% من الجمهور، فحملة مركّزة عليها أجدى من توزيعها على المدينة.')
+  assert.equal(audienceVerdict(riyadh, 'شخص', '')!.why[1], 'أعلى 5 أحياء من 186 حياً بدرجة متاحة تضم 15% من الجمهور المقاس في النطاق؛ هذا يصف توزيع العدد ولا يتنبأ بنتيجة الحملة.')
   // a city of 29 districts: the same 15%... or 30% from 17% of the districts is not focused
   const abha = [...Array(5).fill(6000), ...Array(24).fill(70000 / 24)].map((size, index) => ({ name: `حي ${index + 1}`, size }))
-  assert.match(audienceVerdict(abha, 'شخص', '')!.why[1], /من 29 تجمع 30% .*موزّع/)
+  assert.match(audienceVerdict(abha, 'شخص', '')!.why[1], /من 29 حياً بدرجة متاحة تضم 30%/)
   assert.equal(audienceVerdict([{ name: 'أ', size: 0 }], 'شخص', ''), null, 'no audience: no verdict, never «0 شخص»')
   assert.equal(audienceVerdict(ranked.slice(0, 7), 'منشأة', '')!.why.length, 1, 'no concentration line under eight districts')
   clean(verdict)
