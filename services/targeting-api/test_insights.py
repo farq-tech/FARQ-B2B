@@ -52,6 +52,26 @@ class InsightTests(unittest.TestCase):
         result = insights.population_around(self.db, points, None, "true", 46.7005, 24.7003, 500, 5.0)
         self.assertEqual((result["home_buildings"], result["dwellings"], result["population"], result["people_per_district"]), (2, 10.0, 75, True))
 
+    def test_missing_or_invalid_building_population_is_unavailable_not_zero_or_partial(self):
+        for invalid in (None, float('nan'), -1.0):
+            with self.subTest(population=invalid):
+                points = self.parquet("bad-population.parquet", "longitude double, latitude double, dwellings double, population double", [
+                    (46.7000, 24.7000, 4.0, 20.0), (46.7020, 24.7010, 6.0, invalid)])
+                around = insights.population_around(self.db, points, None, "true", 46.7005, 24.7003, 500, 5.0)
+                within = insights.population_within(self.db, points, None, "true", square(46.695, 24.695, 0.02), 5.0)
+                self.assertEqual(around["dwellings"], 10.0)
+                self.assertEqual(within["dwellings"], 10.0)
+                self.assertIsNone(around["population"], "a partial sum must not look like the full population")
+                self.assertIsNone(within["population"], "a partial sum must not look like the full population")
+
+    def test_zero_population_is_preserved_as_a_measured_zero(self):
+        points = self.parquet("zero-population.parquet", "longitude double, latitude double, dwellings double, population double", [
+            (46.7000, 24.7000, 0.0, 0.0)])
+        around = insights.population_around(self.db, points, None, "true", 46.7005, 24.7003, 500, 5.0)
+        within = insights.population_within(self.db, points, None, "true", square(46.695, 24.695, 0.02), 5.0)
+        self.assertEqual(around["population"], 0)
+        self.assertEqual(within["population"], 0)
+
     def test_population_and_businesses_within_a_drive_time_polygon(self):
         points = self.parquet("pw.parquet", "longitude double, latitude double, district_id varchar, dwellings double, population double", [
             (46.7000, 24.7000, "1", 4.0, 30.0), (46.7020, 24.7010, "1", 6.0, 45.0), (46.7090, 24.7090, "1", 8.0, 60.0), (46.7500, 24.7000, "2", 100.0, 500.0)])

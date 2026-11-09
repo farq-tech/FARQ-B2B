@@ -98,11 +98,21 @@ def population_around(db, points_path, targets_path, search_sql, lon, lat, radiu
         # older layers only have dwellings, counted at household_size people each
         has_people = 'population' in {row[0] for row in db.execute('describe select * from read_parquet(?)', [points_path]).fetchall()}
         people = 'sum(population)' if has_people else f'sum(dwellings) * {float(household_size)}'
-        homes, dwellings, population = db.execute(
-            f"""select count(*), sum(dwellings), {people} from read_parquet(?) where longitude between ? and ? and latitude between ? and ?
+        value_col = 'population' if has_people else 'dwellings'
+        homes, dwellings, population, bad_dwellings, bad_people = db.execute(
+            f"""select count(*), sum(dwellings), {people},
+                       bool_or(dwellings is null or not isfinite(dwellings) or dwellings < 0),
+                       bool_or({value_col} is null or not isfinite({value_col}) or {value_col} < 0)
+                from read_parquet(?) where longitude between ? and ? and latitude between ? and ?
                 and {dist} <= ?""", [points_path, west, east, south, north, lat, lat, lon, radius_m]).fetchone()
-        dwellings = float(dwellings or 0)   # parquet decimals and doubles alike
-        result.update(home_buildings=homes or 0, dwellings=round(dwellings, 1), population=round(float(population or 0)), people_per_district=has_people)
+        dwellings = None if bad_dwellings else float(dwellings or 0)   # parquet decimals and doubles alike
+        if dwellings is not None and (not math.isfinite(dwellings) or dwellings < 0):
+            dwellings = None
+        population = None if bad_people or (not has_people and dwellings is None) else float(population or 0)
+        if population is not None and (not math.isfinite(population) or population < 0):
+            population = None
+        result.update(home_buildings=homes or 0, dwellings=round(dwellings, 1) if dwellings is not None else None,
+                      population=round(population) if population is not None else None, people_per_district=has_people)
     if targets_path:
         dist = _haversine_sql('p.longitude', 'p.latitude')
         where = (f"{search_sql} and p.longitude between ? and ? and p.latitude between ? and ? and {dist} <= ?")
@@ -149,6 +159,22 @@ def _inside_mask(xs, ys, polygons):
         return [_inside(x, y, polygons) for x, y in zip(xs, ys)]
 
 
+def _sum_measured(values):
+    """Sum a measured non-negative field; one missing or invalid value makes the total unavailable, not partial."""
+    total = 0.0
+    for value in values:
+        if isinstance(value, bool) or value is None:
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if not math.isfinite(number) or number < 0:
+            return None
+        total += number
+    return total if math.isfinite(total) else None
+
+
 def population_within(db, points_path, targets_path, search_sql, geometry, household_size):
     """Homes, people and directory businesses inside a polygon, such as a drive-time area. Same layers and the same
     people figure as population_around; only the boundary differs. Points are pre-filtered by the polygon's box in
@@ -168,8 +194,14 @@ def population_within(db, points_path, targets_path, search_sql, geometry, house
                           [points_path, west, east, south, north]).fetchall()
         mask = _inside_mask([row[0] for row in rows], [row[1] for row in rows], polygons)
         inside = [row for row, keep in zip(rows, mask) if keep]
-        result.update(home_buildings=len(inside), dwellings=round(sum(float(r[2] or 0) for r in inside), 1),
-                      population=round(sum(float(r[3] or 0) for r in inside)), people_per_district=has_people)
+        dwellings = _sum_measured(r[2] for r in inside)
+        people_count = _sum_measured(r[3] for r in inside) if has_people else (
+            dwellings * float(household_size) if dwellings is not None else None)
+        if people_count is not None and (not math.isfinite(people_count) or people_count < 0):
+            people_count = None
+        result.update(home_buildings=len(inside), dwellings=round(dwellings, 1) if dwellings is not None else None,
+                      population=round(people_count) if people_count is not None else None,
+                      people_per_district=has_people)
     if targets_path:
         rows = db.execute(f"""select p.longitude, p.latitude, coalesce(nullif(p.category_ar, ''), p.category) from read_parquet(?) p
                               where {search_sql} and p.longitude between ? and ? and p.latitude between ? and ?""",
