@@ -333,13 +333,13 @@ try {
     await density.getByRole('textbox').nth(0).fill('3000'); await settle(page, 800)
     const afterDensity = asked.filter((item) => item.path === '/api/market/real-estate-listings').length
     check(afterDensity - beforeDensity === 1, 'editing a numeric filter twice in a short burst sends one catalog query')
-    await density.getByRole('textbox').nth(0).fill('1000'); await settle(page, 800)
-    await density.getByRole('textbox').nth(1).fill('5000'); await settle(page, 800)
+    await density.getByRole('textbox').nth(0).fill('١٠٠٠'); await settle(page, 800)
+    await density.getByRole('textbox').nth(1).fill('٥٠٠٠'); await settle(page, 800)
     const sort = page.locator('section').filter({ has: page.getByRole('heading', { name: 'الترتيب', exact: true }) })
     await sort.getByRole('button', { name: 'السعر: الأقل أولاً', exact: true }).click(); await settle(page, 1000)
     const sent = asked.filter((item) => item.path === '/api/market/real-estate-listings').at(-1)?.body
     check(sent?.min_beds === 3 && sent?.max_age === 2 && sent?.min_density === 1000 && sent?.max_density === 5000 && sent?.sort === 'price_asc',
-      'room, age, population density and order filters reach the service before its listing cap')
+      'room, age, Arabic-digit population density and order filters reach the service before its listing cap')
     check((await page.locator('[role="status"]').allInnerTexts()).some((item) => item.includes('كثافة الحي غير متاحة لـ 1')),
       'a listing with no district density is counted as unavailable, never zero')
     await context.close()

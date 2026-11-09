@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Chip } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import { numberFormat } from '@/lib/insights-api'
+import { parseFilterNumber } from '@/lib/numeric-input'
 import { normalizeArabic } from '@/lib/search'
 import { FEATURES, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, TENANTS_LABEL } from '@/lib/real-estate'
 import { AGE_STEPS, COUNT_STEPS, DEFAULT_FILTERS, SORTS, STREET_STEPS, ageStepLabel, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
@@ -30,7 +31,7 @@ function NumberBox({ label, value, onChange, unit }: { label: string; value: num
       <span className="text-xs text-muted-foreground">{label}</span>
       <span className="flex items-center gap-1.5">
         <input type="text" inputMode="numeric" dir="ltr" placeholder="أي" value={value == null ? '' : numberFormat.format(value)}
-          onChange={(event) => { const digits = event.target.value.replace(/[^0-9]/g, ''); onChange(digits ? Number(digits) : null) }}
+          onChange={(event) => onChange(parseFilterNumber(event.target.value))}
           className="w-full min-w-0 bg-transparent text-end text-base font-semibold tabular-nums outline-none placeholder:font-normal placeholder:text-muted-foreground" />
         <span className="shrink-0 text-xs text-muted-foreground">{unit}</span>
       </span>
