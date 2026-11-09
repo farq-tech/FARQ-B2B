@@ -219,8 +219,9 @@ export function HomesPage() {
     setResult((current) => ({ ...current, status: 'loading' }))
     setActive(null)
     setShown(PAGE)
-    // filter before the service caps at 1,500, so the best matching ads and the total reflect every selected filter
-    postMarket<{ available?: boolean; total?: number; density_unavailable?: number; listings?: Listing[] }>('real-estate-listings', {
+    // Wait for a short pause in typing; then filter before the service caps at 1,500, so the best matching ads and the
+    // total reflect every selected filter without sending a full catalog query for each digit.
+    const timer = window.setTimeout(() => postMarket<{ available?: boolean; total?: number; density_unavailable?: number; listings?: Listing[] }>('real-estate-listings', {
       // near-identical ads (same district, type, area, rooms, price and advertiser) come folded into one card
       city, kind, types, deal, limit: LIMIT, group_similar: true,
       ...(filters.minPrice != null ? { min_price: filters.minPrice } : {}), ...(filters.maxPrice != null ? { max_price: filters.maxPrice } : {}),
@@ -236,8 +237,8 @@ export function HomesPage() {
       // laid out flat, so every filter, count and pin reads one ad at a time; the cards fold them again (groupSimilar)
       .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? null,
         densityUnavailable: payload.density_unavailable ?? 0, listings: flattenSimilar(payload.listings ?? []), key }) })
-      .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, densityUnavailable: 0, listings: [] }) })
-    return () => { live = false }
+      .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, densityUnavailable: 0, listings: [] }) }), 250)
+    return () => { live = false; window.clearTimeout(timer) }
   }, [hydrated, city, kind, typesKey, deal, serverFiltersKey, filters.minPrice, filters.maxPrice, filters.minArea, filters.maxArea,
     filters.minDensity, filters.maxDensity, filters.maxAge, filters.beds, filters.livings, filters.wc, filters.street,
     filters.tenants, filters.features, filters.belowMedian, filters.sort, districtsKey, attempt])

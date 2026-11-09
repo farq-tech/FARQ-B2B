@@ -328,6 +328,11 @@ try {
     const age = page.locator('section').filter({ has: page.getByRole('heading', { name: 'عمر العقار', exact: true }) })
     await age.getByRole('button', { name: 'سنتان أو أقل', exact: true }).click(); await settle(page, 800)
     const density = page.locator('section').filter({ has: page.getByRole('heading', { name: 'كثافة سكان الحي', exact: true }) })
+    const beforeDensity = asked.filter((item) => item.path === '/api/market/real-estate-listings').length
+    await density.getByRole('textbox').nth(0).fill('2000')
+    await density.getByRole('textbox').nth(0).fill('3000'); await settle(page, 800)
+    const afterDensity = asked.filter((item) => item.path === '/api/market/real-estate-listings').length
+    check(afterDensity - beforeDensity === 1, 'editing a numeric filter twice in a short burst sends one catalog query')
     await density.getByRole('textbox').nth(0).fill('1000'); await settle(page, 800)
     await density.getByRole('textbox').nth(1).fill('5000'); await settle(page, 800)
     const sort = page.locator('section').filter({ has: page.getByRole('heading', { name: 'الترتيب', exact: true }) })
