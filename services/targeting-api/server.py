@@ -188,6 +188,28 @@ def population_by_name_cached(city):
     return _POP_BY_NAME[city]
 
 
+_DISTRICT_DENSITIES = {}
+
+
+def district_density_by_id(city):
+    """The golden resident density by Atlas district id; missing population or geometry stays None."""
+    if city in _DISTRICT_DENSITIES:
+        return _DISTRICT_DENSITIES[city]
+    areas = district_areas(city)
+    people = population_by_name_cached(city)
+    result = {}
+    for feature in _city_features(city):
+        properties = feature.get('properties') or {}
+        district_id = str(properties.get('id') or '')
+        name = properties.get('ar') or properties.get('district_ar')
+        if not district_id or not name:
+            continue
+        population = (people.get(name) or {}).get('population')
+        result[district_id] = district_metrics.density(population, areas.get(name))
+    _DISTRICT_DENSITIES[city] = result
+    return result
+
+
 def enrich_district_counts(result, city):
     """Add the derived per-district figures the map used to compute in the browser, each from one backend formula:
     area_km2 (authoritative), population, residents_per (population ÷ businesses), per_km2 (businesses ÷ area),
@@ -228,6 +250,10 @@ def _number(body, key, low, high, default=None):
     value = body.get(key, default)
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= value <= high: raise ValueError(key)
     return value
+
+
+def _optional_number(body, key, low, high):
+    return _number(body, key, low, high) if body.get(key) is not None else None
 
 
 def site_card_response(body):
@@ -348,14 +374,31 @@ def insight_response(path, body):
         if deal not in (None, 'sale', 'rent_year', 'rent_month', 'rent_unstated'): raise ValueError('deal')
         types = body.get('types')
         if types is not None and not (isinstance(types, list) and all(t in insights.LISTING_TYPES for t in types)): raise ValueError('types')
+        tenants = body.get('tenants')
+        if tenants not in (None, 'families', 'singles'): raise ValueError('tenants')
+        features = body.get('features')
+        if features is not None and not (isinstance(features, list) and len(features) <= len(insights.LISTING_FEATURES)
+                                         and all(item in insights.LISTING_FEATURES for item in features)): raise ValueError('features')
+        below_median = body.get('below_median', False)
+        if not isinstance(below_median, bool): raise ValueError('below_median')
+        sort = body.get('sort', 'best')
+        if sort not in insights.LISTING_SORTS: raise ValueError('sort')
         filters = {'bbox': box, 'district_ids': ids, 'kind': kind, 'deal': deal, 'types': types,
-                   'min_price': body.get('min_price') and _number(body, 'min_price', 1, 1e9), 'max_price': body.get('max_price') and _number(body, 'max_price', 1, 1e9),
-                   'min_area': body.get('min_area') and _number(body, 'min_area', 1, 1e6), 'max_area': body.get('max_area') and _number(body, 'max_area', 1, 1e6),
+                   'min_price': _optional_number(body, 'min_price', 0, 1e9), 'max_price': _optional_number(body, 'max_price', 0, 1e9),
+                   'min_area': _optional_number(body, 'min_area', 0, 1e6), 'max_area': _optional_number(body, 'max_area', 0, 1e6),
+                   'min_density': _optional_number(body, 'min_density', 0, 1e7), 'max_density': _optional_number(body, 'max_density', 0, 1e7),
                    # 0 is a real answer here («new only»), so it is read when present, not when truthy
-                   'max_age': _number(body, 'max_age', 0, 99) if body.get('max_age') is not None else None,
+                   'max_age': _optional_number(body, 'max_age', 0, 99),
+                   'min_beds': _optional_number(body, 'min_beds', 1, 99),
+                   'min_livings': _optional_number(body, 'min_livings', 1, 99),
+                   'min_wc': _optional_number(body, 'min_wc', 1, 99),
+                   'min_street_width': _optional_number(body, 'min_street_width', 1, 1000),
+                   'tenants': tenants, 'features': features or [], 'below_median': below_median, 'sort': sort,
                    'limit': int(_number(body, 'limit', 1, insights.LISTINGS_MAX, insights.LISTINGS_MAX)),
                    # «العقار» asks for near-identical ads folded into one card (insights.similar_groups)
                    'group_similar': body.get('group_similar') is True}
+        if filters['min_density'] is not None or filters['max_density'] is not None:
+            filters['density_by_district'] = district_density_by_id(city)
         near = body.get('near')
         if near is not None:
             # units along an activity street: within `meters` of the corridor's own line
@@ -363,7 +406,7 @@ def insight_response(path, body):
             filters['near'] = {'runs': insights.near_lines(near.get('geometry')),
                                'meters': _number(near, 'meters', 10, insights.NEAR_MAX_M, insights.NEAR_DEFAULT_M)}
         table = insights.real_estate_listings(city, filters)
-        if table is None: return {'ok': True, 'city': city, 'available': False, 'total': 0, 'listings': []}
+        if table is None: return {'ok': True, 'city': city, 'available': False, 'listings': []}
         return {'ok': True, 'city': city, 'available': True, **table}
     if path == '/real-estate-phone':
         listing_id = body.get('id')

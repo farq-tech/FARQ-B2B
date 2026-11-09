@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { audienceMissing, audienceSummary, audienceWhere, comparePairs, competitorsSummary, densestDistrict, duration, placeSite, rankCompetition, sameActivity, territoriesSummary, weekSummary } from './tool-answers.ts'
+import { audienceMissing, audienceSummary, audienceWhere, comparePairs, competitorsSummary, densestDistrict, duration, placeSite, rankCompetition, routeDistance, sameActivity, territoriesSummary, weekSummary } from './tool-answers.ts'
 import { answerSequence } from './use-answer.ts'
 
 const district = (id: string, name: string) => ({ id, name })
@@ -88,6 +88,13 @@ test('a drive or route time reads in minutes, then hours, and a whole hour has n
   assert.equal(duration(80 * 60 + 10), '1 ساعة 20 دقيقة')
   assert.doesNotMatch(duration(3600), /0 دقيقة/)
   assert.doesNotMatch(duration(12345), /[٠-٩]/)
+})
+
+test('missing road distance and time read unavailable, never zero', () => {
+  assert.equal(routeDistance(null), 'غير متاح')
+  assert.equal(duration(null), 'غير متاح')
+  assert.equal(routeDistance(0), '0 كم')
+  assert.equal(duration(0), '0 دقيقة')
 })
 
 test('the same activity is the same words, the same main activity, or the same name', () => {

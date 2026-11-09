@@ -91,6 +91,26 @@ class PeopleTests(unittest.TestCase):
         db.execute('copy b to ? (format parquet)', [str(root / 'points.parquet')])
         self.assertEqual(site_card.people_by_district(db, str(root / 'points.parquet'), SQUARE, 5.0), {'p1': 50.0, 'p2': 20.0})
 
+    def test_missing_or_invalid_residents_make_the_site_population_unavailable(self):
+        for invalid in (None, float('nan'), -1.0):
+            with self.subTest(population=invalid):
+                root = pathlib.Path(tempfile.mkdtemp())
+                db = duckdb.connect()
+                db.execute('create table b(longitude double, latitude double, district_id varchar, dwellings double, population double)')
+                db.executemany('insert into b values (?, ?, ?, ?, ?)', [
+                    (46.65, 24.65, 'p1', 10, 50.0), (46.66, 24.66, 'p2', 4, invalid)])
+                db.execute('copy b to ? (format parquet)', [str(root / 'points.parquet')])
+                self.assertIsNone(site_card.people_by_district(db, str(root / 'points.parquet'), SQUARE, 5.0),
+                                  'the card must not present a partial population sum')
+
+    def test_zero_residents_are_kept_as_a_measured_zero(self):
+        root = pathlib.Path(tempfile.mkdtemp())
+        db = duckdb.connect()
+        db.execute('create table b(longitude double, latitude double, district_id varchar, dwellings double, population double)')
+        db.execute('insert into b values (46.65, 24.65, \'p1\', 0, 0)')
+        db.execute('copy b to ? (format parquet)', [str(root / 'points.parquet')])
+        self.assertEqual(site_card.people_by_district(db, str(root / 'points.parquet'), SQUARE, 5.0), {'p1': 0.0})
+
 
 class CompetitorTests(unittest.TestCase):
     def setUp(self):

@@ -52,6 +52,26 @@ class InsightTests(unittest.TestCase):
         result = insights.population_around(self.db, points, None, "true", 46.7005, 24.7003, 500, 5.0)
         self.assertEqual((result["home_buildings"], result["dwellings"], result["population"], result["people_per_district"]), (2, 10.0, 75, True))
 
+    def test_missing_or_invalid_building_population_is_unavailable_not_zero_or_partial(self):
+        for invalid in (None, float('nan'), -1.0):
+            with self.subTest(population=invalid):
+                points = self.parquet("bad-population.parquet", "longitude double, latitude double, dwellings double, population double", [
+                    (46.7000, 24.7000, 4.0, 20.0), (46.7020, 24.7010, 6.0, invalid)])
+                around = insights.population_around(self.db, points, None, "true", 46.7005, 24.7003, 500, 5.0)
+                within = insights.population_within(self.db, points, None, "true", square(46.695, 24.695, 0.02), 5.0)
+                self.assertEqual(around["dwellings"], 10.0)
+                self.assertEqual(within["dwellings"], 10.0)
+                self.assertIsNone(around["population"], "a partial sum must not look like the full population")
+                self.assertIsNone(within["population"], "a partial sum must not look like the full population")
+
+    def test_zero_population_is_preserved_as_a_measured_zero(self):
+        points = self.parquet("zero-population.parquet", "longitude double, latitude double, dwellings double, population double", [
+            (46.7000, 24.7000, 0.0, 0.0)])
+        around = insights.population_around(self.db, points, None, "true", 46.7005, 24.7003, 500, 5.0)
+        within = insights.population_within(self.db, points, None, "true", square(46.695, 24.695, 0.02), 5.0)
+        self.assertEqual(around["population"], 0)
+        self.assertEqual(within["population"], 0)
+
     def test_population_and_businesses_within_a_drive_time_polygon(self):
         points = self.parquet("pw.parquet", "longitude double, latitude double, district_id varchar, dwellings double, population double", [
             (46.7000, 24.7000, "1", 4.0, 30.0), (46.7020, 24.7010, "1", 6.0, 45.0), (46.7090, 24.7090, "1", 8.0, 60.0), (46.7500, 24.7000, "2", 100.0, 500.0)])
@@ -123,7 +143,10 @@ class InsightTests(unittest.TestCase):
         path.write_text(json.dumps({"cities": {"Riyadh": [
             {"district_ar": "الربيع", "male_pct": 51.2, "saudi_pct": 80.1}, {"district_ar": "سكيرينة", "male_pct": None, "saudi_pct": 40.0}]}}, ensure_ascii=False), encoding="utf-8")
         table = insights.district_audience("Riyadh", str(path))
-        self.assertEqual(table["districts"], [{"district_ar": "الربيع", "male_pct": 51.2, "saudi_pct": 80.1}])
+        self.assertEqual(table["districts"], [
+            {"district_ar": "الربيع", "male_pct": 51.2, "saudi_pct": 80.1},
+            {"district_ar": "سكيرينة", "male_pct": None, "saudi_pct": 40.0},
+        ], "a missing gender share must not discard that district's measured nationality share")
         self.assertIsNone(insights.district_audience("Jeddah", str(path)))
 
 
@@ -218,6 +241,47 @@ class InsightTests(unittest.TestCase):
         self.assertEqual(sorted(ids({"min_area": 100})), ["b", "d"], 'an ad without an area is not taken as 0 m²')
         self.assertEqual(sorted(ids({"min_price": 50000, "max_price": 60000})), ["d"])
         self.assertEqual(sorted(ids({"max_area": 160})), ["a", "d"])
+
+    def test_property_filters_and_sort_are_applied_before_the_result_limit(self):
+        card = {"city": "Riyadh", "kind": "rent", "deal": "rent_year", "type": "apartment", "district_id": "1",
+                "lon": 46.7, "lat": 24.7, "price_sar": 60000, "area_sqm": 120, "photos": ["p.jpg"],
+                "beds": 2, "age": 1, "tenants": "families", "features": {"furnished": 1}, "vs_district_pct": -10,
+                "updated_on": "2026-10-01"}
+        cards = [dict(card, id="not_enough_rooms", beds=1, vs_district_pct=-30, updated_on="2026-10-30"),
+                 dict(card, id="missing_rooms", beds=None, vs_district_pct=-25, updated_on="2026-10-29"),
+                 dict(card, id="matching", beds=3, vs_district_pct=-10, updated_on="2026-10-01"),
+                 dict(card, id="missing_feature", beds=4, features={}, vs_district_pct=-5, updated_on="2026-10-02")]
+        path = self.root / "filtered-listings.json"
+        path.write_text(json.dumps({"listings": cards}), encoding="utf-8")
+        found = insights.real_estate_listings("Riyadh", {
+            "min_beds": 3, "max_age": 2, "tenants": "families", "features": ["furnished"],
+            "below_median": True, "limit": 1,
+        }, str(path))
+        self.assertEqual([item["id"] for item in found["listings"]], ["matching"],
+                         "a qualifying ad beyond the default ranking is found before the cap")
+        self.assertEqual(found["total"], 1)
+
+        cheap = dict(card, id="cheap", price_sar=30000, vs_district_pct=20)
+        discounted = dict(card, id="discounted", price_sar=70000, vs_district_pct=-20)
+        path.write_text(json.dumps({"listings": [discounted, cheap]}), encoding="utf-8")
+        sorted_result = insights.real_estate_listings("Riyadh", {"sort": "price_asc", "limit": 1}, str(path))
+        self.assertEqual([item["id"] for item in sorted_result["listings"]], ["cheap"],
+                         "the selected sort is applied before the service caps the result")
+
+    def test_district_density_filter_excludes_unknown_values_without_calling_them_zero(self):
+        card = {"city": "Riyadh", "kind": "rent", "deal": "rent_year", "type": "apartment", "district_id": "1",
+                "lon": 46.7, "lat": 24.7, "price_sar": 60000, "area_sqm": 120, "photos": ["p.jpg"]}
+        cards = [dict(card, id="low", district_id="1"), dict(card, id="high", district_id="2"),
+                 dict(card, id="unknown", district_id="3")]
+        path = self.root / "density-listings.json"
+        path.write_text(json.dumps({"listings": cards}), encoding="utf-8")
+        result = insights.real_estate_listings("Riyadh", {
+            "min_density": 1000, "max_density": 5000,
+            "density_by_district": {"1": 500, "2": 2500, "3": None},
+        }, str(path))
+        self.assertEqual([item["id"] for item in result["listings"]], ["high"])
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(result["density_unavailable"], 1)
 
     def test_real_estate_listings_by_building_age_leave_out_ads_that_state_none(self):
         card = {"city": "Riyadh", "kind": "rent", "type": "floor", "district_id": "1", "lon": 46.7, "lat": 24.7, "vs_district_pct": None,

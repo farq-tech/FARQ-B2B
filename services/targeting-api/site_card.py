@@ -34,11 +34,21 @@ def people_by_district(db, points_path, geometry, household_size):
     rows = db.execute(f"""select longitude, latitude, cast(district_id as varchar), {people} from read_parquet(?)
                           where longitude between ? and ? and latitude between ? and ?""",
                       [points_path, west, east, south, north]).fetchall()
-    rows = [row for row in rows if row[3]]
     out = {}
     for (lon, lat, district, count), keep in zip(rows, insights._inside_mask([r[0] for r in rows], [r[1] for r in rows], polygons)):
-        if keep:
-            out[district] = out.get(district, 0.0) + float(count)
+        if not keep:
+            continue
+        if isinstance(count, bool) or count is None:
+            return None
+        try:
+            count = float(count)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if not math.isfinite(count) or count < 0:
+            return None
+        out[district] = out.get(district, 0.0) + count
+        if not math.isfinite(out[district]):
+            return None
     return out
 
 
@@ -62,7 +72,7 @@ def _split(people, share):
     return round(sum(count * share[name] for name, count in people.items()))
 
 
-NO_BUILDINGS = 'لا توجد طبقة المباني السكنية لهذه المدينة.'
+NO_BUILDINGS = 'لا تتوفر بيانات سكان صالحة أو مكتملة من طبقة المباني لهذا النطاق.'
 NO_RESIDENTS = 'لا مبانٍ سكنية داخل النطاق.'
 UNNAMED = 'بعض سكان النطاق خارج الأحياء المسماة، فلا يُقسَّم عددهم.'
 SEGMENTS = ('men', 'women', 'saudi', 'non_saudi', 'children')

@@ -101,11 +101,18 @@ export function territoriesSummary(status: 'idle' | 'loading' | 'error', groups:
 }
 
 /** A drive or a route's time: «45 دقيقة», «2 ساعة», «1 ساعة 20 دقيقة»; a whole hour never reads «… 0 دقيقة». */
-export function duration(seconds: number): string {
+export function duration(seconds: number | null): string {
+  if (seconds == null || !Number.isFinite(seconds)) return 'غير متاح'
   const minutes = Math.round(seconds / 60)
   if (minutes < 60) return `${numberFormat.format(minutes)} دقيقة`
   const hours = `${numberFormat.format(Math.floor(minutes / 60))} ساعة`
   return minutes % 60 ? `${hours} ${numberFormat.format(minutes % 60)} دقيقة` : hours
+}
+
+/** A road distance stays unavailable when the routing service omitted it. */
+export function routeDistance(meters: number | null): string {
+  if (meters == null || !Number.isFinite(meters)) return 'غير متاح'
+  return `${numberFormat.format(Math.round(meters / 100) / 10)} كم`
 }
 
 /**

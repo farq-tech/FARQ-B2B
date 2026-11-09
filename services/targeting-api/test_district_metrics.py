@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
+import math
 
 import district_metrics as dm
 
@@ -19,6 +20,18 @@ class DistrictMetricsTest(unittest.TestCase):
         self.assertIsNone(dm.density(None, 3))
         self.assertIsNone(dm.density(12000, None))
 
+    def test_derived_population_and_area_metrics_reject_invalid_inputs(self):
+        for invalid in (-1, math.inf, math.nan, True, 10**400):
+            with self.subTest(invalid=invalid):
+                self.assertIsNone(dm.residents_per(invalid, 2))
+                self.assertIsNone(dm.residents_per(100, invalid))
+                self.assertIsNone(dm.per_km2(invalid, 2))
+                self.assertIsNone(dm.per_km2(100, invalid))
+                self.assertIsNone(dm.density(invalid, 2))
+                self.assertIsNone(dm.density(100, invalid))
+        self.assertEqual(dm.density(0, 2), 0)
+        self.assertEqual(dm.per_km2(0, 2), 0)
+
     def test_audience_sizes_are_population_times_each_measured_share(self):
         sizes = dm.audience_sizes(10000, 60, 40)
         self.assertEqual((sizes["men"], sizes["women"]), (6000, 4000))
@@ -29,6 +42,20 @@ class DistrictMetricsTest(unittest.TestCase):
     def test_audience_size_is_none_where_a_share_or_population_is_missing(self):
         self.assertEqual(dm.audience_sizes(10000, None, 40), {"men": None, "women": None, "saudi": 4000, "non_saudi": 6000})
         self.assertEqual(dm.audience_sizes(None, 60, 40), {"men": None, "women": None, "saudi": None, "non_saudi": None})
+
+    def test_audience_sizes_reject_invalid_percentages_without_losing_other_segments(self):
+        for percentage in (-0.01, 100.01, math.inf, math.nan, True):
+            with self.subTest(percentage=percentage):
+                sizes = dm.audience_sizes(10000, percentage, 40)
+                self.assertIsNone(sizes["men"])
+                self.assertIsNone(sizes["women"])
+                self.assertEqual((sizes["saudi"], sizes["non_saudi"]), (4000, 6000))
+        self.assertEqual((dm.audience_sizes(10000, 0, 100)["men"], dm.audience_sizes(10000, 0, 100)["non_saudi"]), (0, 0))
+
+    def test_audience_sizes_reject_invalid_population_instead_of_returning_bad_counts(self):
+        for population in (-1, math.inf, math.nan, True, 10**400):
+            with self.subTest(population=population):
+                self.assertEqual(dm.audience_sizes(population, 60, 40), {"men": None, "women": None, "saudi": None, "non_saudi": None})
 
     def test_area_of_a_unit_square_near_riyadh(self):
         # ~0.01° square at lat 24.7; area ≈ (0.01*111.32)² * cos(24.7°) ≈ 1.126 km²

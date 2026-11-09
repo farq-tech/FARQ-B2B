@@ -7,6 +7,15 @@ import math
 import canonical_data
 
 
+def _finite_nonnegative(value):
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value) and value >= 0
+    except (OverflowError, TypeError):
+        return False
+
+
 def area_km2(geometry):
     """A district outline's area in km², on a local flat projection (well under 1% off at district scale)."""
     total = 0.0
@@ -23,24 +32,59 @@ def area_km2(geometry):
 
 def residents_per(population, count):
     """Residents for each business (or competitor); None when either figure is missing or there are none."""
-    return (population / count) if (population is not None and count) else None
+    if not _finite_nonnegative(population) or not _finite_nonnegative(count) or count == 0:
+        return None
+    try:
+        value = population / count
+    except OverflowError:
+        return None
+    return value if math.isfinite(value) else None
 
 
 def per_km2(count, area):
     """Businesses per km²; None without an area."""
-    return (count / area) if area else None
+    if not _finite_nonnegative(count) or not _finite_nonnegative(area) or area == 0:
+        return None
+    try:
+        value = count / area
+    except OverflowError:
+        return None
+    return value if math.isfinite(value) else None
 
 
 def density(population, area):
     """Residents per km²; None without a population or an area."""
-    return (population / area) if (population is not None and area) else None
+    if not _finite_nonnegative(population) or not _finite_nonnegative(area) or area == 0:
+        return None
+    try:
+        value = population / area
+    except OverflowError:
+        return None
+    return value if math.isfinite(value) else None
 
 
 def audience_sizes(population, male_pct, saudi_pct):
     """Segment sizes = population × each measured share. Two shares are never multiplied together (their overlap is
     not measured). None where the population or that share is missing."""
+    def valid_number(value, minimum=None, maximum=None):
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return False
+        try:
+            finite = math.isfinite(value)
+        except (OverflowError, TypeError):
+            return False
+        return finite and (minimum is None or value >= minimum) and (maximum is None or value <= maximum)
+
+    population = population if valid_number(population, minimum=0) else None
+    male_pct = male_pct if valid_number(male_pct, minimum=0, maximum=100) else None
+    saudi_pct = saudi_pct if valid_number(saudi_pct, minimum=0, maximum=100) else None
+
     def share(pct):
-        return (population * pct / 100) if (population is not None and pct is not None) else None
+        if population is None or not valid_number(pct, minimum=0, maximum=100):
+            return None
+        value = population * pct / 100
+        return value if math.isfinite(value) else None
+
     return {
         "men": share(male_pct),
         "women": share(None if male_pct is None else 100 - male_pct),

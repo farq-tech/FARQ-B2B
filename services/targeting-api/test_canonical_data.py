@@ -144,15 +144,22 @@ class CanonicalDistrictTests(unittest.TestCase):
             'coordinates': [[[44.0, 26.0], [44.02, 26.02], [44.02, 26.0], [44.0, 26.02], [44.0, 26.0]]],
         }
         no_area = {'type': 'Polygon', 'coordinates': [[[44.0, 26.0], [44.01, 26.0], [44.02, 26.0], [44.0, 26.0]]]}
+        non_finite = [
+            {'type': 'Feature', 'properties': {'id': 4, 'ar': 'إحداثي غير منتهٍ', 'city_en': 'Unaizah'},
+             'geometry': {'type': 'Polygon', 'coordinates': [[[44.0, 26.0], [float('nan'), 26.0], [44.0, 26.1], [44.0, 26.0]]]}},
+            {'type': 'Feature', 'properties': {'id': 5, 'ar': 'إحداثي لانهائي', 'city_en': 'Unaizah'},
+             'geometry': {'type': 'Polygon', 'coordinates': [[[44.0, 26.0], [float('inf'), 26.0], [44.0, 26.1], [44.0, 26.0]]]}},
+        ]
         atlas = {'type': 'FeatureCollection', 'features': [
             {'type': 'Feature', 'properties': {'id': 1, 'ar': 'الروضة', 'city_en': 'Unaizah'}, 'geometry': invalid},
             {'type': 'Feature', 'properties': {'id': 2, 'ar': 'المنطقة غير المتاحة', 'city_en': 'Unaizah'}, 'geometry': no_area},
-            {'type': 'Feature', 'properties': {'id': 3, 'city_en': 'Unaizah'}, 'geometry': poly(44.1, 26.1)}
+            {'type': 'Feature', 'properties': {'id': 3, 'city_en': 'Unaizah'}, 'geometry': poly(44.1, 26.1)},
+            *non_finite,
         ]}
 
         cleaned, repaired, excluded = canonical_data.sanitize_district_geometries(atlas)
 
-        self.assertEqual((repaired, excluded), (1, 2))
+        self.assertEqual((repaired, excluded), (1, 4))
         self.assertEqual([feature['properties']['id'] for feature in cleaned['features']], [1])
         self.assertTrue(canonical_data.shapely.geometry.shape(cleaned['features'][0]['geometry']).is_valid)
 

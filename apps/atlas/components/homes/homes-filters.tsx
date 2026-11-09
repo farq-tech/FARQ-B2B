@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Chip } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import { numberFormat } from '@/lib/insights-api'
+import { parseFilterNumber } from '@/lib/numeric-input'
 import { normalizeArabic } from '@/lib/search'
 import { FEATURES, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, TENANTS_LABEL } from '@/lib/real-estate'
 import { AGE_STEPS, COUNT_STEPS, DEFAULT_FILTERS, SORTS, STREET_STEPS, ageStepLabel, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
@@ -30,7 +31,7 @@ function NumberBox({ label, value, onChange, unit }: { label: string; value: num
       <span className="text-xs text-muted-foreground">{label}</span>
       <span className="flex items-center gap-1.5">
         <input type="text" inputMode="numeric" dir="ltr" placeholder="أي" value={value == null ? '' : numberFormat.format(value)}
-          onChange={(event) => { const digits = event.target.value.replace(/[^0-9]/g, ''); onChange(digits ? Number(digits) : null) }}
+          onChange={(event) => onChange(parseFilterNumber(event.target.value))}
           className="w-full min-w-0 bg-transparent text-end text-base font-semibold tabular-nums outline-none placeholder:font-normal placeholder:text-muted-foreground" />
         <span className="shrink-0 text-xs text-muted-foreground">{unit}</span>
       </span>
@@ -150,6 +151,14 @@ export function HomesFilters({ open, onClose, filters, onChange, districts, coun
               <NumberBox label="إلى" value={filters.maxArea} onChange={(value) => onChange({ maxArea: value })} unit="م²" />
             </div>
             <RangeHint low={filters.minArea} high={filters.maxArea} onSwap={() => onChange({ minArea: filters.maxArea, maxArea: filters.minArea })} />
+          </Section>
+
+          <Section title="كثافة سكان الحي" hint="عدد السكان لكل كم² في الحي، بحسب البيانات المتاحة. إذا لم تتوفر الكثافة للحي فلن نعتبرها صفراً ولن يطابقه هذا الفلتر.">
+            <div className="flex gap-3">
+              <NumberBox label="من" value={filters.minDensity} onChange={(value) => onChange({ minDensity: value })} unit="ساكن/كم²" />
+              <NumberBox label="إلى" value={filters.maxDensity} onChange={(value) => onChange({ maxDensity: value })} unit="ساكن/كم²" />
+            </div>
+            <RangeHint low={filters.minDensity} high={filters.maxDensity} onSwap={() => onChange({ minDensity: filters.maxDensity, maxDensity: filters.minDensity })} />
           </Section>
 
           <Section title="الغرف">
