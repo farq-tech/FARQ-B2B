@@ -7,6 +7,15 @@ import math
 import canonical_data
 
 
+def _finite_nonnegative(value):
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value) and value >= 0
+    except (OverflowError, TypeError):
+        return False
+
+
 def area_km2(geometry):
     """A district outline's area in km², on a local flat projection (well under 1% off at district scale)."""
     total = 0.0
@@ -23,17 +32,35 @@ def area_km2(geometry):
 
 def residents_per(population, count):
     """Residents for each business (or competitor); None when either figure is missing or there are none."""
-    return (population / count) if (population is not None and count) else None
+    if not _finite_nonnegative(population) or not _finite_nonnegative(count) or count == 0:
+        return None
+    try:
+        value = population / count
+    except OverflowError:
+        return None
+    return value if math.isfinite(value) else None
 
 
 def per_km2(count, area):
     """Businesses per km²; None without an area."""
-    return (count / area) if area else None
+    if not _finite_nonnegative(count) or not _finite_nonnegative(area) or area == 0:
+        return None
+    try:
+        value = count / area
+    except OverflowError:
+        return None
+    return value if math.isfinite(value) else None
 
 
 def density(population, area):
     """Residents per km²; None without a population or an area."""
-    return (population / area) if (population is not None and area) else None
+    if not _finite_nonnegative(population) or not _finite_nonnegative(area) or area == 0:
+        return None
+    try:
+        value = population / area
+    except OverflowError:
+        return None
+    return value if math.isfinite(value) else None
 
 
 def audience_sizes(population, male_pct, saudi_pct):

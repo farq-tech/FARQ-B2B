@@ -20,6 +20,18 @@ class DistrictMetricsTest(unittest.TestCase):
         self.assertIsNone(dm.density(None, 3))
         self.assertIsNone(dm.density(12000, None))
 
+    def test_derived_population_and_area_metrics_reject_invalid_inputs(self):
+        for invalid in (-1, math.inf, math.nan, True, 10**400):
+            with self.subTest(invalid=invalid):
+                self.assertIsNone(dm.residents_per(invalid, 2))
+                self.assertIsNone(dm.residents_per(100, invalid))
+                self.assertIsNone(dm.per_km2(invalid, 2))
+                self.assertIsNone(dm.per_km2(100, invalid))
+                self.assertIsNone(dm.density(invalid, 2))
+                self.assertIsNone(dm.density(100, invalid))
+        self.assertEqual(dm.density(0, 2), 0)
+        self.assertEqual(dm.per_km2(0, 2), 0)
+
     def test_audience_sizes_are_population_times_each_measured_share(self):
         sizes = dm.audience_sizes(10000, 60, 40)
         self.assertEqual((sizes["men"], sizes["women"]), (6000, 4000))
