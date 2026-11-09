@@ -20,6 +20,7 @@ import { StreetOpportunities } from './street-opportunities'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
 import { corridorVerdict, oversizedShop } from './tool-answers'
+import { listingTotal } from '@/lib/real-estate-response'
 import { Examples } from './examples'
 import { Verdict } from './verdict'
 import { corridorFacts } from './district-facts'
@@ -36,7 +37,7 @@ type Unit = Listing & { distance_m?: number }
 type RentLevel = { units: number; median_annual_sar: number | null; per_sqm_units: number; median_annual_sar_per_sqm: number | null }
 /** The street's asking rent against the units around it (insights.rent_summary); absent from an older service. */
 type RentSummary = { street: RentLevel; around: RentLevel; around_m: number; min_units: number; vs_around_pct: { annual: number | null; per_sqm: number | null } }
-type Units = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number; listings: Unit[]; rent?: RentSummary }
+type Units = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; listings: Unit[]; rent?: RentSummary }
 // shops, showrooms and offices within this distance of the corridor's own line (insights.COMMERCIAL_TYPES)
 const UNIT_TYPES = ['store', 'showroom', 'office']
 const UNIT_METERS = 60
@@ -106,7 +107,7 @@ export function CorridorsTool({ city, rows = [], onOverlay, next }: {
     city, types: UNIT_TYPES, near: { geometry: picked!.geometry, meters: UNIT_METERS }, limit: 200,
   }).then((data): Units => {
     const listings = (data.listings ?? []).filter(isPublishable)
-    return { status: 'ready', available: data.available !== false, total: Math.max(data.total ?? 0, listings.length), listings, rent: data.rent_summary }
+    return { status: 'ready', available: data.available !== false, total: listingTotal(data.total, listings.length), listings, rent: data.rent_summary }
   }))
   // one object per answer, so the map's overlay is not handed a new one on every render
   const hasPicked = picked != null
@@ -217,14 +218,22 @@ function StreetUnits({ street, units, onOpen, onRetry }: { street: string; units
     <div className="flex flex-col gap-2 rounded-xl border bg-background p-3">
       <div className="flex items-baseline justify-between gap-2">
         <Explained title={`محلات متاحة على ${street}`} lines={EXPLAIN.streetListings} className="text-base font-semibold">محلات متاحة على هذا الشارع</Explained>
-        {units.status === 'ready' && units.available && units.total > 0 && <span className="shrink-0 font-bold text-primary">{numberFormat.format(units.total)}</span>}
+        {units.status === 'ready' && units.available && (units.total == null
+          ? <span className="shrink-0 text-sm text-muted-foreground">العدد غير متاح</span>
+          : units.total > 0 && <span className="shrink-0 font-bold text-primary">{numberFormat.format(units.total)}</span>)}
       </div>
       {units.status === 'loading' && <ResultRowsSkeleton label="جارٍ البحث عن الوحدات" rows={3} sub />}
       {units.status === 'error' && <LoadError what="الوحدات المعروضة" onRetry={onRetry} />}
       {units.status === 'ready' && !units.available && <NotAvailable what="الوحدات المعروضة" where="هذه المدينة" body="الشوارع وعدد محلات النشاط عليها تبقى في القائمة أعلاه." />}
-      {units.status === 'ready' && units.available && !units.total && <NoResult title="لا وحدات معروضة على هذا الشارع الآن" body="جرّب شارعاً آخر من القائمة." />}
+      {units.status === 'ready' && units.available && units.total === 0 && <NoResult title="لا وحدات معروضة على هذا الشارع الآن" body="جرّب شارعاً آخر من القائمة." />}
+      {units.status === 'ready' && units.available && units.total == null && units.listings.length === 0 && (
+        <NotAvailable what="عدد الوحدات المعروضة" where="هذا الشارع" body="لم يصل عدد موثوق أو تفاصيل وحدات من المصدر." />
+      )}
+      {units.status === 'ready' && units.available && units.total == null && units.listings.length > 0 && (
+        <p role="status" className="text-sm text-muted-foreground">لم يرسل المصدر العدد الإجمالي؛ هذه قائمة الوحدات التي وصلت فقط.</p>
+      )}
       {units.status === 'ready' && units.available && units.rent && <StreetRent street={street} rent={units.rent} />}
-      {units.status === 'ready' && units.total > 0 && (
+      {units.status === 'ready' && units.available && units.listings.length > 0 && (
         <>
           <ol className="divide-y text-base">
             {units.listings.slice(0, limit).map((item) => (
@@ -235,8 +244,10 @@ function StreetUnits({ street, units, onOpen, onRetry }: { street: string; units
             ))}
           </ol>
           {/* the service names up to 200; the count above is its total, so «more» stops at what it named */}
-          <MoreRows shown={Math.min(limit, units.listings.length)} total={units.total} noun="listing"
-            canMore={limit < units.listings.length} onMore={showMore} />
+          {units.total != null
+            ? <MoreRows shown={Math.min(limit, units.listings.length)} total={units.total} noun="listing"
+                canMore={limit < units.listings.length} onMore={showMore} />
+            : limit < units.listings.length && <button type="button" onClick={showMore} className="self-start rounded-md pt-1.5 text-sm font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60">اعرض المزيد من القائمة التي وصلت</button>}
         </>
       )}
     </div>
