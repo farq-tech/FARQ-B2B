@@ -6,4 +6,4 @@
 export type Sex = 'all' | 'men' | 'women'
 export type Nationality = 'all' | 'saudi' | 'non_saudi'
 /** Measured per district: percentage of men and of Saudis among residents. */
-export type DistrictShare = { male_pct: number; saudi_pct: number }
+export type DistrictShare = { male_pct: number | null; saudi_pct: number | null }
