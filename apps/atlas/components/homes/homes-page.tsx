@@ -39,7 +39,7 @@ function shortPrice(price: number | null): string | undefined {
 
 /**
  * «العقار»: current listings as photo cards in two columns beside a map of price pins. Every filter (deal and period,
- * types, districts, price, area, rooms, street, photos, sort) lives in one sheet (HomesFilters); a phone shows the city
+ * types, districts, price, area, district density, rooms, age, street, features, sort) lives in one sheet (HomesFilters); a phone shows the city
  * and one button for it, a wide screen the search pill too, and the set filters are chips under either; moving the map can limit
  * the cards to what is in view. A card or a pin opens the listing's card over the map; two go to the comparison
  * assistant. Modelled on the search-results-with-map pattern (Screenrove: airbnb-product-results).
@@ -55,7 +55,7 @@ export function HomesPage() {
   const typesKey = types.join(','), districtsKey = filters.districts.join(',')
   const change = useCallback((next: Partial<HomeFilters>) => setFilters((current) => ({ ...current, ...next })), [])
   // `key` names the ask the listings answer, so a listing named by the address is looked for in the right answer
-  const [result, setResult] = useState<{ status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; listings: Listing[]; key?: string }>({ status: 'loading', available: true, total: null, listings: [] })
+  const [result, setResult] = useState<{ status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; densityUnavailable: number; listings: Listing[]; key?: string }>({ status: 'loading', available: true, total: null, densityUnavailable: 0, listings: [] })
   const [inView, setInView] = useState(true)
   const [bounds, setBounds] = useState<[number, number, number, number] | null>(null)
   const [hover, setHover] = useState<string | null>(null)
@@ -201,7 +201,16 @@ export function HomesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the ids, not the arrays
   }, [hydrated, city, kind, filters.rentDeal, typesKey, districtsKey, active?.id, listingTick, filters.maxPrice])
 
-  const askKey = JSON.stringify([city, kind, typesKey, deal, filters.maxPrice, districtsKey, attempt])
+  const serverFilters = {
+    min_price: filters.minPrice, max_price: filters.maxPrice,
+    min_area: filters.minArea, max_area: filters.maxArea, max_age: filters.maxAge,
+    min_density: filters.minDensity, max_density: filters.maxDensity,
+    min_beds: filters.beds || null, min_livings: filters.livings || null, min_wc: filters.wc || null,
+    min_street_width: filters.street || null, tenants: filters.tenants, features: filters.features,
+    below_median: filters.belowMedian, sort: filters.sort,
+  }
+  const serverFiltersKey = JSON.stringify(serverFilters)
+  const askKey = JSON.stringify([city, kind, typesKey, deal, serverFiltersKey, districtsKey, attempt])
   useEffect(() => {
     // the first ask waits for the address, so a shared link does not first load (and flash) the default listings
     if (!hydrated) return
@@ -210,17 +219,28 @@ export function HomesPage() {
     setResult((current) => ({ ...current, status: 'loading' }))
     setActive(null)
     setShown(PAGE)
-    // the deal, types, districts and (with a deal) the top price go to the service; the other filters narrow its answer
-    postMarket<{ available?: boolean; total?: number; listings?: Listing[] }>('real-estate-listings', {
+    // filter before the service caps at 1,500, so the best matching ads and the total reflect every selected filter
+    postMarket<{ available?: boolean; total?: number; density_unavailable?: number; listings?: Listing[] }>('real-estate-listings', {
       // near-identical ads (same district, type, area, rooms, price and advertiser) come folded into one card
-      city, kind, types, deal, limit: LIMIT, group_similar: true, ...(filters.maxPrice ? { max_price: filters.maxPrice } : {}),
+      city, kind, types, deal, limit: LIMIT, group_similar: true,
+      ...(filters.minPrice != null ? { min_price: filters.minPrice } : {}), ...(filters.maxPrice != null ? { max_price: filters.maxPrice } : {}),
+      ...(filters.minArea != null ? { min_area: filters.minArea } : {}), ...(filters.maxArea != null ? { max_area: filters.maxArea } : {}),
+      ...(filters.minDensity != null ? { min_density: filters.minDensity } : {}), ...(filters.maxDensity != null ? { max_density: filters.maxDensity } : {}),
+      ...(filters.maxAge != null ? { max_age: filters.maxAge } : {}),
+      ...(filters.beds ? { min_beds: filters.beds } : {}), ...(filters.livings ? { min_livings: filters.livings } : {}),
+      ...(filters.wc ? { min_wc: filters.wc } : {}), ...(filters.street ? { min_street_width: filters.street } : {}),
+      ...(filters.tenants ? { tenants: filters.tenants } : {}), ...(filters.features.length ? { features: filters.features } : {}),
+      ...(filters.belowMedian ? { below_median: true } : {}), sort: filters.sort,
       ...(filters.districts.length ? { district_ids: filters.districts } : {}),
     })
       // laid out flat, so every filter, count and pin reads one ad at a time; the cards fold them again (groupSimilar)
-      .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? null, listings: flattenSimilar(payload.listings ?? []), key }) })
-      .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, listings: [] }) })
+      .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? null,
+        densityUnavailable: payload.density_unavailable ?? 0, listings: flattenSimilar(payload.listings ?? []), key }) })
+      .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, densityUnavailable: 0, listings: [] }) })
     return () => { live = false }
-  }, [hydrated, city, kind, typesKey, deal, filters.maxPrice, districtsKey, attempt])
+  }, [hydrated, city, kind, typesKey, deal, serverFiltersKey, filters.minPrice, filters.maxPrice, filters.minArea, filters.maxArea,
+    filters.minDensity, filters.maxDensity, filters.maxAge, filters.beds, filters.livings, filters.wc, filters.street,
+    filters.tenants, filters.features, filters.belowMedian, filters.sort, districtsKey, attempt])
 
   // narrowing: the filters first, then (when asked) what the map shows
   const filtered = useMemo(() => applyFilters(result.listings, filters), [result.listings, filters])
@@ -350,6 +370,11 @@ export function HomesPage() {
             </SkeletonStatus>
           )}
           {result.status === 'error' && <LoadError what="العروض" onRetry={() => setAttempt((n) => n + 1)} />}
+          {result.status === 'ready' && result.densityUnavailable > 0 && (filters.minDensity != null || filters.maxDensity != null) && (
+            <p role="status" className="mb-3 text-sm text-muted-foreground">
+              كثافة الحي غير متاحة لـ {numberFormat.format(result.densityUnavailable)} من العروض المطابقة لبقية فلاترك؛ لم نعاملها كصفر.
+            </p>
+          )}
           {result.status === 'ready' && !result.available && (
             <EmptyState heading="h2" icon={Building2} title="غير متاحة بعد" body={`عروض العقار غير متاحة في ${cityAr} بعد.`}
               action={city !== 'Riyadh' ? <Chip onClick={() => setCity('Riyadh')}>اعرض عروض الرياض</Chip> : undefined} />
@@ -359,8 +384,8 @@ export function HomesPage() {
             filtered.length > 0 ? (
               <EmptyState heading="h2" icon={MapIcon} title="لا عروض في ما تُظهره الخريطة" body={`حرّك الخريطة أو صغّرها، أو اعرض كل عروض ${cityAr}.`}
                 action={<Chip onClick={() => setInView(false)}>اعرض كل عروض {cityAr}</Chip>} />
-            ) : result.listings.length > 0 ? (
-              <EmptyState heading="h2" icon={SearchX} title="لا عروض بهذه الفلاتر" body={`في ${cityAr} ${offersLabel(result.listings.length)} بهذه الصفقة والنوع، والفلاتر المطبقة تستبعدها كلها.`}
+            ) : result.listings.length > 0 || applied.length > 0 ? (
+              <EmptyState heading="h2" icon={SearchX} title="لا عروض بهذه الفلاتر" body={`لا يوجد في ${cityAr} عرض يطابق الصفقة والنوع والفلاتر المطبقة.`}
                 action={<Chip onClick={() => change({ ...DEFAULT_FILTERS, kind, rentDeal: filters.rentDeal, types: types.slice(0, 1) })}>مسح الفلاتر</Chip>} />
             ) : (
               <EmptyState heading="h2" icon={SearchX} title="لا عروض حالية من هذا النوع"

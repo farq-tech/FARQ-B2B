@@ -286,6 +286,9 @@ REAL_ESTATE_LISTINGS_PATH = os.environ.get('REAL_ESTATE_LISTINGS') or os.path.jo
 BEST_DISCOUNT_FLOOR = -30
 LISTING_TYPES = ('apartment', 'studio', 'floor', 'villa', 'house', 'building', 'room', 'store', 'showroom', 'office', 'warehouse',
                  'land', 'rest_house', 'chalet', 'farm', 'factory', 'workshop', 'compound', 'other')
+LISTING_FEATURES = ('furnished', 'ketchen', 'ac', 'lift', 'car_entrance', 'extra_unit', 'two_entrances', 'private_roof',
+                    'stairs', 'maid', 'driver', 'backyard', 'pool', 'basement', 'tent')
+LISTING_SORTS = ('best', 'price_asc', 'price_desc', 'area_desc', 'sqm_asc')
 LISTINGS_MAX = 1500
 # commercial units a shop can open in: what «محلات متاحة على هذا الشارع» lists along an activity street
 COMMERCIAL_TYPES = ('store', 'showroom', 'office')
@@ -443,16 +446,40 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
         xs, ys = [x for run in runs for x, _ in run], [y for run in runs for _, y in run]
         near_box = (min(xs) - pad_lon, min(ys) - pad_lat, max(xs) + pad_lon, max(ys) + pad_lat)
     within = lambda value, low, high: (low is None and high is None) or (value is not None and (low is None or value >= low) and (high is None or value <= high))
+    min_fields = {'beds': 'min_beds', 'livings': 'min_livings', 'wc': 'min_wc', 'street_width': 'min_street_width'}
+    required_features = filters.get('features') or []
+    tenants = filters.get('tenants')
+    below_median = filters.get('below_median') is True
     matches = [card for card in table.get('listings', []) if card['city'] == city
                and (not kind or card['kind'] == kind) and (not deal or card.get('deal') == deal) and (not types or canonical_type(card['type']) in types)
                and (not districts or card['district_id'] in districts)
                and (not box or (box[0] <= card['lon'] <= box[2] and box[1] <= card['lat'] <= box[3]))
                and within(card.get('price_sar'), filters.get('min_price'), filters.get('max_price'))
                and within(card.get('area_sqm'), filters.get('min_area'), filters.get('max_area'))
-               and within(card.get('age'), None, filters.get('max_age'))]
+               and within(card.get('age'), None, filters.get('max_age'))
+               and all(filters.get(key) is None or within(card.get(field), filters.get(key), None)
+                       for field, key in min_fields.items())
+               and (not tenants or kind != 'rent' or card.get('tenants') in (tenants, 'both'))
+               and all((card.get('features') or {}).get(feature) == 1 for feature in required_features)
+               and (not below_median or (card.get('vs_district_pct') is not None and card['vs_district_pct'] < 0))]
     found = [card for card in matches if _publishable(card)]
-    found.sort(key=best_order)
-    extra = {}
+    min_density, max_density = filters.get('min_density'), filters.get('max_density')
+    density_filter = min_density is not None or max_density is not None
+    density_unavailable = 0
+    if density_filter:
+        density_by_district = filters.get('density_by_district') or {}
+        density_unavailable = sum(1 for card in found if density_by_district.get(str(card.get('district_id'))) is None)
+        found = [card for card in found if within(density_by_district.get(str(card.get('district_id'))), min_density, max_density)]
+    sort = filters.get('sort') or 'best'
+    if sort == 'best':
+        found.sort(key=best_order)
+    else:
+        field, direction = {
+            'price_asc': ('price_sar', 1), 'price_desc': ('price_sar', -1),
+            'area_desc': ('area_sqm', -1), 'sqm_asc': ('sar_per_sqm', 1),
+        }[sort]
+        found.sort(key=lambda card: (card.get(field) is None, (card.get(field) or 0) * direction))
+    extra = {'density_unavailable': density_unavailable} if density_filter else {}
     if near:
         inside = lambda card: near_box[0] <= card['lon'] <= near_box[2] and near_box[1] <= card['lat'] <= near_box[3]
         measured = [(distance_to_lines_m(card['lon'], card['lat'], runs), card) for card in found if inside(card)]

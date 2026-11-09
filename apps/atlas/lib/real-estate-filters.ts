@@ -12,6 +12,9 @@ export type HomeFilters = {
   maxPrice: number | null
   minArea: number | null
   maxArea: number | null
+  /** District population density, served by the targeting API in residents per km². */
+  minDensity: number | null
+  maxDensity: number | null
   beds: number
   livings: number
   wc: number
@@ -30,7 +33,8 @@ export type SortId = 'best' | 'price_asc' | 'price_desc' | 'area_desc' | 'sqm_as
 
 export const DEFAULT_FILTERS: HomeFilters = {
   kind: 'rent', rentDeal: 'rent_year', types: ['apartment'], districts: [],
-  minPrice: null, maxPrice: null, minArea: null, maxArea: null, beds: 0, livings: 0, wc: 0, street: 0, maxAge: null,
+  minPrice: null, maxPrice: null, minArea: null, maxArea: null, minDensity: null, maxDensity: null,
+  beds: 0, livings: 0, wc: 0, street: 0, maxAge: null,
   belowMedian: false, tenants: null, features: [], sort: 'best',
 }
 
@@ -94,6 +98,7 @@ export function activeFilters(filters: HomeFilters, districtName: (id: string) =
   for (const id of filters.districts) out.push({ id: `d:${id}`, label: districtName(id), clear: { districts: filters.districts.filter((item) => item !== id) } })
   if (filters.minPrice != null || filters.maxPrice != null) out.push({ id: 'price', label: range(filters.minPrice, filters.maxPrice, ` ريال${period}`), clear: { minPrice: null, maxPrice: null } })
   if (filters.minArea != null || filters.maxArea != null) out.push({ id: 'area', label: range(filters.minArea, filters.maxArea, ' م²'), clear: { minArea: null, maxArea: null } })
+  if (filters.minDensity != null || filters.maxDensity != null) out.push({ id: 'density', label: range(filters.minDensity, filters.maxDensity, ' ساكن/كم²'), clear: { minDensity: null, maxDensity: null } })
   if (filters.beds) out.push({ id: 'beds', label: `${numberFormat.format(filters.beds)}+ غرف`, clear: { beds: 0 } })
   if (filters.livings) out.push({ id: 'livings', label: `${numberFormat.format(filters.livings)}+ صالات`, clear: { livings: 0 } })
   if (filters.wc) out.push({ id: 'wc', label: `${numberFormat.format(filters.wc)}+ دورات مياه`, clear: { wc: 0 } })

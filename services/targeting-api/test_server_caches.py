@@ -83,5 +83,57 @@ class BrandsPopulationCacheTests(unittest.TestCase):
         self.assertIs(first, server._POP_BY_NAME['Riyadh'])
 
 
+class ListingFilterApiTests(unittest.TestCase):
+    def test_density_map_uses_golden_population_and_area_by_district_id(self):
+        server._DISTRICT_DENSITIES.pop('Riyadh', None)
+        original_features = server._city_features
+        original_areas = server.district_areas
+        original_population = server.population_by_name_cached
+        server._city_features = lambda city: [
+            {'properties': {'id': '1', 'ar': 'حي معلوم'}}, {'properties': {'id': '2', 'ar': 'حي بلا سكان'}}]
+        server.district_areas = lambda city: {'حي معلوم': 2.0, 'حي بلا سكان': 1.0}
+        server.population_by_name_cached = lambda city: {'حي معلوم': {'population': 1000}, 'حي بلا سكان': {'population': None}}
+        try:
+            density = server.district_density_by_id('Riyadh')
+        finally:
+            server._city_features = original_features
+            server.district_areas = original_areas
+            server.population_by_name_cached = original_population
+        self.assertEqual(density, {'1': 500.0, '2': None})
+        self.assertIs(server.district_density_by_id('Riyadh'), density)
+        server._DISTRICT_DENSITIES.pop('Riyadh', None)
+
+    def test_listing_filter_request_is_validated_and_forwarded_to_the_catalog(self):
+        import insights
+        calls = []
+        original = insights.real_estate_listings
+        original_density = server.district_density_by_id
+        insights.real_estate_listings = lambda city, filters: calls.append((city, filters)) or {'total': 0, 'listings': []}
+        server.district_density_by_id = lambda city: {'1': 1500.0, '2': None}
+        body = {'city': 'Riyadh', 'kind': 'rent', 'deal': 'rent_year', 'types': ['apartment'], 'limit': 10,
+                'min_price': 20000, 'max_area': 180, 'max_age': 5, 'min_beds': 3, 'min_livings': 1,
+                'min_wc': 2, 'min_street_width': 12, 'tenants': 'families', 'features': ['furnished'],
+                'min_density': 1000, 'max_density': 5000, 'below_median': True, 'sort': 'price_asc'}
+        try:
+            result = server.insight_response('/real-estate-listings', body)
+        finally:
+            insights.real_estate_listings = original
+            server.district_density_by_id = original_density
+        self.assertEqual(result['total'], 0)
+        self.assertEqual(calls[0][0], 'Riyadh')
+        self.assertEqual({key: calls[0][1][key] for key in body if key in calls[0][1]}, {
+            'kind': 'rent', 'deal': 'rent_year', 'types': ['apartment'], 'limit': 10,
+            'min_price': 20000, 'max_area': 180, 'max_age': 5, 'min_beds': 3, 'min_livings': 1,
+            'min_wc': 2, 'min_street_width': 12, 'tenants': 'families', 'features': ['furnished'],
+            'min_density': 1000, 'max_density': 5000, 'below_median': True, 'sort': 'price_asc',
+        })
+        self.assertEqual(calls[0][1]['density_by_district'], {'1': 1500.0, '2': None})
+
+    def test_listing_filter_api_rejects_unknown_sort_and_feature(self):
+        for body in ({'city': 'Riyadh', 'sort': 'random'}, {'city': 'Riyadh', 'features': ['phone']}):
+            with self.subTest(body=body), self.assertRaises(ValueError):
+                server.insight_response('/real-estate-listings', body)
+
+
 if __name__ == '__main__':
     unittest.main()

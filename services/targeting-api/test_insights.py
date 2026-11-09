@@ -219,6 +219,47 @@ class InsightTests(unittest.TestCase):
         self.assertEqual(sorted(ids({"min_price": 50000, "max_price": 60000})), ["d"])
         self.assertEqual(sorted(ids({"max_area": 160})), ["a", "d"])
 
+    def test_property_filters_and_sort_are_applied_before_the_result_limit(self):
+        card = {"city": "Riyadh", "kind": "rent", "deal": "rent_year", "type": "apartment", "district_id": "1",
+                "lon": 46.7, "lat": 24.7, "price_sar": 60000, "area_sqm": 120, "photos": ["p.jpg"],
+                "beds": 2, "age": 1, "tenants": "families", "features": {"furnished": 1}, "vs_district_pct": -10,
+                "updated_on": "2026-10-01"}
+        cards = [dict(card, id="not_enough_rooms", beds=1, vs_district_pct=-30, updated_on="2026-10-30"),
+                 dict(card, id="missing_rooms", beds=None, vs_district_pct=-25, updated_on="2026-10-29"),
+                 dict(card, id="matching", beds=3, vs_district_pct=-10, updated_on="2026-10-01"),
+                 dict(card, id="missing_feature", beds=4, features={}, vs_district_pct=-5, updated_on="2026-10-02")]
+        path = self.root / "filtered-listings.json"
+        path.write_text(json.dumps({"listings": cards}), encoding="utf-8")
+        found = insights.real_estate_listings("Riyadh", {
+            "min_beds": 3, "max_age": 2, "tenants": "families", "features": ["furnished"],
+            "below_median": True, "limit": 1,
+        }, str(path))
+        self.assertEqual([item["id"] for item in found["listings"]], ["matching"],
+                         "a qualifying ad beyond the default ranking is found before the cap")
+        self.assertEqual(found["total"], 1)
+
+        cheap = dict(card, id="cheap", price_sar=30000, vs_district_pct=20)
+        discounted = dict(card, id="discounted", price_sar=70000, vs_district_pct=-20)
+        path.write_text(json.dumps({"listings": [discounted, cheap]}), encoding="utf-8")
+        sorted_result = insights.real_estate_listings("Riyadh", {"sort": "price_asc", "limit": 1}, str(path))
+        self.assertEqual([item["id"] for item in sorted_result["listings"]], ["cheap"],
+                         "the selected sort is applied before the service caps the result")
+
+    def test_district_density_filter_excludes_unknown_values_without_calling_them_zero(self):
+        card = {"city": "Riyadh", "kind": "rent", "deal": "rent_year", "type": "apartment", "district_id": "1",
+                "lon": 46.7, "lat": 24.7, "price_sar": 60000, "area_sqm": 120, "photos": ["p.jpg"]}
+        cards = [dict(card, id="low", district_id="1"), dict(card, id="high", district_id="2"),
+                 dict(card, id="unknown", district_id="3")]
+        path = self.root / "density-listings.json"
+        path.write_text(json.dumps({"listings": cards}), encoding="utf-8")
+        result = insights.real_estate_listings("Riyadh", {
+            "min_density": 1000, "max_density": 5000,
+            "density_by_district": {"1": 500, "2": 2500, "3": None},
+        }, str(path))
+        self.assertEqual([item["id"] for item in result["listings"]], ["high"])
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(result["density_unavailable"], 1)
+
     def test_real_estate_listings_by_building_age_leave_out_ads_that_state_none(self):
         card = {"city": "Riyadh", "kind": "rent", "type": "floor", "district_id": "1", "lon": 46.7, "lat": 24.7, "vs_district_pct": None,
                 "photos": ["p.jpg"], "price_sar": 100000, "area_sqm": 180}

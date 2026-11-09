@@ -60,9 +60,9 @@ const POST = {
     if (!people.length) return { residents_per_business: null, districts: [] }
     return { residents_per_business: 700, districts: people.map((d, index) => ({ district_ar: d.ar, businesses: 200, expected_businesses: 200 + short[index], shortfall: short[index], population: d.population })) }
   },
-  'real-estate-listings': (D) => ({
-    available: true, total: 2,
-    listings: [D[1], D[0]].map((d, index) => ({ id: `l${index + 1}${d.id}`, url: null, lon: d.lon + 0.01, lat: d.lat + 0.01, district_id: d.id, district_ar: d.ar, kind: 'rent', deal: 'rent_year', group: 'residential', type: 'apartment', price_sar: index ? 50000 : 30000, area_sqm: index ? 120 : 100, sar_per_sqm: index ? 416 : 300, vs_district_pct: index ? 5 : -20, check: false, city: 'Riyadh', photo: '/brand/farq-b2b-light.svg', photos: ['/brand/farq-b2b-light.svg'], address: null })),
+  'real-estate-listings': (D, body) => ({
+    available: true, total: 2, density_unavailable: body.min_density != null || body.max_density != null ? 1 : 0,
+    listings: [D[1], D[0]].map((d, index) => ({ id: `l${index + 1}${d.id}`, url: null, lon: d.lon + 0.01, lat: d.lat + 0.01, district_id: d.id, district_ar: d.ar, kind: 'rent', deal: 'rent_year', group: 'residential', type: 'apartment', price_sar: index ? 50000 : 30000, area_sqm: index ? 120 : 100, sar_per_sqm: index ? 416 : 300, beds: 3, age: 2, vs_district_pct: index ? 5 : -20, check: false, city: 'Riyadh', photo: '/brand/farq-b2b-light.svg', photos: ['/brand/farq-b2b-light.svg'], address: null })),
   }),
   territories: () => ({ territories: [] }),
   // Riyadh publishes income; Jeddah does not (the villa share stands in)
@@ -316,6 +316,27 @@ try {
     // «العقار» opens on that budget
     if (link) { await page.goto(`${BASE}${link}`); await settle(page, 3000) }
     check(new URL(page.url()).searchParams.get('max') === '50000', '«العقار» keeps the budget the link carried')
+    await context.close()
+  }
+  // property filters: rooms, building age and result order reach the service before its 1,500-ad cap
+  {
+    const { context, page, asked } = await open(browser, { phone: false })
+    await page.goto(`${BASE}/homes`); await settle(page, 2500)
+    await page.getByRole('button', { name: 'الفلاتر', exact: true }).click()
+    const rooms = page.locator('section').filter({ has: page.getByRole('heading', { name: 'الغرف', exact: true }) })
+    await rooms.getByRole('button', { name: '3+', exact: true }).click(); await settle(page, 800)
+    const age = page.locator('section').filter({ has: page.getByRole('heading', { name: 'عمر العقار', exact: true }) })
+    await age.getByRole('button', { name: 'سنتان أو أقل', exact: true }).click(); await settle(page, 800)
+    const density = page.locator('section').filter({ has: page.getByRole('heading', { name: 'كثافة سكان الحي', exact: true }) })
+    await density.getByRole('textbox').nth(0).fill('1000'); await settle(page, 800)
+    await density.getByRole('textbox').nth(1).fill('5000'); await settle(page, 800)
+    const sort = page.locator('section').filter({ has: page.getByRole('heading', { name: 'الترتيب', exact: true }) })
+    await sort.getByRole('button', { name: 'السعر: الأقل أولاً', exact: true }).click(); await settle(page, 1000)
+    const sent = asked.filter((item) => item.path === '/api/market/real-estate-listings').at(-1)?.body
+    check(sent?.min_beds === 3 && sent?.max_age === 2 && sent?.min_density === 1000 && sent?.max_density === 5000 && sent?.sort === 'price_asc',
+      'room, age, population density and order filters reach the service before its listing cap')
+    check((await page.locator('[role="status"]').allInnerTexts()).some((item) => item.includes('كثافة الحي غير متاحة لـ 1')),
+      'a listing with no district density is counted as unavailable, never zero')
     await context.close()
   }
 } finally {

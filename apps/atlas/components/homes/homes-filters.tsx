@@ -152,6 +152,14 @@ export function HomesFilters({ open, onClose, filters, onChange, districts, coun
             <RangeHint low={filters.minArea} high={filters.maxArea} onSwap={() => onChange({ minArea: filters.maxArea, maxArea: filters.minArea })} />
           </Section>
 
+          <Section title="كثافة سكان الحي" hint="عدد السكان لكل كم² في الحي، بحسب البيانات المتاحة. إذا لم تتوفر الكثافة للحي فلن نعتبرها صفراً ولن يطابقه هذا الفلتر.">
+            <div className="flex gap-3">
+              <NumberBox label="من" value={filters.minDensity} onChange={(value) => onChange({ minDensity: value })} unit="ساكن/كم²" />
+              <NumberBox label="إلى" value={filters.maxDensity} onChange={(value) => onChange({ maxDensity: value })} unit="ساكن/كم²" />
+            </div>
+            <RangeHint low={filters.minDensity} high={filters.maxDensity} onSwap={() => onChange({ minDensity: filters.maxDensity, maxDensity: filters.minDensity })} />
+          </Section>
+
           <Section title="الغرف">
             <Steps steps={COUNT_STEPS} value={filters.beds} onChange={(beds) => onChange({ beds })} label={(step) => `${numberFormat.format(step)}+`} />
           </Section>

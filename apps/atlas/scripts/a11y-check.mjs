@@ -61,6 +61,17 @@ for (const [name, width, height] of VIEWPORTS) {
       for (const node of violation.nodes.slice(0, 6)) console.log(`    ${node.target.join(' ')}  ${node.failureSummary?.split('\n').slice(1, 2).join(' ').trim() ?? ''}`)
     }
     if (!result.violations.length) console.log(`[${name}] ${label} ${path} · ok`)
+    if (path === '/homes') {
+      await page.getByRole('button', { name: /الفلاتر/ }).first().click()
+      await page.waitForTimeout(250)
+      const filters = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice']).exclude('.mapboxgl-map').analyze()
+      for (const violation of filters.violations) {
+        if (violation.impact === 'serious' || violation.impact === 'critical') serious++
+        console.log(`[${name}] فلاتر العقار ${path} · ${violation.impact} · ${violation.id}: ${violation.help}`)
+        for (const node of violation.nodes.slice(0, 6)) console.log(`    ${node.target.join(' ')}  ${node.failureSummary?.split('\n').slice(1, 2).join(' ').trim() ?? ''}`)
+      }
+      if (!filters.violations.length) console.log(`[${name}] فلاتر العقار ${path} · ok`)
+    }
   }
   await context.close()
 }

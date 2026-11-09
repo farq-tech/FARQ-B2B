@@ -140,8 +140,7 @@ AD_URL = 'https://sa.aqar.fm/ad/{}/ar'
 CARD_FIELDS = ('beds', 'livings', 'wc', 'street_width', 'age', 'age_source', 'tenants')
 # what the property has, as Aqar's form records it (1 has, 0 lacks; unstated stays out). Filled for a fifth to two
 # thirds of Riyadh's ads (2026-10-30); the plot's width and length, duplex and playground are too rare to show
-FEATURE_FIELDS = ('furnished', 'ketchen', 'ac', 'lift', 'car_entrance', 'extra_unit', 'two_entrances', 'private_roof',
-                  'stairs', 'maid', 'driver', 'backyard', 'pool', 'basement', 'tent')
+FEATURE_FIELDS = insights.LISTING_FEATURES
 
 
 def _features(listing):
