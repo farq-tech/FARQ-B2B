@@ -18,6 +18,10 @@ test('an active density filter preserves a measured zero and marks an omitted or
 test('a listing total stays unavailable when missing or smaller than the returned page', () => {
   assert.equal(listingTotal(undefined, 2), null)
   assert.equal(listingTotal(1, 2), null)
+  assert.equal(listingTotal('2', 2), null)
+  assert.equal(listingTotal(2.5, 2), null)
+  assert.equal(listingTotal(Number.NaN, 2), null)
+  assert.equal(listingTotal(Number.MAX_SAFE_INTEGER + 1, 2), null)
   assert.equal(listingTotal(2, 2), 2)
   assert.equal(listingTotal(0, 0), 0)
 })

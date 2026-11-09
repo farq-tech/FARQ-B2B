@@ -16,7 +16,7 @@ import { EXPLAIN } from '@/lib/explanations'
 import { cityLabel, counted, numberFormat, postMarket, useCityCatalog } from '@/lib/insights-api'
 import { LISTING_TYPES, shownPhotos, RENT_DEALS, daysAgo, flattenSimilar, groupSimilar, priceLine, priceTag, similarLabel, toneColor, typeLabel, versusDistrict, type Listing, ageLabel } from '@/lib/real-estate'
 import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
-import { densityUnavailableCount } from '@/lib/real-estate-response'
+import { densityUnavailableCount, listingTotal } from '@/lib/real-estate-response'
 import { HomesFilters } from './homes-filters'
 import { CopyLinkButton } from '@/components/shared/copy-link'
 import { DEFAULT_CITY, backIfReturning, districtMapHref, historyGate, pushedState, priceStartHref, readHomesMax, readHomesQuery, readListing, rememberView, writeHomesQuery } from '@/lib/handoff'
@@ -236,8 +236,12 @@ export function HomesPage() {
       ...(filters.districts.length ? { district_ids: filters.districts } : {}),
     })
       // laid out flat, so every filter, count and pin reads one ad at a time; the cards fold them again (groupSimilar)
-      .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? null,
-        densityUnavailable: densityUnavailableCount(payload.density_unavailable, filters.minDensity != null || filters.maxDensity != null), listings: flattenSimilar(payload.listings ?? []), key }) })
+      .then((payload) => {
+        if (!live) return
+        const listings = flattenSimilar(payload.listings ?? [])
+        setResult({ status: 'ready', available: payload.available !== false, total: listingTotal(payload.total, listings.length),
+          densityUnavailable: densityUnavailableCount(payload.density_unavailable, filters.minDensity != null || filters.maxDensity != null), listings, key })
+      })
       .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, densityUnavailable: null, listings: [] }) }), 250)
     return () => { live = false; window.clearTimeout(timer) }
   }, [hydrated, city, kind, typesKey, deal, serverFiltersKey, filters.minPrice, filters.maxPrice, filters.minArea, filters.maxArea,
