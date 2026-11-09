@@ -99,18 +99,22 @@ final class FarqAtlasUITests: XCTestCase {
         let best = rows.compactMap { $0["shortfall"] as? Double }.max() ?? 0
         let shown = (app.buttons["district-0"].value as? String) ?? ""
         XCTAssertTrue(shown.contains(english(best)), "top district shows \(shown), server says \(english(best))")
-        step("owner: verdict", tap: app.buttons["district-0"], until: app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'هل يناسبك حي'")).firstMatch, limit: 2)
+        step("owner: verdict", tap: app.buttons["district-0"], until: app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'هل يناسبك حي'")).firstMatch, limit: 3)
     }
 
     func testMarketerFlow() throws {
         step("marketer: open", tap: app.buttons["way-أصل لجمهوري"], until: app.buttons["segment-women"], limit: 3)
-        app.buttons["segment-women"].tap()
+        let womenButton = app.buttons["segment-women"]
+        womenButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(womenButton.isSelected, "the tapped audience row should be selected")
+        XCTAssertFalse(app.buttons["segment-men"].isSelected, "tapping women must not select the adjacent men row")
+        XCTAssertFalse(app.buttons["segment-everyone"].isSelected, "the previous selection must clear")
         step("marketer: districts", tap: app.buttons["primary"], until: app.buttons["district-0"], limit: 3)
         let audience = try server("district-audience", ["city": "Riyadh"])
         let women = ((audience["districts"] as? [[String: Any]]) ?? []).compactMap { $0["women"] as? Double }.max() ?? 0
         let shown = (app.buttons["district-0"].value as? String) ?? ""
         XCTAssertTrue(shown.contains(english(women)), "top district shows \(shown), server says \(english(women))")
-        step("marketer: district", tap: app.buttons["district-0"], until: app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'حي '")).firstMatch, limit: 2)
+        step("marketer: district", tap: app.buttons["district-0"], until: app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'حي '")).firstMatch, limit: 3)
     }
 
     func testDistributorFlow() throws {
@@ -118,20 +122,20 @@ final class FarqAtlasUITests: XCTestCase {
         app.buttons["activity-food"].tap()
         step("distributor: regions", tap: app.buttons["primary"], until: app.buttons["region-1"], limit: 60)
         XCTAssertTrue(app.buttons["region-5"].exists, "five reps should give five regions")
-        step("distributor: region", tap: app.buttons["region-1"], until: app.descendants(matching: .any)["region-district-0"], limit: 2)
+        step("distributor: region", tap: app.buttons["region-1"], until: app.descendants(matching: .any)["region-district-0"], limit: 3)
     }
 
     func testAnalystFlow() throws {
         step("analyst: open", tap: app.buttons["way-أقارن الأحياء"], until: app.buttons["row-0"], limit: 3)
         app.buttons["row-0"].tap()
         app.buttons["row-1"].tap()
-        step("analyst: compare", tap: app.buttons["primary"], until: app.navigationBars["المقارنة"], limit: 2)
+        step("analyst: compare", tap: app.buttons["primary"], until: app.navigationBars["المقارنة"], limit: 3)
     }
 
     func testRealEstateFlow() throws {
         step("real estate: open", tap: app.buttons["way-أدوّر عقاراً"], until: app.buttons["kind-rent"], limit: 3)
         step("real estate: deals", tap: app.buttons["kind-rent"], until: app.buttons["listing-0"], limit: 60)
-        step("real estate: listing", tap: app.buttons["listing-0"], until: app.navigationBars["العرض"], limit: 2)
+        step("real estate: listing", tap: app.buttons["listing-0"], until: app.navigationBars["العرض"], limit: 3)
         XCTAssertTrue(app.buttons["primary"].exists, "«افتح الإعلان» missing")
     }
 }

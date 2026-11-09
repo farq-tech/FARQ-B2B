@@ -21,6 +21,7 @@ final class AtlasStore {
     var shapes: [DistrictShape] = []
     var summary: CitySummary?
     var loading = false
+    var audienceLoading = false
     var error: String?
 
     // layers, keyed by the district's canonical Arabic name
@@ -116,9 +117,8 @@ final class AtlasStore {
         Quintiles.score(value(metric, name), among: Array(values(metric).values))
     }
 
-    /// Segment size of a district if it passes the income bar; nil when it does not or a needed figure is unmeasured.
-    func audienceSize(_ name: String) -> Double? {
-        if minIncome > 0 { guard let pay = income[name]?.income_all, pay >= minIncome else { return nil } }
+    /// The measured audience figure before the optional income filter.
+    private func measuredAudienceSize(_ name: String) -> Double? {
         switch segment {
         case .everyone: return counts[name]?.population
         case .men: return audience[name]?.men
@@ -128,9 +128,28 @@ final class AtlasStore {
         }
     }
 
+    /// Segment size of a district if it passes the income bar; nil when it does not or a needed figure is unmeasured.
+    func audienceSize(_ name: String) -> Double? {
+        if minIncome > 0 { guard let pay = income[name]?.income_all, pay >= minIncome else { return nil } }
+        return measuredAudienceSize(name)
+    }
+
     var audienceTotal: Double? {
         let rows = shapes.compactMap { audienceSize($0.name) }
         return rows.isEmpty ? nil : rows.reduce(0, +)
+    }
+
+    /// Districts omitted because the selected audience or a required income figure is unavailable. Known districts
+    /// below the income threshold are intentionally filtered out and are not counted as missing.
+    var audienceUnavailableCount: Int {
+        shapes.filter { shape in
+            measuredAudienceSize(shape.name) == nil || (minIncome > 0 && income[shape.name]?.income_all == nil)
+        }.count
+    }
+
+    var audienceCaption: String {
+        AudienceCoverage.caption(measured: ranked(.audience).count, total: shapes.count,
+                                 unavailable: audienceUnavailableCount, incomeFiltered: minIncome > 0, loading: audienceLoading)
     }
 
     var hasAudience: Bool { !audience.isEmpty }
@@ -165,6 +184,7 @@ final class AtlasStore {
         let token = UUID()
         loadToken = token
         loading = true
+        audienceLoading = true
         error = nil
         shapes = []; counts = [:]; summary = nil; audience = [:]; income = [:]; housing = [:]; growth = [:]
         activityCounts = [:]; gaps = [:]; territories = []; territoryOf = [:]; listings = []
@@ -181,6 +201,7 @@ final class AtlasStore {
             guard token == loadToken else { return }
             self.error = error.localizedDescription
             loading = false
+            audienceLoading = false
             return
         }
         loading = false
@@ -196,6 +217,7 @@ final class AtlasStore {
         guard token == loadToken else { return }
         self.summary = sum
         self.audience = Self.index(a ?? [], \.district_ar)
+        audienceLoading = false
         self.income = Self.index(i ?? [], \.district_ar)
         self.housing = Self.index(h ?? [], \.district_ar)
         self.growth = Self.index(g ?? [], \.district_ar)

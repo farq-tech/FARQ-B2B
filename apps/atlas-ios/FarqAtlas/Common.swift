@@ -82,6 +82,7 @@ struct OptionRow: View {
             .padding(14)
             .background(selected ? Tokens.accent : Tokens.card, in: .rect(cornerRadius: Tokens.radius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Tokens.radius, style: .continuous).strokeBorder(selected ? Palette.brand.opacity(0.5) : Tokens.border, lineWidth: selected ? 1.5 : 1))
+            .contentShape(.rect(cornerRadius: Tokens.radius, style: .continuous))
         }
         .buttonStyle(.farqPress)
         .disabled(!enabled)
