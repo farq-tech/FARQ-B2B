@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SearchSelect } from '@/components/shared/search-select'
 import { Chip } from '@/components/ui/chip'
-import { counted, numberFormat, postMarket, useCities } from '@/lib/insights-api'
+import { counted, numberFormat, postMarket, useCityCatalog } from '@/lib/insights-api'
 import { shownPhotos, typeLabel } from '@/lib/real-estate'
 import { EXPLAIN } from '@/lib/explanations'
 import { Stat } from '@/components/shared/stat'
@@ -113,7 +113,7 @@ function writeAnswers(answers: Answers, origin: { id: string; ask: number | null
  * adjustment with its percentage, and the comparables themselves, so the number can be checked.
  */
 export function PriceEstimator() {
-  const cities = useCities()
+  const cities = useCityCatalog()
   // the answers live in the address too (?city=…&district=…&area=…): an estimate can be reopened or shared as a link
   // inside Atlas and comes back with the same answers, and its price is worked out again from today's listings.
   // A value the page does not know is dropped, never guessed.

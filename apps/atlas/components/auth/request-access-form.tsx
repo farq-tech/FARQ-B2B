@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { ACCESS_CATEGORIES, ACCESS_FIELD_ORDER, DELETE_DETAILS_PATH, accessRequestBody, categoryFromNext, safeNext, validateAccessRequest, type AccessErrors, type AccessField, type AccessRequestInput } from '@/lib/access-request'
-import { numberFormat, useCities } from '@/lib/insights-api'
+import { numberFormat, useCityCatalog } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 
 const OFFLINE = 'تعذر الاتصال. تحقق من الإنترنت ثم أعد المحاولة.'
@@ -24,7 +24,7 @@ const PURPOSE_MAX = 500
 export function RequestAccessForm() {
   const search = useSearchParams()
   const next = safeNext(search.get('next'))
-  const cities = useCities()
+  const cities = useCityCatalog()
   // the group the person came from on the map is chosen already; one tap changes it
   const [value, setValue] = useState<AccessRequestInput>(() => ({ ...EMPTY, category: categoryFromNext(next) }))
   const [errors, setErrors] = useState<AccessErrors>({})

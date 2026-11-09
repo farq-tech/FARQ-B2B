@@ -130,30 +130,6 @@ export function useCityCatalog(): City[] {
   return cities
 }
 
-/** Cities that have districts in the golden atlas, largest first. */
-export function citiesWithDistricts(rows: City[]): City[] {
-  return rows.some((row) => typeof row.districts === 'number')
-    ? rows.filter((row) => (row.districts ?? 0) > 0)
-    : rows
-}
-
-/** Cities that have districts in the golden atlas, largest first: every insight works per district, so a city
- * without districts would only show an empty tool. Riyadh is the fallback while loading or on failure. */
-export function useCities(): City[] {
-  const [cities, setCities] = useState<City[]>([{ en: 'Riyadh', ar: 'الرياض' }])
-  useEffect(() => {
-    let live = true
-    fetchCities()
-      .then((unique) => {
-        const mapped = citiesWithDistricts(unique)
-        if (live && mapped.length) setCities(mapped)
-      })
-      .catch(() => undefined)
-    return () => { live = false }
-  }, [])
-  return cities
-}
-
 export type DistrictFeature = GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon, { id: string | number; ar?: string; district_ar?: string }>
 
 /** Official district outlines of a city (canonical: one feature per district). */

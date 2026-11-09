@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { loginHref, priceAsk, priceHref } from '@/lib/handoff'
 import { askVsRange } from '@/lib/ask-vs-range'
 import { ESTIMATE_CACHE, estimateKey, keepEstimate } from '@/lib/estimate-key'
-import { postMarket, useCities } from '@/lib/insights-api'
+import { postMarket, useCityCatalog } from '@/lib/insights-api'
 import { useAnswer } from './tools/use-answer'
 import { OfficesRequest, VALUERS } from '@/components/shared/offices-request'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -168,7 +168,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
   const estimate = useAnswer<{ available: boolean; price?: { low: number; mid: number; high: number } }>(ask ? estimateKey(ask) : null,
     () => postMarket('price-estimate', ask!), { cache: ESTIMATE_CACHE, keep: keepEstimate })
   const versusExpected = estimate.data?.available && estimate.data.price ? askVsRange(listing.price_sar, estimate.data.price) : null
-  const cities = useCities()
+  const cities = useCityCatalog()
   const cityName = cities.find((item) => item.en === listing.city)?.ar || listing.city
   // what the property has, as the ad's form records it; what it lacks shows in the comparison
   const has = FEATURES.filter(([key]) => listing.features?.[key] === 1).map(([, label]) => label)

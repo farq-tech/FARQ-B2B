@@ -12,7 +12,7 @@ import { TYPE_LABEL } from '@/lib/format'
 import { EmptyState, NoResult } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { toast } from 'sonner'
-import { counted, numberFormat, useCities } from '@/lib/insights-api'
+import { counted, numberFormat, useCityCatalog } from '@/lib/insights-api'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { GUEST_PREVIEW, type GuestPreviewRow } from '@/lib/guest-preview'
 import { BusinessDetail } from './business-detail'
@@ -87,7 +87,7 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
   area?: { label: string; geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon } | null
 }) {
   const router = useRouter()
-  const cities = useCities()
+  const cities = useCityCatalog()
   const reduce = useReducedMotion()
   const { createDraft, addToRequest, removeFromRequest, requests } = useAppStore()
   // the request a pick joins: named by the address when the person came from it («أضف منشآت من الخريطة»), or chosen

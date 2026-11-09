@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { TEMPLATES, businessById } from '@/lib/mock-data'
 import { formatDate, formatDateTime, requestCity, nextStep, statusLabel } from '@/lib/format'
-import { counted, numberFormat, useCities, percent } from '@/lib/insights-api'
+import { counted, numberFormat, useCityCatalog, percent } from '@/lib/insights-api'
 import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -42,7 +42,7 @@ function isBelow(requests: readonly RequestItem[], candidate: RequestItem, ances
 export function RequestDetailView({ id }: { id: string }) {
   const router = useRouter()
   const { requests, inbox, deliveries, replyStats, repliedElsewhere, updateRequest, createDraft } = useAppStore()
-  const cities = useCities()
+  const cities = useCityCatalog()
   // the phone's Back closes the review instead of leaving the request (lib/use-back-close.ts)
   const [reviewOpen, setReviewOpen] = useBackClose('review')
   const request = requests.find((r) => r.id === id)
