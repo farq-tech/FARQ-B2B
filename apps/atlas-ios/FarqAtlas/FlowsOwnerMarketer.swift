@@ -135,7 +135,7 @@ struct MarketerAudienceView: View {
 
     var body: some View {
         @Bindable var store = store
-        FlowScreen(title: "أصل لجمهوري", question: "مين جمهورك؟", note: store.hasAudience ? nil : "الجنس والجنسية غير متاحين في \(store.city.name)، فالمتاح «الكل» فقط.",
+        FlowScreen(title: "أصل لجمهوري", question: "مين جمهورك؟", note: store.audienceLoading ? "جارٍ تحميل بيانات الجمهور…" : store.hasAudience ? nil : "الجنس والجنسية غير متاحين في \(store.city.name)، فالمتاح «الكل» فقط.",
                    primary: .init("اعرض الأحياء") { store.path.append(Route.marketerDistricts) }) {
             ForEach(Segment.allCases) { segment in
                 OptionRow(title: segment.label, selected: store.segment == segment, enabled: segment == .everyone || store.hasAudience) {
@@ -167,7 +167,7 @@ struct MarketerDistrictsView: View {
                                  onTap: { if let hit = store.district(at: $0) { store.path.append(Route.marketerDistrict(hit.name)) } })) {
             Explained(title: "حجم الجمهور", lines: Explain.audienceTotal) {
                 HeroStat(title: "حجم جمهورك (\(store.segment.label))", value: store.audienceTotal,
-                         caption: Fmt.counted(ranked.count, .district))
+                         caption: store.audienceCaption, loading: store.audienceLoading)
             }
             .buttonStyle(.farqPress)
             Legend()
@@ -216,13 +216,14 @@ struct HeroStat: View {
     let title: String
     let value: Double?
     var caption: String? = nil
+    var loading = false
 
     var body: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(Typo.font(13, .semibold)).foregroundStyle(.white.opacity(0.75))
-                Text(value.map { Fmt.int($0) } ?? Fmt.unavailable)
-                    .font(Typo.font(value == nil ? 20 : 32, .bold)).monospacedDigit().foregroundStyle(.white)
+                Text(loading ? "جارٍ التحميل" : value.map { Fmt.int($0) } ?? Fmt.unavailable)
+                    .font(Typo.font(value == nil || loading ? 20 : 32, .bold)).monospacedDigit().foregroundStyle(.white)
             }
             Spacer()
             if let caption { Text(caption).font(Typo.font(13, .semibold)).foregroundStyle(.white.opacity(0.85)) }

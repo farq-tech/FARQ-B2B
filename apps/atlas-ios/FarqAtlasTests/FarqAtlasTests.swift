@@ -28,6 +28,31 @@ final class FarqAtlasTests: XCTestCase {
         XCTAssertEqual(Quintiles.score(1, among: values), 0)
     }
 
+    @MainActor
+    func testAudienceTotalNamesMeasuredDistrictCoverageAndMissingFilterData() {
+        let store = AtlasStore()
+        store.shapes = ["أ", "ب", "ج", "د"].enumerated().map { pair in
+            DistrictShape(id: String(pair.offset), name: pair.element, areaKm2: nil, polygons: [])
+        }
+        store.segment = .women
+        store.audience["أ"] = Audience(district_ar: "أ", male_pct: nil, saudi_pct: nil, men: nil, women: 40, saudi: nil, non_saudi: nil)
+        store.audience["ب"] = Audience(district_ar: "ب", male_pct: nil, saudi_pct: nil, men: nil, women: nil, saudi: nil, non_saudi: nil)
+        store.audience["ج"] = Audience(district_ar: "ج", male_pct: nil, saudi_pct: nil, men: nil, women: 20, saudi: nil, non_saudi: nil)
+        store.audience["د"] = Audience(district_ar: "د", male_pct: nil, saudi_pct: nil, men: nil, women: 30, saudi: nil, non_saudi: nil)
+        store.income["أ"] = Income(district_ar: "أ", income_all: 12_000)
+        store.income["ب"] = Income(district_ar: "ب", income_all: 15_000)
+        store.income["د"] = Income(district_ar: "د", income_all: 8_000)
+
+        XCTAssertEqual(store.audienceTotal, 90)
+        XCTAssertEqual(store.audienceUnavailableCount, 1)
+        XCTAssertEqual(store.audienceCaption, "في \(Fmt.int(3)) من \(Fmt.counted(4, .district)) مقاسة")
+
+        store.minIncome = 10_000
+        XCTAssertEqual(store.audienceTotal, 40)
+        XCTAssertEqual(store.audienceUnavailableCount, 2, "a known low-income district is filtered, not missing")
+        XCTAssertEqual(store.audienceCaption, "مطابق: \(Fmt.counted(1, .district)) · البيانات غير متاحة في \(Fmt.counted(2, .district))")
+    }
+
     func testParseDistrictsAndHitTest() throws {
         let json = """
         {"type":"FeatureCollection","features":[

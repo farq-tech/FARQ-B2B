@@ -97,6 +97,23 @@ enum Segment: String, CaseIterable, Identifiable {
     }
 }
 
+/// Makes the city total's coverage visible: missing district figures never disappear into an unlabeled partial sum.
+enum AudienceCoverage {
+    static func caption(measured: Int, total: Int, unavailable: Int, incomeFiltered: Bool, loading: Bool) -> String {
+        if loading { return "جارٍ تحميل بيانات الأحياء" }
+        guard total > 0 else { return Fmt.unavailable }
+        if incomeFiltered {
+            let matched = Fmt.counted(measured, .district)
+            return unavailable > 0
+                ? "مطابق: \(matched) · البيانات غير متاحة في \(Fmt.counted(unavailable, .district))"
+                : "مطابق: \(matched)"
+        }
+        return unavailable == 0
+            ? "في المدينة"
+            : "في \(Fmt.int(measured)) من \(Fmt.counted(total, .district)) مقاسة"
+    }
+}
+
 /// Rank of a value within its city, as a quintile 0…4 (every composite figure reads within its own city, §5).
 struct Quintiles {
     let cuts: [Double]
