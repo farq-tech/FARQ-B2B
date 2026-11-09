@@ -217,7 +217,7 @@ export function HomesPage() {
     if (!hydrated) return
     let live = true
     const key = askKey
-    setResult((current) => ({ ...current, status: 'loading' }))
+    setResult({ status: 'loading', available: true, total: null, densityUnavailable: 0, listings: [] })
     setActive(null)
     setShown(PAGE)
     // Wait for a short pause in typing; then filter before the service caps at 1,500, so the best matching ads and the
