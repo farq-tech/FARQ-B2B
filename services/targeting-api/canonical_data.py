@@ -30,7 +30,7 @@ import shapely.geometry
 import shapely.ops
 
 LOGGER = logging.getLogger('farq.targeting')
-VERSION = 5   # bump when the rules below change so cached copies are rebuilt
+VERSION = 6   # bump when the rules below change so cached copies are rebuilt
 
 # key -> (English, Arabic); keep in step with services/data-cleaning/city_names.py
 CITY_ALIAS = {
@@ -120,6 +120,17 @@ def load_n910_names(path=CORRECTIONS_PATH):
         return {}
     return {(row['city_en'], str(row['id'])): row['n910_ar'] for row in table.get('n910_names', [])
             if row.get('city_en') and row.get('id') is not None and row.get('n910_ar')}
+
+
+def _finite_coordinates(value):
+    if not isinstance(value, (list, tuple)):
+        return False
+    if value and all(isinstance(part, (int, float)) and not isinstance(part, bool) for part in value):
+        try:
+            return len(value) >= 2 and all(math.isfinite(part) for part in value)
+        except (OverflowError, TypeError):
+            return False
+    return all(_finite_coordinates(part) for part in value)
 
 
 def _polygons(geometry):
@@ -217,7 +228,8 @@ def sanitize_district_geometries(collection):
             excluded += 1
             continue
         geometry = feature.get('geometry')
-        if geometry is None:
+        if (not isinstance(geometry, dict) or geometry.get('type') not in ('Polygon', 'MultiPolygon')
+                or not _finite_coordinates(geometry.get('coordinates'))):
             excluded += 1
             continue
         try:
