@@ -39,8 +39,25 @@ def density(population, area):
 def audience_sizes(population, male_pct, saudi_pct):
     """Segment sizes = population × each measured share. Two shares are never multiplied together (their overlap is
     not measured). None where the population or that share is missing."""
+    def valid_number(value, minimum=None, maximum=None):
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return False
+        try:
+            finite = math.isfinite(value)
+        except (OverflowError, TypeError):
+            return False
+        return finite and (minimum is None or value >= minimum) and (maximum is None or value <= maximum)
+
+    population = population if valid_number(population, minimum=0) else None
+    male_pct = male_pct if valid_number(male_pct, minimum=0, maximum=100) else None
+    saudi_pct = saudi_pct if valid_number(saudi_pct, minimum=0, maximum=100) else None
+
     def share(pct):
-        return (population * pct / 100) if (population is not None and pct is not None) else None
+        if population is None or not valid_number(pct, minimum=0, maximum=100):
+            return None
+        value = population * pct / 100
+        return value if math.isfinite(value) else None
+
     return {
         "men": share(male_pct),
         "women": share(None if male_pct is None else 100 - male_pct),
