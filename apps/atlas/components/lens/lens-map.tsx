@@ -12,7 +12,7 @@ import { Chip } from '@/components/ui/chip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN, populationMethod } from '@/lib/explanations'
-import { counted, ltr, numberFormat, onDataVersion, useCities } from '@/lib/insights-api'
+import { cityLabel, counted, ltr, numberFormat, onDataVersion, useCityCatalog } from '@/lib/insights-api'
 import { useMainActivities } from '@/lib/main-activities'
 import { getSticky, setSticky, stickyHas, useStickyState, useStudiedActivity, watchSticky } from '@/lib/sticky-state'
 import { cn } from '@/lib/utils'
@@ -461,7 +461,7 @@ const DISTRICTS_MULTI = '__multi__'
  */
 export function LensMap() {
   const { views: savedViews } = useAppStore()
-  const cities = useCities()
+  const cities = useCityCatalog()
   // the kept answers belong to the data they came from: a city list with other counts (a new snapshot) forgets them
   // the service's own snapshot time (X-Data-Version) when it sends one, the city list's counts otherwise
   const [snapshot, setSnapshot] = useState<string | null>(null)
@@ -1206,7 +1206,7 @@ export function LensMap() {
         <SearchPill label="ابحث عن مورد أو نشاط" onSubmit={submit}>
           <PillField label="المدينة" className="basis-[calc(50%-0.25rem)] sm:basis-auto sm:max-w-[11rem]">
             <select aria-label="المدينة" value={city} onChange={(e) => setCity(e.target.value)} className={pillControl}>
-              {cities.map((item) => <option key={item.en} value={item.en}>{item.ar || item.en}</option>)}
+              {cities.map((item) => <option key={item.en} value={item.en}>{cityLabel(item)}</option>)}
             </select>
           </PillField>
           <PillField label="الحي" className="basis-[calc(50%-0.25rem)] sm:basis-auto sm:max-w-[11rem]">
@@ -1312,7 +1312,7 @@ export function LensMap() {
               <button type="submit" aria-label="ابحث" className="grid size-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60"><Search className="size-4" aria-hidden /></button>
             </form>
             <ScrollRow label="المدينة والحي والفئة" className="pointer-events-auto -mx-3 gap-2 px-3 pb-1">
-              <ChipSelect label="المدينة" value={city} onChange={setCity} options={cities.map((item) => [item.en, item.ar || item.en])} />
+              <ChipSelect label="المدينة" value={city} onChange={setCity} options={cities.map((item) => [item.en, cityLabel(item)])} />
               <ChipSelect label="الحي" value={districtValue} onChange={pickDistrict} options={districtOptions} />
               <ChipSelect label="الفئة" value={lens} onChange={(value) => setLens(value as LensId)} options={LENSES.map((item) => [item.id, item.label])} />
             </ScrollRow>

@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { fetchCities } from './insights-api.ts'
+import { citiesWithDistricts, cityLabel, fetchCities } from './insights-api.ts'
+
+test('city catalog preserves cities without district boundaries and labels the missing coverage', () => {
+  const rows = [
+    { en: 'Riyadh', ar: 'الرياض', districts: 197 },
+    { en: 'Adham', ar: 'أضم', districts: 0 },
+  ]
+  assert.deepEqual(citiesWithDistricts(rows).map((row) => row.en), ['Riyadh'])
+  assert.deepEqual(rows.map(cityLabel), ['الرياض', 'أضم · حدود الأحياء غير متاحة'])
+  assert.equal(cityLabel({ en: 'Jeddah', ar: null }), 'Jeddah', 'unknown coverage is not presented as missing')
+})
 
 test('the city list is asked for once and shared, and asked again after a failure', async () => {
   const original = globalThis.fetch
