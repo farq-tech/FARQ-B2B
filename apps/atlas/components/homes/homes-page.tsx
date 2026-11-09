@@ -16,6 +16,7 @@ import { EXPLAIN } from '@/lib/explanations'
 import { cityLabel, counted, numberFormat, postMarket, useCityCatalog } from '@/lib/insights-api'
 import { LISTING_TYPES, shownPhotos, RENT_DEALS, daysAgo, flattenSimilar, groupSimilar, priceLine, priceTag, similarLabel, toneColor, typeLabel, versusDistrict, type Listing, ageLabel } from '@/lib/real-estate'
 import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
+import { densityUnavailableCount } from '@/lib/real-estate-response'
 import { HomesFilters } from './homes-filters'
 import { CopyLinkButton } from '@/components/shared/copy-link'
 import { DEFAULT_CITY, backIfReturning, districtMapHref, historyGate, pushedState, priceStartHref, readHomesMax, readHomesQuery, readListing, rememberView, writeHomesQuery } from '@/lib/handoff'
@@ -55,7 +56,7 @@ export function HomesPage() {
   const typesKey = types.join(','), districtsKey = filters.districts.join(',')
   const change = useCallback((next: Partial<HomeFilters>) => setFilters((current) => ({ ...current, ...next })), [])
   // `key` names the ask the listings answer, so a listing named by the address is looked for in the right answer
-  const [result, setResult] = useState<{ status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; densityUnavailable: number; listings: Listing[]; key?: string }>({ status: 'loading', available: true, total: null, densityUnavailable: 0, listings: [] })
+  const [result, setResult] = useState<{ status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; densityUnavailable: number | null; listings: Listing[]; key?: string }>({ status: 'loading', available: true, total: null, densityUnavailable: 0, listings: [] })
   const [inView, setInView] = useState(true)
   const [bounds, setBounds] = useState<[number, number, number, number] | null>(null)
   const [hover, setHover] = useState<string | null>(null)
@@ -236,8 +237,8 @@ export function HomesPage() {
     })
       // laid out flat, so every filter, count and pin reads one ad at a time; the cards fold them again (groupSimilar)
       .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? null,
-        densityUnavailable: payload.density_unavailable ?? 0, listings: flattenSimilar(payload.listings ?? []), key }) })
-      .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, densityUnavailable: 0, listings: [] }) }), 250)
+        densityUnavailable: densityUnavailableCount(payload.density_unavailable, filters.minDensity != null || filters.maxDensity != null), listings: flattenSimilar(payload.listings ?? []), key }) })
+      .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, densityUnavailable: null, listings: [] }) }), 250)
     return () => { live = false; window.clearTimeout(timer) }
   }, [hydrated, city, kind, typesKey, deal, serverFiltersKey, filters.minPrice, filters.maxPrice, filters.minArea, filters.maxArea,
     filters.minDensity, filters.maxDensity, filters.maxAge, filters.beds, filters.livings, filters.wc, filters.street,
@@ -371,7 +372,12 @@ export function HomesPage() {
             </SkeletonStatus>
           )}
           {result.status === 'error' && <LoadError what="العروض" onRetry={() => setAttempt((n) => n + 1)} />}
-          {result.status === 'ready' && result.densityUnavailable > 0 && (filters.minDensity != null || filters.maxDensity != null) && (
+          {result.status === 'ready' && result.available && result.densityUnavailable == null && (filters.minDensity != null || filters.maxDensity != null) && (
+            <p role="status" className="mb-3 text-sm text-muted-foreground">
+              عدد العروض التي لا تتوفر كثافة أحيائها غير متاح؛ لم نعامل البيانات المفقودة كصفر.
+            </p>
+          )}
+          {result.status === 'ready' && result.densityUnavailable != null && result.densityUnavailable > 0 && (filters.minDensity != null || filters.maxDensity != null) && (
             <p role="status" className="mb-3 text-sm text-muted-foreground">
               كثافة الحي غير متاحة لـ {numberFormat.format(result.densityUnavailable)} من العروض المطابقة لبقية فلاترك؛ لم نعاملها كصفر.
             </p>
