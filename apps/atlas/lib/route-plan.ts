@@ -9,10 +9,14 @@
  */
 export type Point = { lon: number; lat: number }
 export type Stop = Point & { id: string }
-export type RoutePart = { index: number; order: string[]; line: GeoJSON.LineString | null; meters: number; seconds: number }
+export type RoutePart = { index: number; order: string[]; line: GeoJSON.LineString | null; meters: number | null; seconds: number | null }
 
 const WINDOW = 23          // interior stops per request; with its two fixed ends that is Valhalla's 25 via /api/routing
 const CONCURRENCY = 4
+
+function measured(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
+}
 
 function hilbertKey(x: number, y: number, order = 16): number {
   // (x, y) in [0, 2^order); classic xy-to-d conversion
@@ -64,25 +68,26 @@ async function solve(window: Window, signal: AbortSignal): Promise<RoutePart> {
   if (!response.ok || !data) throw new Error((data && data.error) || 'تعذر حساب المسار.')
   if (action === 'route') {
     const route = data.routes?.[0]
-    return { index: window.index, order: window.stops.map((stop) => stop.id), line: route?.geometry ?? null, meters: route?.distance ?? 0, seconds: route?.duration ?? 0 }
+    return { index: window.index, order: window.stops.map((stop) => stop.id), line: route?.geometry ?? null, meters: measured(route?.distance), seconds: measured(route?.duration) }
   }
   if (Array.isArray(data.trips) && data.trips[0]) {   // OSRM-shaped answer: waypoints[i].waypoint_index is input i's place in the trip
     const osrm = data.trips[0] as { geometry?: GeoJSON.LineString; distance?: number; duration?: number }
     const places: number[] = (data.waypoints ?? []).map((waypoint: { waypoint_index: number }) => waypoint.waypoint_index)
     const order = window.stops.map((stop, i) => ({ id: stop.id, at: places[i + 1] ?? i + 1 })).sort((a, b) => a.at - b.at).map((item) => item.id)
-    return { index: window.index, order, line: osrm.geometry ?? null, meters: osrm.distance ?? 0, seconds: osrm.duration ?? 0 }
+    return { index: window.index, order, line: osrm.geometry ?? null, meters: measured(osrm.distance), seconds: measured(osrm.duration) }
   }
   // Valhalla's own trip: locations in visiting order, each with its input position; legs carry GeoJSON shapes
   const trip = data.trip as { locations?: { original_index?: number }[]; legs?: { shape?: GeoJSON.LineString }[]; summary?: { length?: number; time?: number } } | undefined
   const visited = (trip?.locations ?? []).map((location) => location.original_index).filter((at): at is number => typeof at === 'number' && at > 0)
   const order = visited.length === window.stops.length ? visited.map((at) => window.stops[at - 1].id) : window.stops.map((stop) => stop.id)
   const coordinates = (trip?.legs ?? []).flatMap((leg) => (leg.shape?.type === 'LineString' ? leg.shape.coordinates : []))
+  const lengthKm = measured(trip?.summary?.length)
   return {
     index: window.index,
     order,
     line: coordinates.length > 1 ? { type: 'LineString', coordinates } : null,
-    meters: (trip?.summary?.length ?? 0) * 1000,   // requested in kilometres
-    seconds: trip?.summary?.time ?? 0,
+    meters: lengthKm == null ? null : lengthKm * 1000,   // requested in kilometres
+    seconds: measured(trip?.summary?.time) ?? null,
   }
 }
 

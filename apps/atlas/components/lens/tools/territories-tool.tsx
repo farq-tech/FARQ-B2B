@@ -18,7 +18,7 @@ import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { Chip } from '@/components/ui/chip'
 import { useMainActivities } from '@/lib/main-activities'
-import { duration, territoriesSummary, territoriesVerdict, weekFitHint, weekSummary } from './tool-answers'
+import { duration, routeDistance, territoriesSummary, territoriesVerdict, weekFitHint, weekSummary } from './tool-answers'
 import { Verdict } from './verdict'
 import { useAnswer } from './use-answer'
 import { territoryFacts } from './district-facts'
@@ -32,8 +32,6 @@ type WeekPlan = { days: PlanDay[]; unplanned: string[]; detour: number; speed_km
 const WEEK_STOPS_MAX = 5000
 /** The working week: Sunday to Thursday, with Saturday first when the rep works six days. */
 const dayNames = (days: number) => (days === 6 ? ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'] : ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'].slice(0, days))
-const km = (meters: number) => `${numberFormat.format(Math.round(meters / 100) / 10)} كم`
-
 const PALETTE = CATEGORICAL
 const MIN_REPS = 2
 const MAX_REPS = 50
@@ -190,8 +188,10 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   }
 
   const solved = parts.filter(Boolean)
-  const meters = solved.reduce((total, part) => total + part.meters, 0)
-  const seconds = solved.reduce((total, part) => total + part.seconds, 0)
+  const metersAvailable = solved.length > 0 && solved.every((part) => part.meters != null)
+  const secondsAvailable = solved.length > 0 && solved.every((part) => part.seconds != null)
+  const meters = metersAvailable ? solved.reduce((total, part) => total + (part.meters ?? 0), 0) : null
+  const seconds = secondsAvailable ? solved.reduce((total, part) => total + (part.seconds ?? 0), 0) : null
   const order = useMemo(() => [...(origin ? [origin] : []), ...solved.flatMap((part) => part.order)], [solved, origin])
   const byId = useMemo(() => new Map((customers ?? []).map((customer) => [customer.id, customer])), [customers])
   const showDay = (index: number) => {
@@ -209,7 +209,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
 
   // the step's answer in one line for the peeking sheet: the route once solved, else the rep's customers, else the split
   const visits = plan ? plan.days.reduce((sum, planned) => sum + planned.count, 0) : 0
-  const summary = finished ? `${day != null ? `مسار ${names[day] ?? 'اليوم'}` : 'المسار'}: ${numberFormat.format(order.length)} محطة · ${km(meters)} · ${duration(seconds)}`
+  const summary = finished ? `${day != null ? `مسار ${names[day] ?? 'اليوم'}` : 'المسار'}: ${numberFormat.format(order.length)} محطة · ${routeDistance(meters)} · ${duration(seconds)}`
     : plan && planStatus === 'idle' ? weekSummary(visits, plan.days.length)
     : rep != null && customers ? `المندوب ${numberFormat.format(rep + 1)}: ${numberFormat.format(customers.length)} منشأة على الخريطة`
       : territoriesSummary(status, groups?.length ?? null, weight)
@@ -350,8 +350,8 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
                         {day === index && !finished && !routeError
                           ? <span role="status" aria-busy="true"><span className="sr-only">جارٍ حساب مسار اليوم</span><Skeleton className="h-4 w-28" aria-hidden /></span>
                           : road
-                          ? <>على الطرق: {km(road.meters)} · {duration(road.seconds)}</>
-                          : <Explained title={`خطة ${names[index] ?? 'اليوم'}`} lines={EXPLAIN.weeklyPlan(plan.detour, plan.speed_kmh)}>تقدير: {km(planned.meters_estimate)} · {duration(planned.seconds_estimate)}</Explained>}
+                          ? <>على الطرق: {routeDistance(road.meters)} · {duration(road.seconds)}</>
+                          : <Explained title={`خطة ${names[index] ?? 'اليوم'}`} lines={EXPLAIN.weeklyPlan(plan.detour, plan.speed_kmh)}>تقدير: {routeDistance(planned.meters_estimate)} · {duration(planned.seconds_estimate)}</Explained>}
                       </span>
                     </li>
                   )
@@ -391,7 +391,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
             <>
               <div className="mt-3 grid grid-cols-3 gap-2 text-center tabular-nums">
                 <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">المحطات</p><p className="text-lg font-bold">{numberFormat.format(order.length)}</p></div>
-                <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">المسافة</p><p className="text-lg font-bold">{km(meters)}</p></div>
+                <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">المسافة</p><p className="text-lg font-bold">{routeDistance(meters)}</p></div>
                 <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">زمن القيادة</p><p className="text-base font-bold">{duration(seconds)}</p></div>
               </div>
               <StopOrder order={order} byId={byId} />

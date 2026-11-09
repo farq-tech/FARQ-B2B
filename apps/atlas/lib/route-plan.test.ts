@@ -28,3 +28,17 @@ test('the tour begins at the end nearer the start point', () => {
   const near = (stop: Stop) => (stop.lon - 46.75) ** 2 + (stop.lat - 24.71) ** 2
   assert.ok(near(first) <= near(last))
 })
+
+test('a successful route response with missing distance and duration keeps both metrics unavailable', async () => {
+  const previous = globalThis.fetch
+  globalThis.fetch = async () => new Response(JSON.stringify({ routes: [{ geometry: { type: 'LineString', coordinates: [[46, 24], [46.1, 24.1]] } }] }), {
+    status: 200, headers: { 'content-type': 'application/json' },
+  })
+  try {
+    const parts = await (await import('./route-plan.ts')).planRoute({ lon: 46, lat: 24 }, [{ id: 'a', lon: 46.1, lat: 24.1 }], () => {}, new AbortController().signal)
+    assert.equal(parts[0].meters, null)
+    assert.equal(parts[0].seconds, null)
+  } finally {
+    globalThis.fetch = previous
+  }
+})
