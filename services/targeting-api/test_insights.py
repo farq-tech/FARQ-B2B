@@ -123,7 +123,10 @@ class InsightTests(unittest.TestCase):
         path.write_text(json.dumps({"cities": {"Riyadh": [
             {"district_ar": "الربيع", "male_pct": 51.2, "saudi_pct": 80.1}, {"district_ar": "سكيرينة", "male_pct": None, "saudi_pct": 40.0}]}}, ensure_ascii=False), encoding="utf-8")
         table = insights.district_audience("Riyadh", str(path))
-        self.assertEqual(table["districts"], [{"district_ar": "الربيع", "male_pct": 51.2, "saudi_pct": 80.1}])
+        self.assertEqual(table["districts"], [
+            {"district_ar": "الربيع", "male_pct": 51.2, "saudi_pct": 80.1},
+            {"district_ar": "سكيرينة", "male_pct": None, "saudi_pct": 40.0},
+        ], "a missing gender share must not discard that district's measured nationality share")
         self.assertIsNone(insights.district_audience("Jeddah", str(path)))
 
 

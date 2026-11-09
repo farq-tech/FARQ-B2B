@@ -601,13 +601,14 @@ AUDIENCE_FIELDS = ('male_pct', 'saudi_pct')
 
 def district_audience(city, path=None):
     """Measured audience shares by district: the share of men and of Saudis, from the 910ths reference table. A
-    district without a measured share is left out, so the caller shows «غير متاح» for it rather than a guess."""
+    district is returned when either share is measured; the other share stays None so the caller can still use the
+    measured segment and show «غير متاح» for the missing one rather than losing both or guessing."""
     table = district_reference.load(path or district_reference.PATH)
     rows = ((table or {}).get('cities') or {}).get(city)
     if rows is None:
         return None
     return {'districts': [{'district_ar': row['district_ar'], **{key: row.get(key) for key in AUDIENCE_FIELDS}} for row in rows
-                          if all(row.get(key) is not None for key in AUDIENCE_FIELDS)]}
+                          if any(row.get(key) is not None for key in AUDIENCE_FIELDS)]}
 
 
 def district_income(city, path=None):
