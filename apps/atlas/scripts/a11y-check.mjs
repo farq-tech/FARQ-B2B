@@ -1,13 +1,14 @@
 // Accessibility check for every Atlas page outside the map, at phone width (390px) and on a desktop (1366px).
 // Not part of the build: run it against a running server.
 //
+//   pnpm exec playwright install chromium             # once per machine
 //   pnpm dev -p 3473                                  # in one shell
 //   ATLAS_URL=http://localhost:3473 pnpm a11y          # in another
 //
 // ATLAS_API=https://atlas.farq.sa answers the pages' /api calls from that server (read only), so lists hold real
 // data. The workspace (requests and inbox) is seeded with the sample requests on this device's storage only, so the
 // request, quote and message screens are checked filled, not only empty. Playwright itself is the one already on the
-// machine (NODE_PATH or a local install); axe is the devDependency @axe-core/playwright.
+// project dependencies; axe is the devDependency @axe-core/playwright.
 // Exit code 1 when any page has a serious or critical violation; every violation is printed.
 import { createRequire } from 'node:module'
 import { AxeBuilder } from '@axe-core/playwright'
