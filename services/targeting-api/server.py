@@ -406,7 +406,7 @@ def insight_response(path, body):
             filters['near'] = {'runs': insights.near_lines(near.get('geometry')),
                                'meters': _number(near, 'meters', 10, insights.NEAR_MAX_M, insights.NEAR_DEFAULT_M)}
         table = insights.real_estate_listings(city, filters)
-        if table is None: return {'ok': True, 'city': city, 'available': False, 'total': 0, 'listings': []}
+        if table is None: return {'ok': True, 'city': city, 'available': False, 'listings': []}
         return {'ok': True, 'city': city, 'available': True, **table}
     if path == '/real-estate-phone':
         listing_id = body.get('id')

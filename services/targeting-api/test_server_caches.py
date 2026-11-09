@@ -129,6 +129,18 @@ class ListingFilterApiTests(unittest.TestCase):
         })
         self.assertEqual(calls[0][1]['density_by_district'], {'1': 1500.0, '2': None})
 
+    def test_missing_listing_catalog_is_unavailable_not_zero_matches(self):
+        import insights
+        original = insights.real_estate_listings
+        insights.real_estate_listings = lambda city, filters: None
+        try:
+            result = server.insight_response('/real-estate-listings', {'city': 'Makkah'})
+        finally:
+            insights.real_estate_listings = original
+        self.assertFalse(result['available'])
+        self.assertNotIn('total', result)
+        self.assertEqual(result['listings'], [])
+
     def test_listing_filter_api_rejects_unknown_sort_and_feature(self):
         for body in ({'city': 'Riyadh', 'sort': 'random'}, {'city': 'Riyadh', 'features': ['phone']}):
             with self.subTest(body=body), self.assertRaises(ValueError):

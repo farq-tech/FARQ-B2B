@@ -353,7 +353,8 @@ export function HomesPage() {
             <h1 className="text-xl font-bold">
               {/* the service sends the best LIMIT of a larger match: then the count is «the best N», never the city's */}
               {result.status === 'ready'
-                ? `${result.total != null && result.total > result.listings.length && !byMap ? 'أنسب ' : ''}${visible.length ? offersLabel(visible.length) : 'لا عروض'} ${byMap ? 'في ما تُظهره الخريطة' : `في ${cityAr}`}`
+                ? !result.available ? `عروض العقار غير متاحة في ${cityAr}`
+                  : `${result.total != null && result.total > result.listings.length && !byMap ? 'أنسب ' : ''}${visible.length ? offersLabel(visible.length) : 'لا عروض'} ${byMap ? 'في ما تُظهره الخريطة' : `في ${cityAr}`}`
                 : `عروض ${cityAr}`}
             </h1>
             <label className={cn('min-h-11 items-center gap-2 text-sm text-muted-foreground', mapSeen ? 'flex' : 'hidden')}>
