@@ -10,7 +10,7 @@ import { requestBusiness } from '@/lib/business-name'
 import { formatDateTime, formatSar } from '@/lib/format'
 import { cityKey, mapHref } from '@/lib/handoff'
 import { kindNote, replyWindow, requestFor } from '@/lib/inbox-feed'
-import { counted, numberFormat, useCities } from '@/lib/insights-api'
+import { counted, numberFormat, useCityCatalog } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import type { InboxMessage } from '@/lib/types'
 import { SourceLabel } from './source-label'
@@ -19,7 +19,7 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
   const { requests, inbox, markRead, updateMessage } = useAppStore()
   const [draft, setDraft] = useState(message.replyDraft ?? '')
   const [saved, setSaved] = useState(false)
-  const cities = useCities()
+  const cities = useCityCatalog()
   const request = requestFor(requests, message.requestId)
   // named from the request's own saved businesses, as the map and the request show it; no contact is shown
   const b = requestBusiness(message.businessId, request)

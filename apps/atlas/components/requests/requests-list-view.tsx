@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { STATUS_LABEL, formatDate, nextStep, requestCity, statusLabel } from '@/lib/format'
-import { counted, numberFormat, percent, useCities } from '@/lib/insights-api'
+import { counted, numberFormat, percent, useCityCatalog } from '@/lib/insights-api'
 import { normalizeArabic } from '@/lib/search'
 import { useAppStore } from '@/lib/store'
 import { rateFor, repliesFor, replyRate, requestFor, statFor, trackedFor, wasSent } from '@/lib/inbox-feed'
@@ -29,7 +29,7 @@ export function RequestsListView() {
   // the map as the person left it (its city, step and districts), where a new request starts
   const [mapView, setMapView] = useState('/map')
   useEffect(() => { setMapView(lastView('/map')) }, [])
-  const cities = useCities()
+  const cities = useCityCatalog()
   // until the person picks a tab, the page opens on the first one that holds something to act on (the store loads
   // from this device after the first paint, so this is derived, not set once)
   const [chosen, setTab] = useState<RequestStatus | null>(null)

@@ -343,7 +343,15 @@ class RoundE2Tests(unittest.TestCase):
         self.assertIn('atlas_access_requests_waiting{kind="decision"} 2', text)
         self.assertNotRegex(text, r'last_success_timestamp_seconds 0$')
         self.assertNotIn('مها', text)
-        self.assertNotIn('555', text.replace('atlas', ''))
+        samples = [line.split(' ', 1)[0] for line in text.splitlines() if line and not line.startswith('#')]
+        self.assertEqual(samples, [
+            'atlas_access_request_retention_runs_total',
+            'atlas_access_request_retention_failures_total',
+            'atlas_access_request_retention_cleared_total',
+            'atlas_access_request_retention_last_success_timestamp_seconds',
+            'atlas_access_requests_waiting{kind="decision"}',
+            'atlas_access_requests_waiting{kind="deletion"}',
+        ], 'metrics expose only fixed count names and the two approved kind labels')
 
 
 class ReadOnlyTests(unittest.TestCase):

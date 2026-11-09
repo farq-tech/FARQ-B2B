@@ -13,7 +13,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { counted, numberFormat, postMarket, useCities } from '@/lib/insights-api'
+import { cityLabel, counted, numberFormat, postMarket, useCityCatalog } from '@/lib/insights-api'
 import { LISTING_TYPES, shownPhotos, RENT_DEALS, daysAgo, flattenSimilar, groupSimilar, priceLine, priceTag, similarLabel, toneColor, typeLabel, versusDistrict, type Listing, ageLabel } from '@/lib/real-estate'
 import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { HomesFilters } from './homes-filters'
@@ -45,8 +45,8 @@ function shortPrice(price: number | null): string | undefined {
  * assistant. Modelled on the search-results-with-map pattern (Screenrove: airbnb-product-results).
  */
 export function HomesPage() {
-  const cities = useCities()
-  const cityOptions = useMemo(() => cities.map((item) => [item.en, item.ar || item.en] as const), [cities])
+  const cities = useCityCatalog()
+  const cityOptions = useMemo(() => cities.map((item) => [item.en, cityLabel(item)] as const), [cities])
   const [city, setCity] = useState<string>('Riyadh')
   const [filters, setFilters] = useState<HomeFilters>(DEFAULT_FILTERS)
   const [sheet, setSheet] = useState(false)

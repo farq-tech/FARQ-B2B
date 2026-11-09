@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { UNAVAILABLE } from '@/components/shared/unavailable'
 import { formatDate, makeId } from '@/lib/format'
-import { numberFormat, useCities } from '@/lib/insights-api'
+import { numberFormat, useCityCatalog } from '@/lib/insights-api'
 import type { LineItem, RfqDetails } from '@/lib/types'
 
 interface RfqEditorProps {
@@ -63,7 +63,7 @@ function RfqSummary({ value }: { value: RfqDetails }) {
 }
 
 export function RfqEditor({ value, editable, onChange }: RfqEditorProps) {
-  const cities = useCities()
+  const cities = useCityCatalog()
   // the saved city stays a choice even when the list does not hold it (a request made before the list loaded)
   const cityItems = useMemo(() => {
     const items = cities.map((city) => ({ value: city.ar || city.en, label: city.ar || city.en }))

@@ -138,6 +138,24 @@ FIX = {('Riyadh', '463'): {'city_en': 'Riyadh', 'id': '463', 'ar': 'السليم
 
 
 class CanonicalDistrictTests(unittest.TestCase):
+    def test_district_geometry_sanitizer_repairs_invalid_rings_and_excludes_unusable_features(self):
+        invalid = {
+            'type': 'Polygon',
+            'coordinates': [[[44.0, 26.0], [44.02, 26.02], [44.02, 26.0], [44.0, 26.02], [44.0, 26.0]]],
+        }
+        no_area = {'type': 'Polygon', 'coordinates': [[[44.0, 26.0], [44.01, 26.0], [44.02, 26.0], [44.0, 26.0]]]}
+        atlas = {'type': 'FeatureCollection', 'features': [
+            {'type': 'Feature', 'properties': {'id': 1, 'ar': 'الروضة', 'city_en': 'Unaizah'}, 'geometry': invalid},
+            {'type': 'Feature', 'properties': {'id': 2, 'ar': 'المنطقة غير المتاحة', 'city_en': 'Unaizah'}, 'geometry': no_area},
+            {'type': 'Feature', 'properties': {'id': 3, 'city_en': 'Unaizah'}, 'geometry': poly(44.1, 26.1)}
+        ]}
+
+        cleaned, repaired, excluded = canonical_data.sanitize_district_geometries(atlas)
+
+        self.assertEqual((repaired, excluded), (1, 2))
+        self.assertEqual([feature['properties']['id'] for feature in cleaned['features']], [1])
+        self.assertTrue(canonical_data.shapely.geometry.shape(cleaned['features'][0]['geometry']).is_valid)
+
     def test_corrected_name_joins_its_district_and_same_names_merge(self):
         collection, id_map = canonical_data.canonical_districts(ATLAS, FIX)
         riyadh = {f['properties']['ar']: f for f in collection['features'] if f['properties']['city_en'] == 'Riyadh'}

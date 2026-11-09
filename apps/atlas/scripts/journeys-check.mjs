@@ -2,6 +2,7 @@
 // production data, no network), on a phone (390px) and a desktop (1440px). Not part of the build: run it against a
 // running server.
 //
+//   pnpm exec playwright install chromium                    # once per machine
 //   pnpm dev -p 3473                                          # in one shell
 //   ATLAS_URL=http://localhost:3473 node scripts/journeys-check.mjs   # in another
 //

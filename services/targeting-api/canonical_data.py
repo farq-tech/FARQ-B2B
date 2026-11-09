@@ -199,6 +199,57 @@ def _qualifiers(centres):
             for i, w in enumerate(words)]
 
 
+def sanitize_district_geometries(collection):
+    """Repair invalid district outlines and exclude features without a usable polygon identity or area."""
+    cleaned = []
+    repaired = excluded = 0
+    for feature in collection.get('features') or []:
+        if not isinstance(feature, dict):
+            excluded += 1
+            continue
+        properties = feature.get('properties')
+        ident = properties.get('id') if isinstance(properties, dict) else None
+        city = properties.get('city_en') if isinstance(properties, dict) else None
+        name = (properties.get('ar') or properties.get('district_ar')) if isinstance(properties, dict) else None
+        valid_id = (isinstance(ident, (str, int, float)) and not isinstance(ident, bool)
+                    and bool(str(ident).strip()) and (not isinstance(ident, float) or math.isfinite(ident)))
+        if not valid_id or not isinstance(city, str) or not city.strip() or not isinstance(name, str) or not name.strip():
+            excluded += 1
+            continue
+        geometry = feature.get('geometry')
+        if geometry is None:
+            excluded += 1
+            continue
+        try:
+            polygon = shapely.geometry.shape(geometry)
+            was_valid = polygon.is_valid
+            if not was_valid:
+                polygon = shapely.make_valid(polygon)
+            if isinstance(polygon, shapely.geometry.GeometryCollection):
+                areas = [part for part in polygon.geoms if isinstance(part, (shapely.geometry.Polygon, shapely.geometry.MultiPolygon))]
+                polygon = shapely.ops.unary_union(areas) if areas else None
+            if polygon is None or polygon.is_empty or not isinstance(polygon, (shapely.geometry.Polygon, shapely.geometry.MultiPolygon)):
+                excluded += 1
+                continue
+            if not polygon.is_valid:
+                polygon = shapely.make_valid(polygon)
+            if isinstance(polygon, shapely.geometry.GeometryCollection):
+                areas = [part for part in polygon.geoms if isinstance(part, (shapely.geometry.Polygon, shapely.geometry.MultiPolygon))]
+                polygon = shapely.ops.unary_union(areas) if areas else None
+            if polygon is None or polygon.is_empty or not polygon.is_valid or polygon.area <= 0:
+                excluded += 1
+                continue
+            if not was_valid:
+                repaired += 1
+            cleaned_feature = dict(feature)
+            cleaned_feature['properties'] = dict(properties)
+            cleaned_feature['geometry'] = shapely.geometry.mapping(polygon)
+            cleaned.append(cleaned_feature)
+        except (TypeError, ValueError, KeyError):
+            excluded += 1
+    return {**collection, 'features': cleaned}, repaired, excluded
+
+
 def canonical_districts(collection, corrections):
     """One feature per district: names corrected from the reviewed table, then polygons that carry the same
     name in the same city merged when they touch (a district drawn in pieces). Same-name polygons that do

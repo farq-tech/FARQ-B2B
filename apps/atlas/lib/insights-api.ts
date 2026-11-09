@@ -4,6 +4,14 @@ import { useEffect, useState } from 'react'
 
 export type City = { en: string; ar: string | null; districts?: number }
 
+/** The city's own name, with missing district boundaries made clear wherever someone can choose it. */
+export function cityLabel(city: City): string {
+  const name = city.ar || city.en
+  return typeof city.districts === 'number' && city.districts === 0
+    ? `${name} · حدود الأحياء غير متاحة`
+    : name
+}
+
 // every figure in Atlas is written in English digits with English separators (docs/atlas-product-foundation.md §5)
 export const numberFormat = new Intl.NumberFormat('en-US')
 
@@ -109,17 +117,13 @@ export function fetchCities(): Promise<City[]> {
   return citiesRequest
 }
 
-/** Cities that have districts in the golden atlas, largest first: every insight works per district, so a city
- * without districts would only show an empty tool. Riyadh is the fallback while loading or on failure. */
-export function useCities(): City[] {
+/** Every city in the catalog, including cities whose district boundaries are not available yet. */
+export function useCityCatalog(): City[] {
   const [cities, setCities] = useState<City[]>([{ en: 'Riyadh', ar: 'الرياض' }])
   useEffect(() => {
     let live = true
     fetchCities()
-      .then((unique) => {
-        const mapped = unique.some((row) => typeof row.districts === 'number') ? unique.filter((row) => (row.districts ?? 0) > 0) : unique
-        if (live && mapped.length) setCities(mapped)
-      })
+      .then((rows) => { if (live && rows.length) setCities(rows) })
       .catch(() => undefined)
     return () => { live = false }
   }, [])

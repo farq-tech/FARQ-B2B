@@ -155,6 +155,9 @@ def _districts_geojson():
     if _DISTRICT_FEATURES is None:
         p = CANONICAL['districts.geojson']
         data = json.load(open(p, encoding='utf-8')) if os.path.isfile(p) else {'features': []}
+        data, repaired, excluded = canonical_data.sanitize_district_geometries(data)
+        if repaired or excluded:
+            LOGGER.warning('district_geometry_sanitized repaired=%s excluded=%s', repaired, excluded)
         for feature in data['features']:
             feature['properties']['area_km2'] = district_metrics.area_km2(feature.get('geometry'))
         _DISTRICT_FEATURES = data
@@ -253,8 +256,7 @@ def site_card_response(body):
 
 
 def _city_features(city):
-    with open(CANONICAL['districts.geojson'], encoding='utf-8') as handle:
-        return [f for f in json.load(handle).get('features', []) if (f.get('properties') or {}).get('city_en') == city]
+    return [f for f in _districts_geojson()['features'] if (f.get('properties') or {}).get('city_en') == city]
 
 
 def insight_response(path, body):
@@ -599,8 +601,7 @@ def cities():
         return _CITIES
     with _CITIES_LOCK:
         if not _CITIES:
-            with open(CANONICAL['districts.geojson'], encoding='utf-8') as handle:
-                districts = collections.Counter((f.get('properties') or {}).get('city_en') for f in json.load(handle).get('features', []))
+            districts = collections.Counter((f.get('properties') or {}).get('city_en') for f in _districts_geojson()['features'])
             with LOCK:
                 rows = con.execute("select city_en, mode(city_ar), count(*) n from t where city_en is not null group by 1 having n >= 1500 order by n desc").fetchall()
             _CITIES.extend({'en': a, 'ar': b, 'n': c, 'districts': districts.get(a, 0)} for a, b, c in rows)
