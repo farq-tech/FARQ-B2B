@@ -208,33 +208,158 @@ struct CompareView: View {
 
 // MARK: - 5. أدوّر عقاراً
 
-/// Screen 1: «إيجار ولا شراء؟»
+/// Screen 1: choose rent or sale and narrow the search before asking the server for listings.
 struct RealEstateKindView: View {
     @Environment(AtlasStore.self) private var store
+    @State private var showingDistricts = false
+    @State private var districtQuery = ""
 
     var body: some View {
-        FlowScreen(title: "أدوّر عقاراً", question: "إيجار ولا شراء؟") {
-            ForEach([("rent", "إيجار", "key.fill"), ("sale", "شراء", "house.fill")], id: \.0) { kind in
-                Button {
-                    store.listingKind = kind.0
-                    store.path.append(Route.realEstateDeals)
-                    Task { await store.loadListings() }
-                } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: kind.2).font(.system(size: 24, weight: .semibold)).foregroundStyle(.white)
-                            .frame(width: 60, height: 60).background(Palette.hero, in: .rect(cornerRadius: 16, style: .continuous))
-                        Text(kind.1).font(Typo.font(22, .bold)).foregroundStyle(Tokens.foreground)
-                        Spacer()
-                        NextChevron().font(.body.weight(.bold)).foregroundStyle(Tokens.mutedForeground)
-                    }
-                    .padding(16)
-                    .background(Tokens.card, in: .rect(cornerRadius: 18, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Tokens.border, lineWidth: 1))
+        FlowScreen(title: "أدوّر عقاراً", question: "وش مواصفات العقار؟",
+                   note: "اختر الإيجار أو الشراء وحدد ما يناسبك. نطبّق الفلاتر على العروض قبل ترتيبها.",
+                   primary: .init("اعرض أفضل العروض") {
+                       store.path.append(Route.realEstateDeals)
+                       Task { await store.loadListings() }
+                   }) {
+            SectionTitle(text: "إيجار ولا شراء؟")
+            HStack(spacing: 8) {
+                ListingFilterChip(title: "إيجار", selected: store.listingKind == "rent", id: "kind-rent") {
+                    store.listingKind = "rent"; store.listingDeal = "rent_year"
                 }
-                .buttonStyle(.farqPress)
-                .accessibilityIdentifier("kind-\(kind.0)")
+                ListingFilterChip(title: "شراء", selected: store.listingKind == "sale", id: "kind-sale") {
+                    store.listingKind = "sale"; store.listingDeal = nil; store.listingMinBeds = nil; store.listingMaxPrice = nil
+                }
+            }
+
+            if store.listingKind == "rent" {
+                SectionTitle(text: "مدة الإيجار")
+                HStack(spacing: 8) {
+                    ListingFilterChip(title: "أي مدة", selected: store.listingDeal == nil, id: "deal-any") { store.listingDeal = nil; store.listingMaxPrice = nil }
+                    ListingFilterChip(title: "سنوي", selected: store.listingDeal == "rent_year", id: "deal-year") { store.listingDeal = "rent_year"; store.listingMaxPrice = nil }
+                    ListingFilterChip(title: "شهري", selected: store.listingDeal == "rent_month", id: "deal-month") { store.listingDeal = "rent_month"; store.listingMaxPrice = nil }
+                }
+            }
+
+            SectionTitle(text: "نوع العقار")
+            let types = ["apartment", "studio", "floor", "villa", "house", "building", "room", "store", "showroom", "office",
+                         "warehouse", "land", "rest_house", "chalet", "farm", "factory", "workshop", "compound", "other"]
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                ForEach(types, id: \.self) { type in
+                    ListingFilterChip(title: ListingText.type(type), selected: store.listingTypes.contains(type), id: "type-\(type)") {
+                        if store.listingTypes.contains(type) { store.listingTypes.remove(type) }
+                        else { store.listingTypes.insert(type) }
+                    }
+                }
+            }
+            Text("اترك الأنواع بدون تحديد لعرضها كلها.").font(Typo.caption).foregroundStyle(Tokens.mutedForeground)
+
+            SectionTitle(text: "الحد الأدنى للغرف")
+            choiceRow([(nil, "أي عدد"), (1, "غرفة"), (2, "غرفتان"), (3, "3 غرف"), (4, "4 غرف أو أكثر")],
+                      selected: store.listingMinBeds, id: "beds") { store.listingMinBeds = $0 }
+
+            SectionTitle(text: "أقصى عمر للعقار")
+            choiceRow([(nil, "أي عمر"), (0, "جديد فقط"), (5, "5 سنوات"), (10, "10 سنوات"), (20, "20 سنة")],
+                      selected: store.listingMaxAge, id: "age") { store.listingMaxAge = $0 }
+
+            if store.listingKind == "sale" {
+                SectionTitle(text: "الحد الأعلى لسعر الشراء")
+                choiceRow([(nil, "بلا حد"), (300000, "300,000 ر.س"), (600000, "600,000 ر.س"), (1000000, "1,000,000 ر.س"), (1500000, "1,500,000 ر.س")],
+                          selected: store.listingMaxPrice, id: "price") { store.listingMaxPrice = $0 }
+            } else if store.listingDeal == "rent_year" {
+                SectionTitle(text: "الحد الأعلى للإيجار السنوي")
+                choiceRow([(nil, "بلا حد"), (30000, "30,000 ر.س"), (60000, "60,000 ر.س"), (100000, "100,000 ر.س"), (150000, "150,000 ر.س")],
+                          selected: store.listingMaxPrice, id: "price") { store.listingMaxPrice = $0 }
+            } else if store.listingDeal == "rent_month" {
+                SectionTitle(text: "الحد الأعلى للإيجار الشهري")
+                choiceRow([(nil, "بلا حد"), (1000, "1,000 ر.س"), (2000, "2,000 ر.س"), (4000, "4,000 ر.س"), (6000, "6,000 ر.س")],
+                          selected: store.listingMaxPrice, id: "price") { store.listingMaxPrice = $0 }
+            } else {
+                Text("اختر مدة الإيجار لتحديد ميزانية سنوية أو شهرية قابلة للمقارنة.")
+                    .font(Typo.caption).foregroundStyle(Tokens.mutedForeground)
+            }
+
+            SectionTitle(text: "أقل كثافة سكانية للحي")
+            choiceRow([(nil, "أي كثافة"), (1000, "1,000 / كم²"), (5000, "5,000 / كم²"), (10000, "10,000 / كم²")],
+                      selected: store.listingMinDensity, id: "density") { store.listingMinDensity = $0 }
+            Text("الأحياء التي لا تتوفر لها كثافة سكانية لا تدخل في هذا الفلتر.")
+                .font(Typo.caption).foregroundStyle(Tokens.mutedForeground)
+
+            SectionTitle(text: "الأحياء")
+            if store.shapes.isEmpty {
+                Text("أسماء الأحياء غير متاحة لهذه المدينة حالياً.").font(Typo.callout).foregroundStyle(Tokens.mutedForeground).shadCard()
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Button {
+                        showingDistricts.toggle()
+                    } label: {
+                        HStack {
+                            Text(store.listingDistrictIDs.isEmpty ? "اختر الأحياء (اختياري)" : "الأحياء المختارة: \(Fmt.int(store.listingDistrictIDs.count))")
+                            Spacer()
+                            Image(systemName: showingDistricts ? "chevron.up" : "chevron.down")
+                        }
+                        .font(Typo.callout).foregroundStyle(Tokens.foreground)
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("districts-toggle")
+                    if showingDistricts {
+                        TextField("ابحث عن حي", text: $districtQuery)
+                            .font(Typo.callout)
+                            .padding(10)
+                            .background(Tokens.background, in: .rect(cornerRadius: 10, style: .continuous))
+                            .accessibilityIdentifier("district-search")
+                        LazyVStack(spacing: 4) {
+                        ForEach(store.shapes.filter { districtQuery.isEmpty || $0.name.localizedCaseInsensitiveContains(districtQuery) }
+                            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }) { shape in
+                            Toggle(isOn: Binding(get: { store.listingDistrictIDs.contains(shape.id) }, set: { selected in
+                                if selected { store.listingDistrictIDs.insert(shape.id) }
+                                else { store.listingDistrictIDs.remove(shape.id) }
+                            })) {
+                                Text(shape.name).font(Typo.callout).foregroundStyle(Tokens.foreground)
+                            }
+                            .accessibilityIdentifier("district-\(shape.id)")
+                        }
+                    }
+                    .padding(.top, 8)
+                    }
+                }
+                .shadCard()
             }
         }
+    }
+
+    private func choiceRow(_ options: [(Double?, String)], selected: Double?, id: String,
+                           action: @escaping (Double?) -> Void) -> some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+            ForEach(Array(options.enumerated()), id: \.offset) { entry in
+                let option = entry.element
+                let optionID = option.0.map { String(Int($0)) } ?? "any"
+                ListingFilterChip(title: option.1, selected: option.0 == selected, id: "\(id)-\(optionID)") {
+                    action(option.0)
+                }
+            }
+        }
+    }
+}
+
+private struct ListingFilterChip: View {
+    let title: String
+    let selected: Bool
+    let id: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title).font(Typo.font(14, .semibold)).foregroundStyle(Tokens.foreground)
+                .frame(maxWidth: .infinity, minHeight: 46)
+                .padding(.horizontal, 7)
+                .background(selected ? Tokens.accent : Tokens.card, in: .rect(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(selected ? Palette.brand.opacity(0.55) : Tokens.border, lineWidth: selected ? 1.5 : 1))
+                .contentShape(.rect)
+        }
+        .buttonStyle(.farqPress)
+        .accessibilityIdentifier(id)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -269,7 +394,7 @@ enum ListingText {
     static func type(_ id: String?) -> String {
         ["room": "غرفة", "apartment": "شقة", "studio": "استوديو", "floor": "دور", "villa": "فيلا", "house": "بيت", "building": "عمارة",
          "store": "محل", "showroom": "معرض", "office": "مكتب", "warehouse": "مستودع", "land": "أرض", "rest_house": "استراحة",
-         "chalet": "شاليه", "farm": "مزرعة"][id ?? ""] ?? "عقار"
+         "chalet": "شاليه", "farm": "مزرعة", "factory": "مصنع", "workshop": "ورشة", "compound": "مجمع", "other": "أخرى"][id ?? ""] ?? "عقار"
     }
 
     static func deal(_ deal: String?) -> String {

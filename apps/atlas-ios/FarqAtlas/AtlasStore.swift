@@ -57,6 +57,13 @@ final class AtlasStore {
 
     // real estate
     var listingKind = "rent"
+    var listingTypes: Set<String> = []
+    var listingDeal: String? = "rent_year"
+    var listingDistrictIDs: Set<String> = []
+    var listingMinBeds: Double?
+    var listingMaxAge: Double?
+    var listingMaxPrice: Double?
+    var listingMinDensity: Double?
     static let opportunityRange: ClosedRange<Double> = -30 ... -10
     static let opportunityCount = 40
     var listings: [Listing] = []
@@ -233,9 +240,14 @@ final class AtlasStore {
 
     func loadListings() async {
         listingsLoading = true
-        let name = city.en, kind = listingKind
-        let result = try? await api.listings(city: name, kind: kind, types: nil, maxPrice: nil, limit: 400)
-        guard name == city.en, kind == listingKind else { return }
+        let name = city.en, kind = listingKind, types = listingTypes.sorted(), deal = listingDeal
+        let districtIDs = listingDistrictIDs.sorted(), minBeds = listingMinBeds, maxAge = listingMaxAge
+        let maxPrice = listingMaxPrice, minDensity = listingMinDensity
+        let result = try? await api.listings(city: name, kind: kind, types: types, deal: deal, districtIDs: districtIDs,
+                                             minBeds: minBeds, maxAge: maxAge, maxPrice: maxPrice, minDensity: minDensity, limit: 600)
+        guard name == city.en, kind == listingKind, types == listingTypes.sorted(), deal == listingDeal,
+              districtIDs == listingDistrictIDs.sorted(), minBeds == listingMinBeds, maxAge == listingMaxAge,
+              maxPrice == listingMaxPrice, minDensity == listingMinDensity else { return }
         // the server sends the best value first; keep the believable bargains only
         listings = Array((result?.rows ?? []).filter { row in
             row.check != true && row.vs_district_pct.map { Self.opportunityRange.contains($0) } == true
