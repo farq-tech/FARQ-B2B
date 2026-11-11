@@ -23,6 +23,13 @@ import { Icon3D } from '@/components/shared/icon-3d'
 import type { RequestType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, DURATION, EASE, Expand, Reveal, ease, motion, useReducedMotion } from '@/lib/motion'
+import { activityBody, type ActivityQuery } from '@/lib/activity-query'
+
+/** The studied activity by its ids alone (never its typed words), or null when it has none. */
+function pickedBody(studied: ActivityQuery): ActivityQuery | null {
+  const body = activityBody({ ...studied, q: undefined })
+  return Object.keys(body).length ? body : null
+}
 
 /** The picked count inside an action button, popping as it changes (scale/opacity only, so it reads the same in RTL). */
 function PickCount({ value, reduce }: { value: number; reduce: boolean | null }) {
@@ -129,7 +136,7 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
   // the next page of each district a list has more of, for «اعرض المزيد» (a site's reach reads its pages itself)
   const [more, setMore] = useState<{ district: string | null; offset: number }[]>([])
   const [moreState, setMoreState] = useState<'idle' | 'loading' | 'error'>('idle')
-  const lastAsk = useRef<{ typed: string; main: string | null }>({ typed: '', main: null })
+  const lastAsk = useRef<{ typed: string; main: ActivityQuery | null }>({ typed: '', main: null })
 
   useEffect(() => {
     // each list is reset, and asked, once for what it shows: a second run of the same effect (React's development
@@ -169,8 +176,9 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
     // the whole city is searched by activity only: with no district and nothing typed there is nothing to search,
     // and an empty answer would read as «no businesses in the city»
     if (!districts.length && !typed && !area) { setStatus('needs-scope'); return }
-    // the studied main activity is asked by its category id, so the list matches what the city's counts counted
-    const main = studied.main_id && typed === studied.label ? studied.main_id : null
+    // the studied activity, when it is the one in the box, is asked by its ids (a picked subcategory or specialty, or an
+    // older main activity), so the list is the cohort the city's counts counted
+    const main = typed === studied.label ? pickedBody(studied) : null
     const reach = area ? boxOf(area.geometry) : null
     const stale = () => mine !== latest.current
     setStatus('loading')
@@ -187,7 +195,7 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
       const ask = async (district: string | null, offset: number) => {
         const response = await fetch('/api/market/entities', {
           method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset, ...(typed ? { q: typed, objective: 'purchase' } : {}), ...(main ? { main_id: main } : {}), ...(reach ? { bounds: reach } : {}) }),
+          body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset, ...(typed ? { q: typed, objective: 'purchase' } : {}), ...(main ?? {}), ...(reach ? { bounds: reach } : {}) }),
         })
         return { response, body: await response.json().catch(() => null) as Page | null }
       }
@@ -277,7 +285,7 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
       for (const { district, offset } of pages) {
         const response = await fetch('/api/market/entities', {
           method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset, ...(typed ? { q: typed, objective: 'purchase' } : {}), ...(main ? { main_id: main } : {}) }),
+          body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset, ...(typed ? { q: typed, objective: 'purchase' } : {}), ...(main ?? {}) }),
         })
         const body = await response.json().catch(() => null) as { rows?: PublicDirectoryEntity[]; hasMore?: boolean; nextOffset?: number | null } | null
         if (mine !== latest.current) return
