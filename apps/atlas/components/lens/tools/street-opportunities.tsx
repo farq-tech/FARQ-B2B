@@ -113,7 +113,7 @@ export function StreetOpportunities({ city, rows = [], studied, clusters, onOver
   }
   if (status === 'error') return <LoadError what="فرص الشوارع" onRetry={answer.retry} />
   if (result?.understood === false) return <NoResult title={`لم نتعرف على «${studied.label}»`} body="جرّب اسماً آخر للنشاط، أو اختر تخصصاً من القائمة." />
-  if (result?.specialty_available === false) return <NotAvailable what="فرص الشوارع" where={`«${studied.label}»`} body="فرص الشوارع محسوبة على مستوى التخصص الأعم (مثل «وجبات سريعة»)، لا التخصص الدقيق. اختره لترى فرصه." />
+  if (result?.specialty_available === false) return <NotAvailable what="فرص الشوارع" where={`«${studied.label}»`} body="فرص الشوارع لهذا التخصص الدقيق لم تُحسب بعد. اختر تخصصه الأعم (مثل «وجبات سريعة») لترى فرصه." />
   if (result?.available === false) return <NotAvailable what="فرص الشوارع" where="هذه المدينة" body="جرّب «أين يتجمع» لترى الشوارع التي يتجمع فيها النشاط." />
   if (!streets.length) return <NoResult title={`لا شارع تجاري نشط ينقصه «${studied.label}»`} body="النشاط موجود في الشوارع التجارية النشطة. جرّب «أين يتجمع»." />
 

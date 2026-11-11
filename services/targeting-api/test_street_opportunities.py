@@ -174,3 +174,60 @@ class StreetOpportunityTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class SpecialtyOpportunityTests(unittest.TestCase):
+    """A specialty («برجر») is scored on its own corridors; its shops sit inside its subcategory's row."""
+    KEY = 'food.fast_food.burger|food.restaurant.burger'
+
+    def setUp(self):
+        self.db = duckdb.connect()
+        self.db.execute("""create table t(city_en varchar, sub_id varchar, sub_ar varchar, main_id varchar, main_ar varchar, street_ar varchar,
+            district_ar varchar, districts_ar varchar, n integer, n_wholesale integer, length_m integer, per_100m double, lift double,
+            road_class varchar, specialty_ids varchar, specialty_key varchar, geojson varchar)""")
+        trade = lambda *a, **k: (lambda r: r[:15] + (None,) + r[15:])(row(*a, **k))
+        rows = [
+            # burgers gather here: 12 of the 30 fast-food shops
+            trade('food.fast_food', 'شارع التحلية', 'العليا', 30, 0, main='food'),
+            trade('fashion', 'شارع التحلية', 'العليا', 25, 0),
+            ('Riyadh', '', 'برجر', 'food', 'food', 'شارع التحلية', 'العليا', 'العليا', 12, 0, 500, 2.4, None, 'main', '', self.KEY, line(0, 0)),
+            # fast food, but fewer than 5 burger shops: no burger corridor
+            trade('food.fast_food', 'شارع العليا', 'العليا', 20, 2000, main='food'),
+            trade('cafe', 'شارع العليا', 'العليا', 30, 2000, main='food'),
+            # a busy street with no fast food at all
+            trade('fashion', 'شارع الملك فهد', 'الورود', 40, 4000),
+            trade('cafe', 'شارع الملك فهد', 'الورود', 20, 4000, main='food'),
+            # another specialty's corridor is never read for burgers
+            ('Riyadh', '', 'بيتزا', 'food', 'food', 'شارع الملك فهد', 'الورود', 'الورود', 9, 0, 500, 1.8, None, 'main', '', 'food.fast_food.pizza', line(0, 4000)),
+        ]
+        self.db.executemany('insert into t values (' + ','.join('?' * 17) + ')', rows)
+        self.path = str(pathlib.Path(tempfile.mkdtemp()) / 'street_density.parquet')
+        self.db.execute('copy t to ? (format parquet)', [self.path])
+
+    def test_streets_without_the_specialty_are_its_opportunities_measured_by_their_own_size(self):
+        out = so.opportunities(self.db, self.path, 'Riyadh', specialty_ids=self.KEY.split('|')[::-1])
+        by_name = {f['properties']['street_ar']: f['properties'] for f in out['features']}
+        self.assertEqual(set(by_name), {'شارع العليا', 'شارع الملك فهد'}, 'the street burgers gather on is no opportunity')
+        self.assertEqual(out['share'], round(12 / 165, 4), 'burger shops are part of the streets, never added on top')
+        self.assertEqual(out['requested_kinds'], 1)
+        self.assertEqual((by_name['شارع الملك فهد']['total'], by_name['شارع الملك فهد']['others']), (60, 60))
+        self.assertEqual(by_name['شارع العليا']['requested_below'], 5)
+        self.assertEqual(by_name['شارع العليا']['nearest']['street_ar'], 'شارع التحلية')
+        self.assertEqual(by_name['شارع العليا']['nearest']['n'], 12, 'the nearest cluster is told by its burger count')
+
+    def test_a_specialty_street_is_counted_by_its_own_shops(self):
+        # a street with burgers, but fewer than its size calls for, shows its burger count against the rest
+        self.db.execute("""insert into t values ('Riyadh', 'food.fast_food', 'food.fast_food', 'food', 'food', 'شارع الثلاثين', 'الملقا', 'الملقا',
+            70, 0, 500, 14, null, 'main', '', null, ?), ('Riyadh', '', 'برجر', 'food', 'food', 'شارع الثلاثين', 'الملقا', 'الملقا',
+            5, 0, 500, 1, null, 'main', '', ?, ?)""", [line(0, 6000), self.KEY, line(0, 6000)])
+        self.db.execute('copy t to ? (format parquet)', [self.path])
+        out = so.opportunities(self.db, self.path, 'Riyadh', specialty_ids=self.KEY.split('|'))
+        top = {f['properties']['street_ar']: f['properties'] for f in out['features']}['شارع الثلاثين']
+        self.assertEqual((top['requested_n'], top['total'], top['others']), (5, 70, 65))
+
+    def test_a_table_without_specialty_corridors_refuses_a_specialty(self):
+        db, path = StreetOpportunityTests.build(self, [row('cafe', 'شارع التحلية', 'العليا', 30, 0)])
+        self.assertFalse(so.has_specialties(db, path))
+        with self.assertRaises(ValueError):
+            so.opportunities(db, path, 'Riyadh', specialty_ids=['food.fast_food.burger'])
+        self.assertTrue(so.has_specialties(self.db, self.path))
