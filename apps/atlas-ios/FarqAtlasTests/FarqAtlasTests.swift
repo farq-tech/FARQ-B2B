@@ -18,6 +18,34 @@ final class FarqAtlasTests: XCTestCase {
         XCTAssertEqual(Fmt.counted(100, .district), "\u{2066}100\u{2069} حي")
     }
 
+    func testRealEstateFiltersAreSentToTheServerBeforeListingLimit() {
+        let body = AtlasAPI.listingsBody(city: "Riyadh", kind: "rent", types: ["apartment"], deal: "rent_year",
+                                         districtIDs: ["district-7"], minBeds: 2, maxAge: 10, maxPrice: 60000,
+                                         minDensity: 5000, limit: 600)
+        XCTAssertEqual(body["city"] as? String, "Riyadh")
+        XCTAssertEqual(body["kind"] as? String, "rent")
+        XCTAssertEqual(body["types"] as? [String], ["apartment"])
+        XCTAssertEqual(body["deal"] as? String, "rent_year")
+        XCTAssertEqual(body["district_ids"] as? [String], ["district-7"])
+        XCTAssertEqual(body["min_beds"] as? Double, 2)
+        XCTAssertEqual(body["max_age"] as? Double, 10)
+        XCTAssertEqual(body["max_price"] as? Double, 60000)
+        XCTAssertEqual(body["min_density"] as? Double, 5000)
+        XCTAssertEqual(body["limit"] as? Int, 600)
+    }
+
+    func testEmptyRealEstateFiltersDoNotInventCriteria() {
+        let body = AtlasAPI.listingsBody(city: "Riyadh", kind: "sale", types: [], deal: nil,
+                                         districtIDs: [], minBeds: nil, maxAge: nil, maxPrice: nil, minDensity: nil, limit: 600)
+        XCTAssertNil(body["types"])
+        XCTAssertNil(body["deal"])
+        XCTAssertNil(body["district_ids"])
+        XCTAssertNil(body["min_beds"])
+        XCTAssertNil(body["max_age"])
+        XCTAssertNil(body["max_price"])
+        XCTAssertNil(body["min_density"])
+    }
+
     func testQuintilesAndScore() {
         let values = Array(stride(from: 1.0, through: 10.0, by: 1.0))
         let q = Quintiles(values)

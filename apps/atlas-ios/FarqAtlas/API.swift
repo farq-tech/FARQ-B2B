@@ -347,13 +347,26 @@ final class AtlasAPI {
         try await decode(Around.self, "population-around", ["lon": point.longitude, "lat": point.latitude, "radius_m": radius])
     }
 
-    func listings(city: String, kind: String, types: [String]?, maxPrice: Double?, limit: Int = 600) async throws -> (total: Int, rows: [Listing]) {
+    func listings(city: String, kind: String, types: [String]?, deal: String?, districtIDs: [String]?,
+                  minBeds: Double?, maxAge: Double?, maxPrice: Double?, minDensity: Double?, limit: Int = 600) async throws -> (total: Int, rows: [Listing]) {
         struct Envelope: Decodable { let total: Int?; let listings: [Listing]? }
-        var body: [String: Any] = ["city": city, "kind": kind, "limit": limit]
-        if let types, !types.isEmpty { body["types"] = types }
-        if let maxPrice { body["max_price"] = maxPrice }
+        let body = Self.listingsBody(city: city, kind: kind, types: types, deal: deal, districtIDs: districtIDs,
+                                     minBeds: minBeds, maxAge: maxAge, maxPrice: maxPrice, minDensity: minDensity, limit: limit)
         let envelope = try await decode(Envelope.self, "real-estate-listings", body)
         return (envelope.total ?? 0, envelope.listings ?? [])
+    }
+
+    static func listingsBody(city: String, kind: String, types: [String]?, deal: String?, districtIDs: [String]?,
+                             minBeds: Double?, maxAge: Double?, maxPrice: Double?, minDensity: Double?, limit: Int) -> [String: Any] {
+        var body: [String: Any] = ["city": city, "kind": kind, "limit": limit]
+        if let types, !types.isEmpty { body["types"] = types }
+        if let deal { body["deal"] = deal }
+        if let districtIDs, !districtIDs.isEmpty { body["district_ids"] = districtIDs }
+        if let minBeds { body["min_beds"] = minBeds }
+        if let maxAge { body["max_age"] = maxAge }
+        if let maxPrice { body["max_price"] = maxPrice }
+        if let minDensity { body["min_density"] = minDensity }
+        return body
     }
 
     private struct Rows<T: Decodable>: Decodable {

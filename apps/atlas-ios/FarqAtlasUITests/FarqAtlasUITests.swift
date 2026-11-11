@@ -43,7 +43,8 @@ final class FarqAtlasUITests: XCTestCase {
         app.buttons["primary"].tap(); shot("4b-compare")
         app.navigationBars.buttons.firstMatch.tap(); app.navigationBars.buttons.firstMatch.tap()
         app.buttons["way-أدوّر عقاراً"].tap(); _ = app.buttons["kind-rent"].waitForExistence(timeout: 10)
-        app.buttons["kind-rent"].tap(); _ = app.buttons["listing-0"].waitForExistence(timeout: 60); shot("5a-deals")
+        app.buttons["type-apartment"].tap(); scrollTo("beds-2"); app.buttons["beds-2"].tap(); shot("5a-real-estate-filters")
+        app.buttons["primary"].tap(); _ = app.buttons["listing-0"].waitForExistence(timeout: 60); shot("5b-deals")
         app.buttons["listing-0"].tap(); shot("5b-listing")
     }
 
@@ -130,8 +131,21 @@ final class FarqAtlasUITests: XCTestCase {
 
     func testRealEstateFlow() throws {
         step("real estate: open", tap: app.buttons["way-أدوّر عقاراً"], until: app.buttons["kind-rent"], limit: 3)
-        step("real estate: deals", tap: app.buttons["kind-rent"], until: app.buttons["listing-0"], limit: 60)
-        step("real estate: listing", tap: app.buttons["listing-0"], until: app.navigationBars["العرض"], limit: 2)
+        XCTAssertTrue(app.buttons["type-apartment"].exists, "property type filters missing")
+        app.buttons["type-apartment"].tap()
+        scrollTo("beds-2")
+        XCTAssertTrue(app.buttons["beds-2"].waitForExistence(timeout: 10), "bedroom filter missing")
+        app.buttons["beds-2"].tap()
+        step("real estate: filtered deals", tap: app.buttons["primary"], until: app.buttons["listing-0"], limit: 60)
+        step("real estate: listing", tap: app.buttons["listing-0"], until: app.navigationBars["العرض"], limit: 5)
         XCTAssertTrue(app.buttons["primary"].exists, "«افتح الإعلان» missing")
     }
+
+    private func scrollTo(_ identifier: String) {
+        let scrollView = app.scrollViews.firstMatch
+        for _ in 0..<8 where !app.buttons[identifier].isHittable {
+            scrollView.swipeUp()
+        }
+    }
+
 }
