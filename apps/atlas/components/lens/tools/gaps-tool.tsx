@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useMainActivities } from '@/lib/main-activities'
+import { activityBody, activityKey, studiedFrom, useActivities } from '@/lib/activities'
 import { Explained } from '@/components/shared/explained'
 import { LoadError } from '@/components/shared/load-error'
 import { NoResult } from '@/components/shared/empty-state'
@@ -14,7 +14,7 @@ import { gapsHoverLine, gapsSummary, hiddenCaveatsLine, isShortRow } from './gap
 import { PALETTE } from '@/lib/palette'
 import { stickyHas, useStudiedActivity } from '@/lib/sticky-state'
 import { Understood, type Understanding } from '@/components/shared/understood'
-import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { ActivityPicker } from '@/components/shared/activity-picker'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { useAnswer } from './use-answer'
 import { aroundOf, caveatTag, fitLine, gapsVerdict, populationKind, rankGapsAround } from './tool-answers'
@@ -57,7 +57,7 @@ export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSel
   /** The step after the answer (a request, a price, the competitors), under the verdict; given by the map shell. */
   next?: ReactNode
 }) {
-  const activities = useMainActivities(city)
+  const activities = useActivities(city)
   // the activity is shared with the other steps, so «المنافسون» opens on the one picked here
   const [studied, setStudied] = useStudiedActivity()
   // nothing is worked out until an activity is chosen (here, in another step or by a shared link): the tool used to
@@ -67,8 +67,8 @@ export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSel
   // an activity set from elsewhere (a shared link, another step) shows in the box too
   useEffect(() => { if (stickyHas('activity')) setQuery(studied.q ?? '') }, [studied.q])
   // the map is painted with the chosen activity; any other activity replaces it, and its answer goes at once
-  const answer = useAnswer<Result>(chosen ? `${city}|${studied.q ?? ''}|${studied.main_id ?? ''}` : null, () => {
-    const body: Record<string, unknown> = { city, min_population: MIN_POPULATION, limit: 200, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
+  const answer = useAnswer<Result>(chosen ? `${city}|${activityKey(studied)}` : null, () => {
+    const body: Record<string, unknown> = { city, min_population: MIN_POPULATION, limit: 200, ...activityBody(studied) }
     // a shared link runs this while the page's first heavy requests still hold the service, and the proxy gives up
     // after 12 seconds: one quiet second try after a pause, then the error with «أعد المحاولة»
     const load = () => postMarket<Result>('market-gaps', body)
@@ -195,8 +195,8 @@ export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSel
           {status === 'loading' ? 'جارٍ الحساب' : 'احسب'}
         </button>
       </form>
-      <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
-        onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); setStudied({ main_id: item.main_id, label: item.main_ar }) } }} />
+      <ActivityPicker activities={activities} value={studied.q ? null : studied} placeholder="أو اختر تخصصاً: مغسلة ملابس، برجر…"
+        onPick={(item) => { if (item) { setQuery(''); setStudied(studiedFrom(item)) } }} />
       {/* the example being studied is marked, as in «المنافسون» and «شوارع النشاط»; once chosen they fold away */}
       <Examples examples={EXAMPLES} active={chosen ? studied.q ?? null : null} collapse={chosen && verdict != null} onPick={(example) => { setQuery(example); study(example) }} />
       {!chosen && status === 'idle' && <p className="text-base text-muted-foreground">اختر نشاطك لتظهر الأحياء الناقصة.</p>}

@@ -14,6 +14,7 @@ import { Explained } from '@/components/shared/explained'
 import { EXPLAIN, populationMethod } from '@/lib/explanations'
 import { counted, ltr, numberFormat, onDataVersion, useCities } from '@/lib/insights-api'
 import { useMainActivities } from '@/lib/main-activities'
+import { activityForToken, pickToken, PICK, studiedFrom, useActivities } from '@/lib/activities'
 import { getSticky, setSticky, stickyHas, useStickyState, useStudiedActivity, watchSticky } from '@/lib/sticky-state'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, DURATION, EASE, SPRING, motion, useReducedMotion } from '@/lib/motion'
@@ -405,7 +406,7 @@ function writeDone(city: string, done: ToolId[]) {
 // shop owners every time (this browser only; the address still wins)
 const LAST_KEY = 'atlas.map.last'
 // and the activity they studied, once they picked one (never the default nobody picked)
-type Last = { city?: string; lens?: LensId; main?: string; activity?: string }
+type Last = { city?: string; lens?: LensId; main?: string; pick?: string; activity?: string }
 function readLast(): Last {
   try {
     const saved = JSON.parse(localStorage.getItem(LAST_KEY) ?? '{}') as Record<string, unknown>
@@ -415,6 +416,7 @@ function readLast(): Last {
       city: text(saved.city, /^[A-Za-z][A-Za-z .'-]{0,39}$/),
       lens: LENSES.some((item) => item.id === saved.lens) ? saved.lens as LensId : undefined,
       main: text(saved.main, /^[A-Za-z0-9_-]{1,40}$/),
+      pick: text(saved.pick, PICK),
       activity: typeof saved.activity === 'string' ? cleanQuery(saved.activity) ?? undefined : undefined,
     }
   } catch { return {} }
@@ -613,8 +615,12 @@ export function LensMap() {
   const presetCity = useRef<string | null>(null)
   // the studied activity is shared by the steps (sticky-state); a main activity named by id waits for the city's list
   const [studied, setStudied] = useStudiedActivity()
+  // a main activity named by an older link's id (`main`) is still read; picks are subcategories and specialties
   const activities = useMainActivities(city)
   const presetMain = useRef<string | null>(null)
+  // a picked subcategory or specialty named by the address (`pick`), waiting for the city's list for its name
+  const picks = useActivities(city)
+  const presetPick = useRef<string | null>(null)
   // the second activity of «قارن بنشاط آخر» named by a main activity's id, waiting for the city's list for its name
   const presetRival = useRef<string | null>(null)
   // Back and Forward: a change of city, group, step, districts or search is one entry; the layer, a step's own choices
@@ -630,10 +636,11 @@ export function LensMap() {
     const last = readLast()
     if (!preset.city && !query.has('district') && last.city) preset.city = last.city
     if (!preset.lens && !query.has('goal') && !query.has('tool') && !query.has('layer') && last.lens) preset.lens = last.lens
-    if (!preset.main && !preset.activity) { if (last.main) preset.main = last.main; else if (last.activity) preset.activity = last.activity }
+    if (!preset.pick && !preset.main && !preset.activity) { if (last.pick) preset.pick = last.pick; else if (last.main) preset.main = last.main; else if (last.activity) preset.activity = last.activity }
     if (preset.city) { presetCity.current = preset.city; setCity(preset.city) }
     if (preset.activity) setStudied({ q: preset.activity, label: preset.activity })
     presetMain.current = preset.main
+    presetPick.current = preset.pick
     if (preset.districts.length) presetDistricts.current = { city: preset.city ?? 'Riyadh', ids: preset.districts }
     if (preset.lens && preset.lens !== lens) {
       presetTool.current = preset.tool as ToolId | null
@@ -665,6 +672,13 @@ export function LensMap() {
     const item = activities.find((activity) => activity.main_id === wanted)
     if (item) setStudied({ main_id: item.main_id, label: item.main_ar })
   }, [activities, setStudied])
+  useEffect(() => {
+    const wanted = presetPick.current
+    if (!wanted || !picks.length) return
+    presetPick.current = null
+    const item = activityForToken(wanted, picks)
+    if (item) setStudied(studiedFrom(item))
+  }, [picks, setStudied])
   useEffect(() => {
     const wanted = presetRival.current
     if (!wanted || !activities.length) return
@@ -705,7 +719,9 @@ export function LensMap() {
     if (!hydrated) return
     // a main activity still waiting for its city's list keeps its place in the address
     const main = presetMain.current ?? studied.main_id ?? null
-    const next = writeMapQuery(window.location.search, { city, lens, tool, districts: selected, q: search?.q ?? null, main, activity: main || !stickyHas('activity') ? null : studied.q ?? null, layer: metric }, lensById(lens).steps[0].tool, lensById(lens).metric)
+    // a picked subcategory or specialty still waiting for its city's list keeps its place too
+    const pick = presetPick.current ?? (stickyHas('activity') ? pickToken(studied) : null)
+    const next = writeMapQuery(window.location.search, { city, lens, tool, districts: selected, q: search?.q ?? null, main, pick, activity: main || pick || !stickyHas('activity') ? null : studied.q ?? null, layer: metric }, lensById(lens).steps[0].tool, lensById(lens).metric)
     // a second activity still waiting for its name keeps its place too
     const address = presetRival.current ? next : withOptions(next, lens)
     const prev = gate.step(mapKey({}))
@@ -783,7 +799,8 @@ export function LensMap() {
     const picked = stickyHas('activity')
     // a main activity still waiting for its city's list is kept, as in the address
     const main = presetMain.current ?? (picked ? studied.main_id : undefined)
-    writeLast({ city, lens, main, activity: !main && picked ? studied.q : undefined })
+    const pick = presetPick.current ?? (picked ? pickToken(studied) ?? undefined : undefined)
+    writeLast({ city, lens, main, pick, activity: !main && !pick && picked ? studied.q : undefined })
   }, [hydrated, city, lens, studied])
   // a choice made inside a step goes to the address as it is made
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { isTargetingAllowed, sessionForRequest, setSession, verifySession } from '@/lib/atlas-session'
+import { activityInput } from '@/lib/activity-input'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,11 +26,10 @@ export async function POST(request: NextRequest) {
   const { session, refreshed } = await sessionForRequest(request)
   if (!session) return NextResponse.json({ error: 'سجّل الدخول لعرض بطاقة الموقع.' }, { status: 401, headers: { 'cache-control': 'no-store' } })
   if (!isTargetingAllowed(session) || !(await verifySession(session))) return NextResponse.json({ error: 'حسابك غير مخول لعرض بطاقة الموقع.' }, { status: 403, headers: { 'cache-control': 'no-store' } })
-  let input: { city?: unknown; geometry?: unknown; centre?: unknown; q?: unknown; main_id?: unknown }
+  let input: { city?: unknown; geometry?: unknown; centre?: unknown; q?: unknown; main_id?: unknown; sub_ids?: unknown; specialty_ids?: unknown }
   try { input = await request.json() } catch { return NextResponse.json({ error: 'طلب غير صالح.' }, { status: 400 }) }
   const city = text(input.city, 80)
-  const q = text(input.q, 120)
-  const mainId = text(input.main_id, 40)
+  const activity = activityInput(input)
   const geometry = input.geometry as { type?: unknown } | undefined
   if (!city || !geometry || (geometry.type !== 'Polygon' && geometry.type !== 'MultiPolygon')) return NextResponse.json({ error: 'اختر الموقع ونطاقه.' }, { status: 400 })
   const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   try {
     const upstream = await fetch(`${origin}/site-card`, {
       method: 'POST', headers, cache: 'no-store', signal: AbortSignal.timeout(30_000),
-      body: JSON.stringify({ city, geometry, centre: point(input.centre), ...(q ? { q } : mainId ? { main_id: mainId } : {}) }),
+      body: JSON.stringify({ city, geometry, centre: point(input.centre), ...activity }),
     })
     const payload = await upstream.json().catch(() => null)
     if (!upstream.ok || !payload) return NextResponse.json({ error: 'تعذر حساب بطاقة الموقع.' }, { status: 502 })

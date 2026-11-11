@@ -643,7 +643,7 @@ class MarketAnalytics:
         nearest by name. The activity is read exactly as the other figures read it (_where); None without one."""
         import district_metrics
         import site_card
-        if not (body.get("q") or body.get("main_id") or body.get("sub_ids")):
+        if not (body.get("q") or body.get("main_id") or body.get("sub_ids") or body.get("specialty_ids")):
             return None
         polygons = site_card.insights.canonical_data._polygons(geometry)
         coords = [p for rings in polygons for ring in rings for p in ring]

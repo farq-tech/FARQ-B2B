@@ -16,6 +16,7 @@ import { opportunityVerdict } from './tool-answers'
 import { Verdict } from './verdict'
 import { opportunityFacts } from './district-facts'
 import type { DistrictRow } from '../city-data'
+import { activityBody, activityKey } from '@/lib/activity-query'
 
 type Opportunity = {
   street_ar: string; districts_ar: string[]; road_class: 'main' | 'secondary' | null; total: number; others: number; activities: number
@@ -28,7 +29,7 @@ type Opportunity = {
 }
 type Result = {
   type: 'FeatureCollection'; features: { geometry: GeoJSON.MultiLineString; properties: Opportunity }[]
-  understood?: boolean; available?: boolean; population_used?: boolean; requested_kinds?: number
+  understood?: boolean; available?: boolean; specialty_available?: boolean; population_used?: boolean; requested_kinds?: number
 }
 /** A street where the activity already gathers, drawn quietly beside the opportunities for reference. */
 export type Cluster = { geometry: GeoJSON.LineString | GeoJSON.MultiLineString; street_ar: string }
@@ -58,8 +59,8 @@ export function StreetOpportunities({ city, rows = [], studied, clusters, onOver
   const [active, setActive] = useState<number | null>(null)
   // keyed by what is asked, not by the prop object: a new object for the same activity asks nothing again, and a new
   // activity drops the last one's streets at once, so the map never draws them beside the new skeleton
-  const answerKey = `${city}|${studied.q ?? ''}|${studied.main_id ?? ''}`
-  const answer = useAnswer<Result>(answerKey, () => postMarket<Result>('street-opportunities', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }), { cache: 'street-gaps' })
+  const answerKey = `${city}|${activityKey(studied)}`
+  const answer = useAnswer<Result>(answerKey, () => postMarket<Result>('street-opportunities', { city, ...activityBody(studied) }), { cache: 'street-gaps' })
   const result = answer.data
   const status = answer.status === 'loading' ? 'loading' : answer.status === 'error' ? 'error' : 'idle'
   useEffect(() => { setActive(null) }, [answerKey])
@@ -95,7 +96,7 @@ export function StreetOpportunities({ city, rows = [], studied, clusters, onOver
 
   // 30 streets at a time; one picked on the map further down is drawn so it can come into view
   // a shortlist first: the verdict names the top street, the rest are one tap away
-  const [limit, showMore] = useShowMore(10, `${city}|${studied.q ?? studied.main_id}`)
+  const [limit, showMore] = useShowMore(10, `${city}|${activityKey(studied)}`)
   const visible = Math.max(limit, active != null ? active + 1 : 0)
 
   useEffect(() => {
@@ -111,7 +112,8 @@ export function StreetOpportunities({ city, rows = [], studied, clusters, onOver
     )
   }
   if (status === 'error') return <LoadError what="فرص الشوارع" onRetry={answer.retry} />
-  if (result?.understood === false) return <NoResult title={`لم نتعرف على «${studied.label}»`} body="جرّب اسماً آخر للنشاط، أو اختر نشاطاً رئيسياً." />
+  if (result?.understood === false) return <NoResult title={`لم نتعرف على «${studied.label}»`} body="جرّب اسماً آخر للنشاط، أو اختر تخصصاً من القائمة." />
+  if (result?.specialty_available === false) return <NotAvailable what="فرص الشوارع" where={`«${studied.label}»`} body="فرص الشوارع محسوبة على مستوى التخصص الأعم (مثل «وجبات سريعة»)، لا التخصص الدقيق. اختره لترى فرصه." />
   if (result?.available === false) return <NotAvailable what="فرص الشوارع" where="هذه المدينة" body="جرّب «أين يتجمع» لترى الشوارع التي يتجمع فيها النشاط." />
   if (!streets.length) return <NoResult title={`لا شارع تجاري نشط ينقصه «${studied.label}»`} body="النشاط موجود في الشوارع التجارية النشطة. جرّب «أين يتجمع»." />
 

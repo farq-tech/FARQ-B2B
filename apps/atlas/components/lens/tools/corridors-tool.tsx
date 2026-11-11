@@ -13,9 +13,9 @@ import { isPublishable, priceLine, sar, toneColor, typeLabel, versusDistrict, ty
 import { ListingCard } from '../listing-card'
 import { OCHRE_STEPS } from '@/lib/palette'
 import { stickyHas, useStudiedActivity } from '@/lib/sticky-state'
-import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { ActivityPicker } from '@/components/shared/activity-picker'
 import { waiting, type Overlay } from './overlay'
-import { useMainActivities } from '@/lib/main-activities'
+import { activityBody, activityKey, studiedFrom, useActivities, type ActivityQuery } from '@/lib/activities'
 import { StreetOpportunities } from './street-opportunities'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
@@ -29,7 +29,8 @@ type Corridor = {
   sub_ar: string; street_ar: string; district_ar: string; /** Absent from a service older than the road-network corridors. */ districts_ar?: string[]; n: number; n_wholesale: number
   length_m: number; per_100m: number; lift: number | null; road_class?: 'main' | 'secondary' | null
 }
-type Result = { type: 'FeatureCollection'; features: { geometry: GeoJSON.LineString | GeoJSON.MultiLineString; properties: Corridor }[]; basis?: string; /** false when the service could not read the activity typed. */ understood?: boolean }
+type Result = { type: 'FeatureCollection'; features: { geometry: GeoJSON.LineString | GeoJSON.MultiLineString; properties: Corridor }[]; basis?: string; /** false when the service could not read the activity typed. */ understood?: boolean
+  /** false when the streets cannot be told apart at the picked specialty («برجر»): nothing is drawn under its name. */ specialty_available?: boolean }
 
 /** A commercial unit on the picked street, with its distance to the street's line. */
 type Unit = Listing & { distance_m?: number }
@@ -53,11 +54,11 @@ const ROAD: Record<'main' | 'secondary', string> = { main: 'شارع رئيسي'
  * The question «شوارع النشاط» asks for an activity: its key, its cache name and its one request. The map asks the same
  * question ahead of time (one request, when the page is idle), so the step opens on its answer (lens-map prefetch).
  */
-export function streetsQuestion(city: string, studied: { q?: string; main_id?: string }) {
+export function streetsQuestion(city: string, studied: ActivityQuery) {
   return {
-    key: `${city}|${studied.q ?? ''}|${studied.main_id ?? ''}`,
+    key: `${city}|${activityKey(studied)}`,
     cache: 'streets',
-    run: () => postMarket<Result>('street-density', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }),
+    run: () => postMarket<Result>('street-density', { city, ...activityBody(studied) }),
   }
 }
 
@@ -70,7 +71,7 @@ export function CorridorsTool({ city, rows = [], onOverlay, next }: {
   /** The step after the verdict (units for rent on the street, a request), given by the map shell. */
   next?: ReactNode
 }) {
-  const activities = useMainActivities(city)
+  const activities = useActivities(city)
   const [studied, setStudied] = useStudiedActivity()
   // no street is drawn for an activity nobody picked: the step waits for one (here, another step, or a link)
   const chosen = stickyHas('activity')
@@ -131,7 +132,7 @@ export function CorridorsTool({ city, rows = [], onOverlay, next }: {
     const top = corridors[0]?.properties
     const summary = mode !== 'cluster' || status === 'loading' || !result ? null
       : top ? `${counted(corridors.length, 'street')} لـ«${studied.label}» · الأعلى: ${top.street_ar} ${counted(top.n, 'shop')}`
-        : result.understood === false ? null : `لا شارع يتجمع فيه «${studied.label}»`
+        : result.understood === false || result.specialty_available === false ? null : `لا شارع يتجمع فيه «${studied.label}»`
     onOverlay({
       ...(result ? {} : waiting(answer)),
       summary, facts, streets, onStreet: (id) => setActive(Number(id)), legend: streets.length ? { from: 'محلات أقل', to: 'محلات أكثر', shades: HEAT } : null,
@@ -145,7 +146,7 @@ export function CorridorsTool({ city, rows = [], onOverlay, next }: {
 
   // a long list draws 30 streets at a time; a street picked on the map further down is drawn so it can come into view
   // a shortlist first: the verdict names the top two, the rest are one tap away
-  const [limit, showMore] = useShowMore(10, `${city}|${studied.q ?? studied.main_id}`)
+  const [limit, showMore] = useShowMore(10, `${city}|${activityKey(studied)}`)
   const visible = Math.max(limit, active != null ? active + 1 : 0)
 
   // a corridor picked on the map comes into view in the list
@@ -165,15 +166,18 @@ export function CorridorsTool({ city, rows = [], onOverlay, next }: {
           {status === 'loading' ? <Loader2 className="size-5 animate-spin" aria-label="جارٍ البحث" /> : 'اعرض'}
         </button>
       </form>
-      <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
-        onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); setStudied({ main_id: item.main_id, label: item.main_ar }) } }} />
+      <ActivityPicker activities={activities} value={studied.q ? null : studied} placeholder="أو اختر تخصصاً: مغسلة ملابس، برجر…"
+        onPick={(item) => { if (item) { setQuery(''); setStudied(studiedFrom(item)) } }} />
       <Examples examples={EXAMPLES} active={chosen ? studied.q ?? null : null} collapse={chosen && status === 'idle' && corridors.length > 0} onPick={(example) => { setQuery(example); study(example) }} />
       <Choice label="طريقة العرض" size="base" value={mode} onChange={setMode} options={[{ id: 'cluster', label: 'أين يتجمع' }, { id: 'gap', label: 'أين الفرصة' }]} />
       {!chosen && <p className="text-base text-muted-foreground">اختر النشاط لترى الشوارع التي يتجمع فيها، أو التي ينقصها.</p>}
       {mode === 'gap' && chosen && <StreetOpportunities city={city} rows={rows} studied={studied} clusters={clusters} onOverlay={onOverlay} />}
       {mode === 'cluster' && status === 'error' && <LoadError what="الشوارع" onRetry={answer.retry} />}
-      {mode === 'cluster' && status === 'idle' && result?.understood === false && <NoResult title={`لم نتعرف على «${studied.label}»`} body="جرّب اسماً آخر للنشاط، أو اختر نشاطاً رئيسياً." />}
-      {mode === 'cluster' && status === 'idle' && result && result.understood !== false && !corridors.length && (
+      {mode === 'cluster' && status === 'idle' && result?.understood === false && <NoResult title={`لم نتعرف على «${studied.label}»`} body="جرّب اسماً آخر للنشاط، أو اختر تخصصاً من القائمة." />}
+      {mode === 'cluster' && status === 'idle' && result?.specialty_available === false && (
+        <NotAvailable what="شوارع التخصص" where={`«${studied.label}»`} body="الشوارع محسوبة على مستوى التخصص الأعم (مثل «وجبات سريعة»)، لا التخصص الدقيق. اختره لترى شوارعه." />
+      )}
+      {mode === 'cluster' && status === 'idle' && result && result.understood !== false && result.specialty_available !== false && !corridors.length && (
         <NoResult title={`لا شارع يتجمع فيه «${studied.label}»`} body="يُحسب الشارع حين يكون عليه 5 محلات أو أكثر من النشاط. جرّب نشاطاً آخر أو «أين الفرصة»." />
       )}
       {mode === 'cluster' && status === 'loading' && (

@@ -14,14 +14,14 @@ import { waiting, type Overlay } from './overlay'
 import { OCHRE_STEPS, PALETTE } from '@/lib/palette'
 import { stickyHas, useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/sticky-state'
 import { Understood, type Understanding } from '@/components/shared/understood'
-import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { ActivityPicker } from '@/components/shared/activity-picker'
 import { ActivityCompare } from './activity-compare'
 import { areaLine, aroundOf, brandsVerdict, competitorsSummary, competitorsVerdict, densestDistrict, rankCompetition, rankLightAround, THIN, type AroundArea } from './tool-answers'
 import { Examples } from './examples'
 import { distanceKm, neighbourMap, outlineCentre } from '@/lib/geo-measure'
 import type { DistrictFeature } from '@/lib/insights-api'
 import { Verdict } from './verdict'
-import { useMainActivities } from '@/lib/main-activities'
+import { activityBody, activityKey, studiedFrom, useActivities } from '@/lib/activities'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
 
@@ -67,7 +67,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   /** The city's district outlines, for the top district's neighbours (no competitor inside, many next door). */
   features?: DistrictFeature[]
 }) {
-  const activities = useMainActivities(city)
+  const activities = useActivities(city)
   // the map opens painted with the activity studied in any step; any other activity replaces it
   const [studied, setStudied] = useStudiedActivity()
   // nothing is counted until the customer names an activity (here, in another step, or by a link): the default
@@ -81,9 +81,9 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
 
   // the activity's districts and chains, keyed by its q or main_id: a new activity drops the last one's answer at once,
   // so the map clears instead of shading districts for a different query
-  const studiedKey = `${city}|${studied.q ?? ''}|${studied.main_id ?? ''}`
+  const studiedKey = `${city}|${activityKey(studied)}`
   const answer = useAnswer(chosen ? studiedKey : null, () => {
-    const activity = { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
+    const activity = { city, ...activityBody(studied) }
     return Promise.all([
       postMarket<{ districts?: Count[]; total?: number; located?: number; understood?: Understanding }>('district-counts', activity),
       // chains are a second reading of the same businesses; the districts still show when they are unavailable
@@ -180,7 +180,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   const idByName = useMemo(() => new Map(rows.map((row) => [row.name, row.id])), [rows])
   const hover = (id: string | undefined) => (on: boolean) => onHover?.(on && id ? id : null)
   // a shortlist first: the verdict names the top district, the rest are one tap away
-  const [limit, showMore] = useShowMore(10, `${city}|${studied.q ?? studied.main_id}|${order}`)
+  const [limit, showMore] = useShowMore(10, `${city}|${activityKey(studied)}|${order}`)
   // the top district's neighbours by outline and the competitors they hold, from the same counts as the list
   const verdict = useMemo(() => {
     const top = ranked[0]
@@ -189,7 +189,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     return competitorsVerdict(ranked, order, studied.label, cityTotal, located, around)
   }, [ranked, order, studied.label, cityTotal, located, table, neighbours])
   // the two lists whose length is the service's: districts no chain reaches, and one chain's districts
-  const [uncoveredLimit, showMoreUncovered] = useShowMore(15, `${city}|${studied.q ?? studied.main_id}`)
+  const [uncoveredLimit, showMoreUncovered] = useShowMore(15, `${city}|${activityKey(studied)}`)
   const [branchLimit, showMoreBranches] = useShowMore(20, `${city}|${brand?.brand ?? ''}`)
   const study = (next: StudiedActivity) => setStudied(next)
   const pickBrand = (next: Brand | null) => {
@@ -209,8 +209,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
           {status === 'loading' ? <Loader2 className="size-5 animate-spin" aria-label="جارٍ الحساب" /> : 'ادرس'}
         </button>
       </form>
-      <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
-        onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); study({ main_id: item.main_id, label: item.main_ar }) } }} />
+      <ActivityPicker activities={activities} value={studied.q ? null : studied} placeholder="أو اختر تخصصاً: مغسلة ملابس، برجر…"
+        onPick={(item) => { if (item) { setQuery(''); study(studiedFrom(item)) } }} />
       <Examples examples={EXAMPLES} active={chosen ? studied.q ?? null : null} collapse={chosen && verdict != null && !noneFound} onPick={(example) => { setQuery(example); study({ q: example, label: example }) }} />
       {!chosen && <p className="text-base text-muted-foreground">اختر نشاطك لترى منافسيك في كل حي.</p>}
       {status === 'error' && <LoadError what={`منشآت «${studied.label}»`} onRetry={answer.retry} />}

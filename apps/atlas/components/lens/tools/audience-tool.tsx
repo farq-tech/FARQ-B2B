@@ -14,13 +14,13 @@ import { SHADES } from '../lens-map-canvas'
 import { waiting, type Overlay } from './overlay'
 import { trackDecisionMoment } from '@/lib/commercial-metrics'
 import { PALETTE } from '@/lib/palette'
-import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
-import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { useStickyState, useStudiedPick } from '@/lib/sticky-state'
+import { ActivityPicker } from '@/components/shared/activity-picker'
 import { audienceMissing, audienceSummary, audienceVerdict, audienceWhere } from './tool-answers'
 import { Verdict } from './verdict'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
-import { useMainActivities } from '@/lib/main-activities'
+import { activityBody, activityKey, useActivities, type Activity } from '@/lib/activities'
 
 type Mode = 'people' | 'businesses'
 // the measured shares plus the segment sizes the service derives from them (population × share): read, never recomputed
@@ -67,11 +67,13 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
   const [nationality, setNationality] = useStickyState<Nationality>('audience.nationality', 'all')
   const [minIncome, setMinIncome] = useStickyState('audience.minIncome', 0)
   const [rankBy, setRankBy] = useStickyState<'sex' | 'nationality'>('audience.rankBy', 'sex')
-  const activities = useMainActivities(city)
-  const [mainId, setMainId] = useStudiedMainId(activities)
+  const activities = useActivities(city)
+  const [picked, setPicked] = useStudiedPick(activities)
+  // one string per picked activity (empty for «all»), for keying answers and for saying whether one is picked
+  const pickedKey = activityKey(picked)
   // the marketer's decision moment (foundation §7): the filters changed, said by which are on (names, never values);
   // the filters as they open (a first look, a link) are not a change
-  const filtersOn = [mode === 'businesses' ? 'businesses' : null, sex !== 'all' ? 'sex' : null, nationality !== 'all' ? 'nationality' : null, minIncome > 0 ? 'income' : null, mode === 'businesses' && mainId ? 'activity' : null].filter((item): item is string => item != null)
+  const filtersOn = [mode === 'businesses' ? 'businesses' : null, sex !== 'all' ? 'sex' : null, nationality !== 'all' ? 'nationality' : null, minIncome > 0 ? 'income' : null, mode === 'businesses' && pickedKey ? 'activity' : null].filter((item): item is string => item != null)
   const filtersKey = filtersOn.join(',')
   const firstFilters = useRef(filtersKey)
   useEffect(() => {
@@ -91,8 +93,8 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
 
   // the activity's counts, asked only in «منشآت»: leaving it drops them, so the people card never waits on them, and a
   // new activity clears the last one's at once, so the map never shades districts for a different activity
-  const countsAnswer = useAnswer(mode === 'businesses' ? `${city}|${mainId}` : null, () =>
-    postMarket<{ districts?: Count[]; total?: number; located?: number }>('district-counts', { city, ...(mainId ? { main_id: mainId } : {}) })
+  const countsAnswer = useAnswer(mode === 'businesses' ? `${city}|${pickedKey}` : null, () =>
+    postMarket<{ districts?: Count[]; total?: number; located?: number }>('district-counts', { city, ...activityBody(picked) })
       .then((data) => ({
         counts: new Map((data.districts ?? []).map((row) => [row.district_ar, row])),
         // the city's own count of the activity (district-counts total), and how many of it fell in a known district
@@ -158,7 +160,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, pending, rows.length, cityCount, countsAnswer.status, countsAnswer.slow, sharesAnswer.status, sharesAnswer.slow])
 
-  const [limit, showMore] = useShowMore(10, `${city}|${mode}|${sex}|${nationality}|${minIncome}|${rankBy}|${mainId}`)
+  const [limit, showMore] = useShowMore(10, `${city}|${mode}|${sex}|${nationality}|${minIncome}|${rankBy}|${pickedKey}`)
   const inScope = (list: Scored[]) => (selected.length ? list.filter((item) => selected.some((row) => row.id === item.row.id)) : list)
   const scope = inScope(scored)
   const unit = mode === 'people' ? 'شخص' : 'منشأة'
@@ -203,7 +205,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
         </>
       ) : (
         <>
-          <MainActivityPicker activities={activities} value={mainId} onChange={setMainId} placeholder="نشاط المنشآت" allLabel="كل الأنشطة" />
+          <ActivityPicker activities={activities} value={picked} onPick={setPicked} placeholder="نشاط المنشآت" allLabel="كل الأنشطة" />
         </>
       )}
       {busy && (

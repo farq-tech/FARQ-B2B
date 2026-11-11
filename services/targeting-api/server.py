@@ -1554,9 +1554,11 @@ class H(BaseHTTPRequestHandler):
                 db = duckdb.connect()
                 columns = {row[0] for row in db.execute('describe select * from read_parquet(?)', [path]).fetchall()}
                 if specialties:
-                    if 'specialty_ids' not in columns:
-                        db.close()
-                        self._json({'type': 'FeatureCollection', 'features': [], 'specialty_available': False, 'basis': 'مصدر كثافة الشوارع لا يفصل التخصصات حتى الآن؛ أخفينا الخطوط العامة كي لا تبدو كأنها مطابقة للتخصص.'}); return
+                    # a street row counts its whole subcategory (n), and specialty_ids only lists the specialties present
+                    # on it: «برجر» would be shown the street's 245 restaurants. Until the table counts each specialty, a
+                    # specialty is said to be unavailable here, never given its parent's figure (owner 2026-11-11)
+                    db.close()
+                    self._json({'type': 'FeatureCollection', 'features': [], 'specialty_available': False, 'basis': 'مصدر كثافة الشوارع يعدّ التخصص الأعم لا التخصص الدقيق حتى الآن؛ أخفينا الخطوط كي لا يظهر رقم التخصص الأعم باسم التخصص الدقيق.'}); return
                 if q and tx is not None and not subs:
                     subs = market_analytics.corridor_subs(tx, q, body.get('objective'))
                     # a request the taxonomy cannot read finds no street, rather than every corridor in the city under its name
@@ -1597,13 +1599,21 @@ class H(BaseHTTPRequestHandler):
             try:
                 import taxonomy_search, duckdb, street_opportunities
                 city = body.get('city'); q = body.get('q'); main = body.get('main_id')
+                picked = body.get('sub_ids') or []; specialties = body.get('specialty_ids') or []
                 if (not isinstance(city, str) or not 1 <= len(city) <= 80 or (q is not None and (not isinstance(q, str) or len(q) > 120))
-                        or (main is not None and (not isinstance(main, str) or len(main) > 40)) or not (q or main)):
+                        or (main is not None and (not isinstance(main, str) or len(main) > 40))
+                        or not isinstance(picked, list) or len(picked) > 20 or not all(isinstance(x, str) and 1 <= len(x) <= 80 for x in picked)
+                        or not isinstance(specialties, list) or len(specialties) > 20 or not all(isinstance(x, str) and 1 <= len(x) <= 80 for x in specialties)
+                        or not (q or main or picked or specialties)):
                     self._json({'error': 'INPUT'}, 400); return
                 empty = {'type': 'FeatureCollection', 'features': []}
                 if not os.path.isfile(STREET_DENSITY): self._json({**empty, 'available': False}); return
-                subs = []
-                if q:
+                # street opportunities are scored per subcategory: a specialty («برجر») is not shown under its wider
+                # parent's figures, it is said to be unavailable (owner 2026-11-11: the specialty is the unit)
+                if specialties and not (q or main or picked):
+                    self._json({**empty, 'available': False, 'specialty_available': False}); return
+                subs = list(dict.fromkeys(picked))
+                if q and not subs:
                     tx = taxonomy_search.get()
                     subs = market_analytics.corridor_subs(tx, q, body.get('objective')) if tx is not None else []
                     if not subs: self._json({**empty, 'understood': False}); return

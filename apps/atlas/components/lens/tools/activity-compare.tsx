@@ -5,14 +5,14 @@ import { Scale, X } from 'lucide-react'
 import { NoResult } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { Explained } from '@/components/shared/explained'
-import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { ActivityPicker } from '@/components/shared/activity-picker'
 import { StatTile } from '@/components/shared/stat'
 import { Unavailable } from '@/components/shared/unavailable'
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
 import { ltr, numberFormat, postMarket } from '@/lib/insights-api'
-import type { MainActivity } from '@/lib/main-activities'
+import { activityBody, activityKey, studiedFrom, type Activity } from '@/lib/activities'
 import { useStickyState, type StudiedActivity } from '@/lib/sticky-state'
 import type { DistrictRow } from '../city-data'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
@@ -34,7 +34,7 @@ const SHORT_NAME = 12
 export function ActivityCompare({ city, rows, activities, first, firstCounts, firstTotal, onSelect, onHover }: {
   city: string
   rows: DistrictRow[]
-  activities: MainActivity[]
+  activities: Activity[]
   first: StudiedActivity
   firstCounts: Count[]
   firstTotal: number | null
@@ -45,9 +45,9 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [order, setOrder] = useStickyState<Order>('competitors.rivalOrder', 'gap')
-  // keyed by the second activity's q or main_id; an answer for an earlier city or activity never lands on the current one
-  const asked = useAnswer(rival ? `${city}|${rival.q ?? ''}|${rival.main_id ?? ''}` : null, () =>
-    postMarket<{ districts?: Count[]; total?: number; understood?: Understanding }>('district-counts', { city, ...(rival!.q ? { q: rival!.q } : { main_id: rival!.main_id }) }))
+  // keyed by the second activity's query; an answer for an earlier city or activity never lands on the current one
+  const asked = useAnswer(rival ? `${city}|${activityKey(rival)}` : null, () =>
+    postMarket<{ districts?: Count[]; total?: number; understood?: Understanding }>('district-counts', { city, ...activityBody(rival) }))
   const answer = useMemo<Rival | null>(() => (asked.status === 'idle' ? null
     : asked.status === 'loading' ? { status: 'loading' }
       : asked.status === 'error' || !asked.data ? { status: 'error' }
@@ -55,7 +55,7 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
   [asked.status, asked.data])
 
   const pairs = useMemo(() => (answer?.status === 'ready' ? comparePairs(rows, firstCounts, answer.counts, order) : []), [answer, firstCounts, rows, order])
-  const [limit, showMore] = useShowMore(15, `${city}|${first.q ?? first.main_id}|${rival?.q ?? rival?.main_id}|${order}`)
+  const [limit, showMore] = useShowMore(15, `${city}|${activityKey(first)}|${activityKey(rival)}|${order}`)
 
   // the same activity as the studied one compares a list with itself (every gap 0): the picker says so instead
   const sameAs = (next: StudiedActivity) => sameActivity(next, first)
@@ -86,8 +86,8 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
             placeholder="اكتب النشاط الثاني: عيادة، مخبز…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
           <button type="submit" className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground">قارن</button>
         </form>
-        <MainActivityPicker activities={activities} value="" placeholder="أو اختر نشاطاً رئيسياً"
-          onChange={(id) => { const item = activities.find((activity) => activity.main_id === id); if (item) pick({ main_id: item.main_id, label: item.main_ar }) }} />
+        <ActivityPicker activities={activities} value={null} placeholder="أو اختر تخصصاً: عيادة، مخبز…"
+          onPick={(item) => { if (item) pick(studiedFrom(item)) }} />
         {same && <p role="alert" className="text-sm text-destructive">هذا هو النشاط نفسه. اختر نشاطاً آخر لتقارن «{first.label}» به.</p>}
       </div>
     )

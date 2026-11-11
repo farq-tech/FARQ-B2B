@@ -100,3 +100,54 @@ class TerritoriesActivityTests(unittest.TestCase):
         finally:
             server.MARKET_ANALYTICS.district_counts, server._city_features = original_counts, original_features
         self.assertEqual(seen, [{'city': 'Riyadh', 'sub_ids': ['personal.laundry'], 'specialty_ids': ['food.fast_food.burger']}])
+
+
+class StreetSpecialtyTests(unittest.TestCase):
+    """A street row counts its whole subcategory, so a specialty pick must not be shown that figure under its name."""
+
+    def post(self, path, body):
+        import io, json
+        handler = object.__new__(server.H)
+        raw = json.dumps(body).encode()
+        handler.path, handler.headers, handler.rfile = path, {'Content-Length': str(len(raw))}, io.BytesIO(raw)
+        handler._authed = lambda: True
+        sent = []
+        handler._json = lambda obj, code=200: sent.append((code, obj))
+        handler.do_POST()
+        return sent[-1]
+
+    def setUp(self):
+        import duckdb
+        self.temp = tempfile.TemporaryDirectory()
+        path = os.path.join(self.temp.name, 'street_density.parquet')
+        db = duckdb.connect()
+        db.execute("""copy (select 'Riyadh' city_en, 'food.restaurant' sub_id, 'مطعم' sub_ar, 'food' main_id, 'أغذية' main_ar,
+                      'شارع الأمير بندر' street_ar, 'النخيل' district_ar, 'النخيل' districts_ar, 245 n, 0 n_wholesale, 4200 length_m,
+                      5.8 per_100m, 1.0 lift, 'main' road_class, 'food.restaurant.burger|food.restaurant.indian' specialty_ids,
+                      '{"type":"LineString","coordinates":[[46.6,24.7],[46.7,24.7]]}' geojson) to ? (format parquet)""", [path])
+        db.close()
+        self.original = server.STREET_DENSITY
+        server.STREET_DENSITY = path
+
+    def tearDown(self):
+        server.STREET_DENSITY = self.original
+        self.temp.cleanup()
+
+    def test_a_specialty_is_unavailable_on_streets_not_given_the_parent_count(self):
+        code, result = self.post('/street-density', {'city': 'Riyadh', 'specialty_ids': ['food.restaurant.burger']})
+        self.assertEqual(code, 200)
+        self.assertEqual(result['features'], [])
+        self.assertIs(result['specialty_available'], False)
+
+    def test_a_picked_subcategory_still_gets_its_streets(self):
+        code, result = self.post('/street-density', {'city': 'Riyadh', 'sub_ids': ['food.restaurant']})
+        self.assertEqual((code, len(result['features']), result['features'][0]['properties']['n']), (200, 1, 245))
+
+    def test_street_opportunities_take_a_subcategory_and_refuse_a_specialty(self):
+        code, result = self.post('/street-opportunities', {'city': 'Riyadh', 'specialty_ids': ['food.restaurant.burger']})
+        self.assertEqual((code, result['available'], result['specialty_available']), (200, False, False))
+        code, result = self.post('/street-opportunities', {'city': 'Riyadh', 'sub_ids': ['food.restaurant']})
+        self.assertEqual(code, 200)
+        self.assertEqual(result['sub_ids'], ['food.restaurant'])
+        code, _ = self.post('/street-opportunities', {'city': 'Riyadh', 'sub_ids': ['x' * 81]})
+        self.assertEqual(code, 400)
