@@ -134,10 +134,15 @@ def opportunities(db, path, city, subs=None, main_id=None, population=None, limi
         params.append(spec_key)
     else:
         only_trades, key_col = ' and specialty_key is null', 'null'
-    raw_rows = db.execute(f"""select file_row_number, sub_id, main_id, street_ar, {districts_col}, n, {road_col}, {key_col}
+    road_name_col = 'road_name' if 'road_name' in columns else 'null'
+    raw_rows = db.execute(f"""select file_row_number, sub_id, main_id, street_ar, {districts_col}, n, {road_col}, {key_col},
+            {road_name_col}
         from read_parquet(?, file_row_number = true) where city_en = ?{only_trades}""", params).fetchall()
     # a specialty corridor is named by its key, so it is told apart from the trade rows it sits inside
     rows = [(r[0], 'spec:' + r[7] if r[7] else r[1], *r[2:7]) for r in raw_rows]
+    # the road file's own name: a corridor's shown name may be what most of its shops write, which can differ between
+    # a specialty and its subcategory on the same road, so runs are also joined by it
+    road_names = [r[8] for r in raw_rows]
 
     subs = [s for s in (subs or []) if s]
     if spec_key:
@@ -199,14 +204,16 @@ def opportunities(db, path, city, subs=None, main_id=None, population=None, limi
         name = _street_key(r[3])
         if not name:
             continue
+        keys = [('label', name)] + ([('road', road_names[i])] if road_names[i] else [])
         for d in (r[4] or '').split('|'):
             if not d:
                 continue
-            j = first_seen.setdefault((name, d), i)
-            if j != i:
-                ri, rj = find(i), find(j)
-                if ri != rj:
-                    parent[ri] = rj
+            for key in keys:
+                j = first_seen.setdefault((*key, d), i)
+                if j != i:
+                    ri, rj = find(i), find(j)
+                    if ri != rj:
+                        parent[ri] = rj
 
     streets = {}
     for i, r in enumerate(rows):

@@ -16,6 +16,9 @@ Specialties (owner 2026-11-11: the specialty is the unit of every figure): each 
 own, with the rule market_analytics.activities uses, so «برجر» under restaurant and under fast food is one corridor.
 Those rows carry `specialty_key` (the specialty ids, sorted, «|»-joined) and their own count `n` of the shops tagged
 with it; every other row has a null `specialty_key`, and readers leave specialty rows out unless one is asked for.
+Every row also carries `road_name`, the road file's own name for the street: `street_ar` may be the name most of a
+corridor's shops write, which can differ between a specialty and its subcategory on the same road, so readers join a
+specialty to its trade's corridor by `road_name`.
 
 Limits: a business on an unnamed lane counts for no street. Length is the length of the
 segments that hold the activity (a short empty block bridged inside a corridor is not added),
@@ -260,7 +263,7 @@ def city_corridors(city, rows, segments, subs, spec_groups=None):
                 activity = {'sub_id': sub, 'sub_ar': subs[sub]['sub_ar'], 'main_id': subs[sub]['main_id'],
                             'main_ar': subs[sub]['main_ar'], 'specialty_key': None}
             out.append({
-                'city_en': city, **activity, 'street_ar': label,
+                'city_en': city, **activity, 'street_ar': label, 'road_name': name,
                 'district_ar': districts.most_common(1)[0][0] if districts else '',
                 'districts_ar': '|'.join(d for d, _ in districts.most_common()),
                 'n': n, 'n_wholesale': sum(1 for i in members if rows[i][4]),
@@ -282,7 +285,8 @@ def city_corridors(city, rows, segments, subs, spec_groups=None):
 COLUMNS = {'city_en': 'VARCHAR', 'sub_id': 'VARCHAR', 'sub_ar': 'VARCHAR', 'main_id': 'VARCHAR', 'main_ar': 'VARCHAR',
            'street_ar': 'VARCHAR', 'district_ar': 'VARCHAR', 'districts_ar': 'VARCHAR', 'n': 'INTEGER',
            'n_wholesale': 'INTEGER', 'length_m': 'INTEGER', 'per_100m': 'DOUBLE', 'lift': 'DOUBLE',
-           'road_class': 'VARCHAR', 'specialty_ids': 'VARCHAR', 'specialty_key': 'VARCHAR', 'geojson': 'VARCHAR'}
+           'road_class': 'VARCHAR', 'specialty_ids': 'VARCHAR', 'specialty_key': 'VARCHAR', 'road_name': 'VARCHAR',
+           'geojson': 'VARCHAR'}
 
 
 def write(rows, out: Path):

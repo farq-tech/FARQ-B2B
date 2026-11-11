@@ -231,3 +231,26 @@ class SpecialtyOpportunityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             so.opportunities(db, path, 'Riyadh', specialty_ids=['food.fast_food.burger'])
         self.assertTrue(so.has_specialties(self.db, self.path))
+
+    def test_a_specialty_named_otherwise_by_its_shops_still_joins_its_trades_street(self):
+        # the road file names the street in Latin letters, so each corridor takes the name most of its shops write:
+        # the burger shops write it one way, the fast-food shops another, and the road's own name joins them
+        db = duckdb.connect()
+        db.execute("""create table t(city_en varchar, sub_id varchar, sub_ar varchar, main_id varchar, main_ar varchar, street_ar varchar,
+            district_ar varchar, districts_ar varchar, n integer, n_wholesale integer, length_m integer, per_100m double, lift double,
+            road_class varchar, specialty_ids varchar, specialty_key varchar, road_name varchar, geojson varchar)""")
+        road = lambda r, key, name: r[:15] + (key, name) + r[15:]
+        rows = [
+            road(row('food.fast_food', 'طريق الملك عبدالله', 'العليا', 30, 0, main='food'), None, 'King Abdullah Rd'),
+            road(row('fashion', 'طريق الملك عبدالله', 'العليا', 25, 0), None, 'King Abdullah Rd'),
+            ('Riyadh', '', 'برجر', 'food', 'food', 'طريق الملك عبد الله', 'العليا', 'العليا', 12, 0, 500, 2.4, None, 'main', '',
+             self.KEY, 'King Abdullah Rd', line(0, 0)),
+            road(row('fashion', 'شارع الملك فهد', 'الورود', 40, 4000), None, 'شارع الملك فهد'),
+            road(row('cafe', 'شارع الملك فهد', 'الورود', 20, 4000, main='food'), None, 'شارع الملك فهد'),
+        ]
+        db.executemany('insert into t values (' + ','.join('?' * 18) + ')', rows)
+        path = str(pathlib.Path(tempfile.mkdtemp()) / 'street_density.parquet')
+        db.execute('copy t to ? (format parquet)', [path])
+        out = so.opportunities(db, path, 'Riyadh', specialty_ids=self.KEY.split('|'))
+        self.assertEqual([f['properties']['street_ar'] for f in out['features']], ['شارع الملك فهد'],
+                         'the road burgers gather on is never reported as lacking them')
