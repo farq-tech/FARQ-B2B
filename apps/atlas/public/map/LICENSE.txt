@@ -1,0 +1,4 @@
+Farq Atlas flat map symbols
+===========================
+
+The SVG and PNG map primitives in this directory are custom assets prepared for Farq Atlas. Farq may use and modify them commercially at no charge. They are original project assets and contain no third-party brand marks.
