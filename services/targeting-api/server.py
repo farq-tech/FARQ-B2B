@@ -1553,10 +1553,11 @@ class H(BaseHTTPRequestHandler):
                 if not os.path.isfile(path): self._json({'type': 'FeatureCollection', 'features': [], 'specialty_available': not bool(specialties), 'basis': 'بيانات كثافة الشوارع غير متاحة.'}); return
                 db = duckdb.connect()
                 columns = {row[0] for row in db.execute('describe select * from read_parquet(?)', [path]).fetchall()}
-                if specialties:
-                    # a street row counts its whole subcategory (n), and specialty_ids only lists the specialties present
-                    # on it: «برجر» would be shown the street's 245 restaurants. Until the table counts each specialty, a
-                    # specialty is said to be unavailable here, never given its parent's figure (owner 2026-11-11)
+                # specialty corridors (build_trade_corridors.py) carry their own count under `specialty_key`; an older
+                # table has none, and its rows count the whole subcategory, so a specialty is unavailable there rather than
+                # given its parent's figure («برجر» was shown a street's 245 restaurants; owner 2026-11-11)
+                by_specialty = 'specialty_key' in columns
+                if specialties and not by_specialty:
                     db.close()
                     self._json({'type': 'FeatureCollection', 'features': [], 'specialty_available': False, 'basis': 'مصدر كثافة الشوارع يعدّ التخصص الأعم لا التخصص الدقيق حتى الآن؛ أخفينا الخطوط كي لا يظهر رقم التخصص الأعم باسم التخصص الدقيق.'}); return
                 if q and tx is not None and not subs:
@@ -1568,7 +1569,9 @@ class H(BaseHTTPRequestHandler):
                                     'basis': 'لم نتعرف على النشاط المطلوب؛ جرّب اسماً آخر له.'}); return
                 where, params = ['city_en = ?'], [city]
                 if subs: where.append('sub_id in (select unnest(?::varchar[]))'); params.append(subs[:20])
-                if specialties: where.append("list_has_any(string_split(coalesce(specialty_ids, ''), '|'), ?::varchar[])"); params.append(specialties)
+                # one specialty entry (market-activities) is one corridor set: the ids it names, sorted, exactly
+                if specialties: where.append('specialty_key = ?'); params.append('|'.join(sorted(set(specialties))))
+                elif by_specialty: where.append('specialty_key is null')
                 if main: where.append('main_id = ?'); params.append(main)
                 if districts: where.append(market_analytics.street_density_district_sql(columns)); params.append(districts)
                 if self.path.endswith('/catalog'):

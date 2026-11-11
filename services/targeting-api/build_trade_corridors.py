@@ -12,6 +12,11 @@ the corridor crosses, «|»-joined).
   python3 build_trade_corridors.py --roads /app/data/buildings_ingest/roads \
       --data /app/data/releases/<release> --out street_density.parquet
 
+Specialties (owner 2026-11-11: the specialty is the unit of every figure): each specialty is also an activity of its
+own, with the rule market_analytics.activities uses, so «برجر» under restaurant and under fast food is one corridor.
+Those rows carry `specialty_key` (the specialty ids, sorted, «|»-joined) and their own count `n` of the shops tagged
+with it; every other row has a null `specialty_key`, and readers leave specialty rows out unless one is asked for.
+
 Limits: a business on an unnamed lane counts for no street. Length is the length of the
 segments that hold the activity (a short empty block bridged inside a corridor is not added),
 halved where the corridor is mostly one-way carriageways drawn as two lines.
@@ -35,6 +40,7 @@ import shapely
 
 import status_policy
 from activity_groups import groups_of, with_groups
+from market_analytics import MAX_SPECIALTY_IDS
 
 SNAP_M = 60          # a business further than this from any named road is not on a street (wide roads: the
                      # shop front stands 40-60 m from the centre line the road file draws)
@@ -122,6 +128,31 @@ def taxonomy(tax_file: Path):
     return {s['sub_id']: s for s in tax['subs']}
 
 
+def specialty_groups(subs, specialties_csv: Path | None):
+    """specialty id -> (key, name, main_id, main_ar): one entry per specialty name under one main activity, exactly as
+    market_analytics.activities groups them, so a corridor answers the same `specialty_ids` the picker sends."""
+    if not specialties_csv or not specialties_csv.is_file():
+        return {}
+    import csv
+    grouped = collections.defaultdict(list)
+    with specialties_csv.open(encoding='utf-8') as handle:
+        for row in csv.DictReader(handle):
+            parent = subs.get(row.get('sub_id') or '')
+            name = (row.get('specialty_ar') or '').strip()
+            if not parent or not name or name == '—' or row['sub_id'].startswith(('unc.', 'noncom.')):
+                continue
+            grouped[(parent.get('main_id') or '', name)].append(row['specialty_id'])
+    out = {}
+    for (main_id, name), ids in grouped.items():
+        if len(ids) > MAX_SPECIALTY_IDS:
+            continue
+        key = '|'.join(sorted(ids))
+        main_ar = next((s.get('main_ar') for s in subs.values() if s.get('main_id') == main_id), '') or ''
+        for spec_id in ids:
+            out[spec_id] = (key, name, main_id, main_ar)
+    return out
+
+
 def _groups(geoms, distance):
     """Union-find over geometries closer than distance; returns a group label per geometry."""
     n = len(geoms)
@@ -143,7 +174,7 @@ def _groups(geoms, distance):
     return [find(i) for i in range(n)]
 
 
-def city_corridors(city, rows, segments, subs):
+def city_corridors(city, rows, segments, subs, spec_groups=None):
     lat0 = float(np.median([r[2] for r in rows])); lon0 = float(np.median([r[3] for r in rows]))
     kx, ky = 111320.0 * math.cos(math.radians(lat0)), 110540.0
 
@@ -178,15 +209,25 @@ def city_corridors(city, rows, segments, subs):
             city_all[gid] += count
     seg_all = collections.Counter(s for _, s in on_street)
     by_street_sub = collections.defaultdict(lambda: collections.defaultdict(list))
+    spec_groups = spec_groups or {}
+    specs = {}   # 'spec:<key>' -> (name, main_id, main_ar, key)
     for i, s in on_street:
         by_street_sub[(names[s], rows[i][1])][s].append(i)
         # a group («أغراض الأطفال والمواليد») is one more activity: its trades' shops line one corridor together
         for gid in groups_of(rows[i][1]):
             by_street_sub[(names[s], gid)][s].append(i)
+        # and so is each specialty the shop is tagged with, counted once per shop
+        for key in {spec_groups[x][0] for x in rows[i][5].split('|') if x in spec_groups}:
+            spec = 'spec:' + key
+            by_street_sub[(names[s], spec)][s].append(i)
+            city_all[spec] += 1
+    for spec_id, (key, name, main_id, main_ar) in spec_groups.items():
+        specs['spec:' + key] = (name, main_id, main_ar, key)
 
     out = []
     for (name, sub), seg_rows in by_street_sub.items():
-        if sum(len(v) for v in seg_rows.values()) < MIN_SHOPS or sub not in subs or sub.startswith('unc.'):
+        spec = specs.get(sub)
+        if sum(len(v) for v in seg_rows.values()) < MIN_SHOPS or (spec is None and (sub not in subs or sub.startswith('unc.'))):
             continue
         segs = list(seg_rows)
         labels = _groups(lines[segs], JOIN_M)
@@ -212,9 +253,14 @@ def city_corridors(city, rows, segments, subs):
             label = name if _ARABIC.search(name) or not written else written.most_common(1)[0][0]
             geometry = shapely.simplify(shapely.multilinestrings([shapely.linestrings(segments[s][3]) for s in run]), 0.00002)
             share_city = city_all[sub] / total_all if total_all else 0
+            if spec:
+                # a specialty corridor: named and counted as the specialty, under no subcategory of its own
+                activity = {'sub_id': '', 'sub_ar': spec[0], 'main_id': spec[1], 'main_ar': spec[2], 'specialty_key': spec[3]}
+            else:
+                activity = {'sub_id': sub, 'sub_ar': subs[sub]['sub_ar'], 'main_id': subs[sub]['main_id'],
+                            'main_ar': subs[sub]['main_ar'], 'specialty_key': None}
             out.append({
-                'city_en': city, 'sub_id': sub, 'sub_ar': subs[sub]['sub_ar'], 'main_id': subs[sub]['main_id'],
-                'main_ar': subs[sub]['main_ar'], 'street_ar': label,
+                'city_en': city, **activity, 'street_ar': label,
                 'district_ar': districts.most_common(1)[0][0] if districts else '',
                 'districts_ar': '|'.join(d for d, _ in districts.most_common()),
                 'n': n, 'n_wholesale': sum(1 for i in members if rows[i][4]),
@@ -227,7 +273,7 @@ def city_corridors(city, rows, segments, subs):
     keep = []
     by_sub = collections.defaultdict(list)
     for row in out:
-        by_sub[row['sub_id']].append(row)
+        by_sub[row['specialty_key'] or row['sub_id']].append(row)
     for rows_ in by_sub.values():
         keep += sorted(rows_, key=lambda r: (-r['n'], -r['per_100m']))[:MAX_PER_SUB]
     return keep, {'businesses': len(rows), 'on_named_street': len(on_street), 'segments': len(segments), 'corridors': len(keep)}
@@ -236,7 +282,7 @@ def city_corridors(city, rows, segments, subs):
 COLUMNS = {'city_en': 'VARCHAR', 'sub_id': 'VARCHAR', 'sub_ar': 'VARCHAR', 'main_id': 'VARCHAR', 'main_ar': 'VARCHAR',
            'street_ar': 'VARCHAR', 'district_ar': 'VARCHAR', 'districts_ar': 'VARCHAR', 'n': 'INTEGER',
            'n_wholesale': 'INTEGER', 'length_m': 'INTEGER', 'per_100m': 'DOUBLE', 'lift': 'DOUBLE',
-           'road_class': 'VARCHAR', 'specialty_ids': 'VARCHAR', 'geojson': 'VARCHAR'}
+           'road_class': 'VARCHAR', 'specialty_ids': 'VARCHAR', 'specialty_key': 'VARCHAR', 'geojson': 'VARCHAR'}
 
 
 def write(rows, out: Path):
@@ -264,12 +310,13 @@ def main(argv=None):
     if a.cities:
         by_city = {c: r for c, r in by_city.items() if c in a.cities}
     subs = with_groups(taxonomy(a.data / 'taxonomy' / 'farq_taxonomy.json'))
+    spec_groups = specialty_groups(subs, a.data / 'taxonomy' / 'specialties.csv')
     roads = read_roads(a.roads, city_boxes(by_city), a.cache)
     rows, report = [], {}
     for city, segments in sorted(roads.items(), key=lambda kv: -len(kv[1])):
         if city not in by_city:
             continue
-        found, stats = city_corridors(city, by_city[city], segments, subs)
+        found, stats = city_corridors(city, by_city[city], segments, subs, spec_groups)
         rows += found; report[city] = stats
         print(city, stats, file=sys.stderr, flush=True)
     write(rows, a.out)
