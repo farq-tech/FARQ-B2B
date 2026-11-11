@@ -57,6 +57,12 @@ def valid_filters(value):
         val=value.get(key,'')
         if not isinstance(val,str) or len(val)>max_len: raise ValueError('invalid taxonomy filter')
         out[key]=val.strip()
+    # a picked subcategory or specialty (market-activities), read from the same served classification as every figure,
+    # so the list and the map's pins are the businesses the count counts (owner 2026-11-11: the specialty is the unit)
+    for key, max_n in (('served_sub_ids',50),('served_specialty_ids',20)):
+        val=value.get(key) or []
+        if not isinstance(val,list) or len(val)>max_n or not all(isinstance(x,str) and re.fullmatch(r'[a-z0-9_.]{1,80}',x) for x in val): raise ValueError('invalid taxonomy filter')
+        out[key]=list(dict.fromkeys(val))
     out['branches_only']=value.get('branches_only') is True
     out['name_only']=value.get('name_only') is True
     bounds=value.get('bounds')
@@ -210,6 +216,15 @@ class DirectoryTiles:
         if f.get('taxonomy_specialty_id'):
             clauses.append("list_contains(string_split(coalesce("+specialty_ids+",''),'|'),?)")
             params.append(f['taxonomy_specialty_id'])
+        if f.get('served_sub_ids'):
+            import market_analytics
+            clauses.append("exists (select 1 from read_parquet(?) c where c.poi_key=p.poi_key and c.confidence in ('high','medium') "
+                           "and c.sub_id in (select unnest(?::varchar[])))")
+            params.extend([market_analytics.taxonomy_path(), f['served_sub_ids']])
+        if f.get('served_specialty_ids'):
+            # an older snapshot without the tags lists none, never the wider subcategory
+            clauses.append("list_has_any(string_split(coalesce("+specialty_ids+",''),'|'),?::varchar[])")
+            params.append(f['served_specialty_ids'])
         identity="translate(lower(coalesce(nullif(legal_name,''),name_ar,name_en,'')),'أإآةىؤئ','اااهيوي')"
         company="regexp_matches("+identity+",'(^|[^[:alnum:]؀-ۿ])(شركه|شركات|company|corporation|llc)($|[^[:alnum:]؀-ۿ])')"
         institution="regexp_matches("+identity+",'(^|[^[:alnum:]؀-ۿ])(مؤسسه|establishment|est)($|[^[:alnum:]؀-ۿ])')"
