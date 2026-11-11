@@ -110,18 +110,52 @@ def _rank(values):
     return out
 
 
-def opportunities(db, path, city, subs=None, main_id=None, population=None, limit=LIMIT):
-    """The streets of `city` where `subs` (or every trade of `main_id`) is absent or thin against the street's size."""
+def has_specialties(db, path):
+    """Whether the street table carries specialty corridors (build_trade_corridors.py with a specialties list)."""
+    return 'specialty_key' in {row[0] for row in db.execute('describe select * from read_parquet(?)', [path]).fetchall()}
+
+
+def opportunities(db, path, city, subs=None, main_id=None, population=None, limit=LIMIT, specialty_ids=None):
+    """The streets of `city` where `subs`, a specialty (`specialty_ids`, read from its own corridors) or every trade of
+    `main_id` is absent or thin against the street's size."""
     columns = {row[0] for row in db.execute('describe select * from read_parquet(?)', [path]).fetchall()}
     districts_col = "coalesce(nullif(districts_ar, ''), district_ar)" if 'districts_ar' in columns else 'district_ar'
     road_col = 'road_class' if 'road_class' in columns else 'null'
-    # specialty corridors repeat shops their subcategory rows already count: a street's size is read without them
-    only_trades = ' and specialty_key is null' if 'specialty_key' in columns else ''
-    rows = db.execute(f"""select file_row_number, sub_id, main_id, street_ar, {districts_col}, n, {road_col}
-        from read_parquet(?, file_row_number = true) where city_en = ?{only_trades}""", [path, city]).fetchall()
+    spec_key = '|'.join(sorted({s for s in (specialty_ids or []) if s}))
+    if spec_key and 'specialty_key' not in columns:
+        raise ValueError('specialty')
+    # specialty corridors repeat shops their subcategory rows already count: a street's size is read without them,
+    # and only the requested specialty's own corridors are read beside them
+    params = [path, city]
+    if 'specialty_key' not in columns:
+        only_trades, key_col = '', 'null'
+    elif spec_key:
+        only_trades, key_col = ' and (specialty_key is null or specialty_key = ?)', 'specialty_key'
+        params.append(spec_key)
+    else:
+        only_trades, key_col = ' and specialty_key is null', 'null'
+    road_name_col = 'road_name' if 'road_name' in columns else 'null'
+    raw_rows = db.execute(f"""select file_row_number, sub_id, main_id, street_ar, {districts_col}, n, {road_col}, {key_col},
+            {road_name_col}
+        from read_parquet(?, file_row_number = true) where city_en = ?{only_trades}""", params).fetchall()
+    # a specialty corridor is named by its key, so it is told apart from the trade rows it sits inside
+    rows = [(r[0], 'spec:' + r[7] if r[7] else r[1], *r[2:7]) for r in raw_rows]
+    # the road file's own name: a corridor's shown name may be what most of its shops write, which can differ between
+    # a specialty and its subcategory on the same road, so runs are also joined by it
+    road_names = [r[8] for r in raw_rows]
 
     subs = [s for s in (subs or []) if s]
-    if subs:
+    if spec_key:
+        wanted_spec = 'spec:' + spec_key
+        # the subcategories the specialty's shops sit in: «food.fast_food.burger» is a shop of «food.fast_food»
+        spec_parents = {x.rsplit('.', 1)[0] for x in spec_key.split('|')}
+
+        def is_requested(sub, main):
+            return sub == wanted_spec
+
+        def is_member(sub, main):
+            return sub == wanted_spec
+    elif subs:
         wanted = set(subs)
         if any(_is_group(s) for s in subs):
             import activity_groups
@@ -141,7 +175,7 @@ def opportunities(db, path, city, subs=None, main_id=None, population=None, limi
     else:
         raise ValueError('activity')
 
-    requested_kinds = sorted({r[1] for r in rows if is_requested(r[1], r[2])}) or subs
+    requested_kinds = sorted({r[1] for r in rows if is_requested(r[1], r[2])}) or subs or ([spec_key] if spec_key else [])
     runs_per_kind = {}
     for r in rows:
         if is_requested(r[1], r[2]):
@@ -172,14 +206,16 @@ def opportunities(db, path, city, subs=None, main_id=None, population=None, limi
         name = _street_key(r[3])
         if not name:
             continue
+        keys = [('label', name)] + ([('road', road_names[i])] if road_names[i] else [])
         for d in (r[4] or '').split('|'):
             if not d:
                 continue
-            j = first_seen.setdefault((name, d), i)
-            if j != i:
-                ri, rj = find(i), find(j)
-                if ri != rj:
-                    parent[ri] = rj
+            for key in keys:
+                j = first_seen.setdefault((*key, d), i)
+                if j != i:
+                    ri, rj = find(i), find(j)
+                    if ri != rj:
+                        parent[ri] = rj
 
     streets = {}
     for i, r in enumerate(rows):
@@ -188,7 +224,14 @@ def opportunities(db, path, city, subs=None, main_id=None, population=None, limi
         if (_is_group(sub) and not requested) or not _street_key(name):
             continue
         s = streets.setdefault(find(i), {'names': {}, 'districts': {}, 'total': 0, 'requested': 0, 'others': 0,
-                                         'kinds': set(), 'main': False, 'row_ids': [], 'requested_rows': set()})
+                                         'kinds': set(), 'main': False, 'row_ids': [], 'requested_rows': set(),
+                                         'parent': False})
+        if spec_key and requested:
+            # the specialty's shops already sit inside its subcategory's row on this street: they are its count, not
+            # more street, and its line is that row's line
+            s['requested'] += n
+            s['requested_rows'].add(row_id)
+            continue
         s['names'][name] = s['names'].get(name, 0) + n
         for d in (districts or '').split('|'):
             if d:
@@ -199,10 +242,22 @@ def opportunities(db, path, city, subs=None, main_id=None, population=None, limi
             s['requested'] += n
             s['requested_rows'].add(row_id)
         if not _is_group(sub):
+            if spec_key and sub in spec_parents:
+                s['parent'] = True
             s['total'] += n
             if not is_member(sub, main):
                 s['others'] += n
                 s['kinds'].add(sub)
+
+    if spec_key:
+        # the specialty's shops are part of its subcategory's row, so the street's other shops are the rest of it;
+        # where that row was not kept (its subcategory passed the build's cap) they are in no other row: they are added
+        # to the street, so they count in the city's total as they do in its share, and no other trade loses them
+        for s in streets.values():
+            if s['parent']:
+                s['others'] = max(0, s['total'] - s['requested'])
+            else:
+                s['total'] += s['requested']
 
     all_total = sum(s['total'] for s in streets.values())
     all_requested = sum(s['requested'] for s in streets.values())

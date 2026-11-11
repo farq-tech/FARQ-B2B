@@ -180,7 +180,7 @@ class StreetSpecialtyTests(unittest.TestCase):
         _, catalog = self.post('/street-density/catalog', {'city': 'Riyadh'})
         self.assertEqual(catalog['mains'][0]['shops'], 245)
 
-    def test_street_opportunities_take_a_subcategory_and_refuse_a_specialty(self):
+    def test_street_opportunities_take_a_subcategory_and_refuse_a_specialty_without_its_corridors(self):
         code, result = self.post('/street-opportunities', {'city': 'Riyadh', 'specialty_ids': ['food.restaurant.burger']})
         self.assertEqual((code, result['available'], result['specialty_available']), (200, False, False))
         code, result = self.post('/street-opportunities', {'city': 'Riyadh', 'sub_ids': ['food.restaurant']})
@@ -188,3 +188,12 @@ class StreetSpecialtyTests(unittest.TestCase):
         self.assertEqual(result['sub_ids'], ['food.restaurant'])
         code, _ = self.post('/street-opportunities', {'city': 'Riyadh', 'sub_ids': ['x' * 81]})
         self.assertEqual(code, 400)
+
+    def test_street_opportunities_score_a_specialty_on_its_own_corridors(self):
+        self.with_specialty_rows()
+        code, result = self.post('/street-opportunities', {'city': 'Riyadh', 'specialty_ids': ['food.restaurant.burger', 'food.fast_food.burger']})
+        self.assertEqual(code, 200)
+        self.assertNotIn('available', result)
+        self.assertEqual(result['specialty_ids'], ['food.fast_food.burger', 'food.restaurant.burger'])
+        self.assertEqual(result['requested_kinds'], 1)
+        self.assertEqual(result['share'], round(21 / 245, 4), 'burger shops against the street, not against themselves added on')

@@ -172,6 +172,9 @@ class SpecialtyCorridorTest(unittest.TestCase):
             btc.write(found, out)
             keys = sorted(str(r[0]) for r in duckdb.sql(f"select specialty_key from read_parquet('{out}')").fetchall())
             self.assertEqual(keys, ['None', 'food.fast_food.burger|food.restaurant.burger'])
+            # both carry the road's own name, which joins them whatever name their shops write
+            roads = {str(r[0]) for r in duckdb.sql(f"select road_name from read_parquet('{out}')").fetchall()}
+            self.assertEqual(roads, {'شارع التحلية'})
 
 
 class CorridorActivityTest(unittest.TestCase):

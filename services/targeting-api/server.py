@@ -1611,11 +1611,16 @@ class H(BaseHTTPRequestHandler):
                     self._json({'error': 'INPUT'}, 400); return
                 empty = {'type': 'FeatureCollection', 'features': []}
                 if not os.path.isfile(STREET_DENSITY): self._json({**empty, 'available': False}); return
-                # street opportunities are scored per subcategory: a specialty («برجر») is not shown under its wider
-                # parent's figures, it is said to be unavailable (owner 2026-11-11: the specialty is the unit)
-                if specialties and not (q or main or picked):
-                    self._json({**empty, 'available': False, 'specialty_available': False}); return
-                subs = list(dict.fromkeys(picked))
+                # a specialty («برجر») is scored on its own corridors, never on its wider parent's figures; a street
+                # table built before specialty corridors says it is unavailable (owner 2026-11-11: the specialty is the unit)
+                specialty_only = bool(specialties) and not (q or main or picked)
+                if specialty_only:
+                    db = duckdb.connect()
+                    try: has_specialties = street_opportunities.has_specialties(db, STREET_DENSITY)
+                    finally: db.close()
+                    if not has_specialties:
+                        self._json({**empty, 'available': False, 'specialty_available': False}); return
+                subs = [] if specialty_only else list(dict.fromkeys(picked))
                 if q and not subs:
                     tx = taxonomy_search.get()
                     subs = market_analytics.corridor_subs(tx, q, body.get('objective')) if tx is not None else []
@@ -1623,9 +1628,13 @@ class H(BaseHTTPRequestHandler):
                 try: population = population_by_name_cached(city)
                 except Exception: population = {}
                 db = duckdb.connect()
-                try: result = street_opportunities.opportunities(db, STREET_DENSITY, city, subs=subs[:20], main_id=None if subs else main, population=population)
+                try:
+                    if specialty_only:
+                        result = street_opportunities.opportunities(db, STREET_DENSITY, city, specialty_ids=specialties, population=population)
+                    else:
+                        result = street_opportunities.opportunities(db, STREET_DENSITY, city, subs=subs[:20], main_id=None if subs else main, population=population)
                 finally: db.close()
-                self._json({**result, 'sub_ids': subs[:20]})
+                self._json({**result, 'sub_ids': subs[:20], **({'specialty_ids': sorted(set(specialties))} if specialty_only else {})})
             except Exception as error:
                 log_map_api_failure('street-opportunities', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)

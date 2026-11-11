@@ -175,7 +175,7 @@ export function CorridorsTool({ city, rows = [], onOverlay, next }: {
       {mode === 'cluster' && status === 'error' && <LoadError what="الشوارع" onRetry={answer.retry} />}
       {mode === 'cluster' && status === 'idle' && result?.understood === false && <NoResult title={`لم نتعرف على «${studied.label}»`} body="جرّب اسماً آخر للنشاط، أو اختر تخصصاً من القائمة." />}
       {mode === 'cluster' && status === 'idle' && result?.specialty_available === false && (
-        <NotAvailable what="شوارع التخصص" where={`«${studied.label}»`} body="الشوارع محسوبة على مستوى التخصص الأعم (مثل «وجبات سريعة»)، لا التخصص الدقيق. اختره لترى شوارعه." />
+        <NotAvailable what="شوارع التخصص" where={`«${studied.label}»`} body="شوارع هذا التخصص الدقيق لم تُحسب بعد. اختر تخصصه الأعم (مثل «وجبات سريعة») لترى شوارعه." />
       )}
       {mode === 'cluster' && status === 'idle' && result && result.understood !== false && result.specialty_available !== false && !corridors.length && (
         <NoResult title={`لا شارع يتجمع فيه «${studied.label}»`} body="يُحسب الشارع حين يكون عليه 5 محلات أو أكثر من النشاط. جرّب نشاطاً آخر أو «أين الفرصة»." />
