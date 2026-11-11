@@ -95,6 +95,17 @@ enum Segment: String, CaseIterable, Identifiable {
         case .nonSaudi: return "غير سعوديين"
         }
     }
+
+    /// The district figure is people in this audience segment, never business contacts.
+    var audienceSubtitle: String {
+        switch self {
+        case .everyone: return "السكان في الحي"
+        case .men: return "الرجال في الحي"
+        case .women: return "النساء في الحي"
+        case .saudi: return "السعوديون في الحي"
+        case .nonSaudi: return "غير السعوديين في الحي"
+        }
+    }
 }
 
 /// Makes the city total's coverage visible: missing district figures never disappear into an unlabeled partial sum.

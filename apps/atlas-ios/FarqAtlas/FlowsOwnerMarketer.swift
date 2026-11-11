@@ -174,7 +174,7 @@ struct MarketerDistrictsView: View {
             ForEach(Array(ranked.prefix(5).enumerated()), id: \.element.shape.id) { index, item in
                 Button { store.path.append(Route.marketerDistrict(item.shape.name)) } label: {
                     DistrictRow(rank: index + 1, name: item.shape.name,
-                                sentence: "منشآت بواتساب \(Fmt.int(store.counts[item.shape.name]?.n_whatsapp))",
+                                sentence: store.segment.audienceSubtitle,
                                 figure: Fmt.int(item.value))
                 }
                 .buttonStyle(.farqPress)

@@ -109,11 +109,18 @@ final class FarqAtlasUITests: XCTestCase {
         XCTAssertTrue(womenButton.isSelected, "the tapped audience row should be selected")
         XCTAssertFalse(app.buttons["segment-men"].isSelected, "tapping women must not select the adjacent men row")
         XCTAssertFalse(app.buttons["segment-everyone"].isSelected, "the previous selection must clear")
+        let menButton = app.buttons["segment-men"]
+        menButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(menButton.isSelected, "the men row should become selected on its own tap")
+        XCTAssertFalse(womenButton.isSelected, "tapping men must not leave women selected")
         step("marketer: districts", tap: app.buttons["primary"], until: app.buttons["district-0"], limit: 3)
+        let topDistrictLabel = app.buttons["district-0"].label
+        XCTAssertTrue(topDistrictLabel.contains("الرجال في الحي"), "audience ranking must describe residents: \(topDistrictLabel)")
+        XCTAssertFalse(topDistrictLabel.contains("منشآت بواتساب"), "business counts do not describe a people audience")
         let audience = try server("district-audience", ["city": "Riyadh"])
-        let women = ((audience["districts"] as? [[String: Any]]) ?? []).compactMap { $0["women"] as? Double }.max() ?? 0
+        let men = ((audience["districts"] as? [[String: Any]]) ?? []).compactMap { $0["men"] as? Double }.max() ?? 0
         let shown = (app.buttons["district-0"].value as? String) ?? ""
-        XCTAssertTrue(shown.contains(english(women)), "top district shows \(shown), server says \(english(women))")
+        XCTAssertTrue(shown.contains(english(men)), "top district shows \(shown), server says \(english(men))")
         step("marketer: district", tap: app.buttons["district-0"], until: app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'حي '")).firstMatch, limit: 3)
     }
 
