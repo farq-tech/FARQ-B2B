@@ -19,9 +19,9 @@ const square = (lon, lat) => ({ type: 'Polygon', coordinates: [[[lon, lat], [lon
 // site score falls back on villa share), and one district without a population (its figures read «غير متاح»)
 const CITIES = {
   Riyadh: [
-    { id: 'd1', ar: 'حي الأول', lon: 46.66, lat: 24.70, population: 120000, n: 9000, built: [40, 60], income: 6000 },
-    { id: 'd2', ar: 'حي الثاني', lon: 46.69, lat: 24.70, population: 80000, n: 3000, built: [500, 700], income: 8000 },
-    { id: 'd3', ar: 'حي الثالث', lon: 46.72, lat: 24.70, population: 280000, n: 22000, built: [10, 5], income: 10000 },
+    { id: 'd1', ar: 'حي الأول', lon: 46.66, lat: 24.70, population: 120000, n: 9000, built: [40, 60], income: 6000, incomeMale: 9000, incomeFemale: 18000, incomeSaudi: 15000, incomeNonSaudi: 7000 },
+    { id: 'd2', ar: 'حي الثاني', lon: 46.69, lat: 24.70, population: 80000, n: 3000, built: [500, 700], income: 8000, incomeMale: 12000, incomeFemale: 16000, incomeSaudi: 13000, incomeNonSaudi: 6000 },
+    { id: 'd3', ar: 'حي الثالث', lon: 46.72, lat: 24.70, population: 280000, n: 22000, built: [10, 5], income: 10000, incomeMale: 14000, incomeFemale: 6000, incomeSaudi: 11000, incomeNonSaudi: 5000 },
   ],
   Jeddah: [
     { id: 'j1', ar: 'حي البحر', lon: 39.16, lat: 21.54, population: 150000, n: 8000, built: [30, 20], villa: 12 },
@@ -47,7 +47,7 @@ const GET = {
 }
 const POST = {
   'district-counts': (D, body) => (body.q || body.main_id
-    ? { districts: D.map((d) => ({ district_ar: d.ar, n: Math.round(d.n / 100), per_km2: 3 })), total: 340, located: 340 }
+    ? { districts: D.map((d) => ({ district_ar: d.ar, n: Math.round(d.n / 100), per_km2: 3 })), total: 340, located: 340, ...(body.q ? { understood: { labels: ['سبا ومساج'], more: 0 } } : {}) }
     : { districts: D.map((d) => ({ district_ar: d.ar, n: d.n, area_km2: 4, residents_per: d.population == null ? null : d.population / d.n, per_km2: d.n / 4, density: d.population == null ? null : d.population / 4 })), total: D.reduce((sum, d) => sum + d.n, 0) }),
   growth: (D) => ({ districts: D.map((d) => ({ district_ar: d.ar, under_construction: d.built[0], new_buildings: d.built[1] })) }),
   'district-audience': (D) => ({ districts: D.filter((d) => d.population != null).map((d) => ({ district_ar: d.ar, men: d.population / 2, women: d.population / 2, saudi: d.population / 2, non_saudi: d.population / 2 })) }),
@@ -65,7 +65,7 @@ const POST = {
   }),
   territories: () => ({ territories: [] }),
   // Riyadh publishes income; Jeddah does not (the villa share stands in)
-  'district-income': (D) => ({ districts: D.filter((d) => d.income != null).map((d) => ({ district_ar: d.ar, income_all: d.income })) }),
+  'district-income': (D) => ({ districts: D.filter((d) => d.income != null).map((d) => ({ district_ar: d.ar, income_all: d.income, income_male: d.incomeMale ?? null, income_female: d.incomeFemale ?? null, income_saudi: d.incomeSaudi ?? null, income_non_saudi: d.incomeNonSaudi ?? null })) }),
   'housing-level': (D) => ({ districts: D.filter((d) => d.villa != null).map((d) => ({ district_ar: d.ar, villa_share_pct: d.villa })) }),
   // the people inside a site's reach: the east site of each city has more
   'population-within': (D, body) => {
@@ -187,21 +187,33 @@ try {
   {
     const { context, page, asked } = await open(browser, { phone: true })
     await page.goto(`${BASE}/map?goal=target`); await settle(page, 3500)
+    await raise(page)
+    await panel(page).getByRole('button', { name: 'نساء' }).click(); await settle(page, 1200)
+    const rankedWomen = await panel(page).locator('ol > li').first().innerText().catch(() => '')
+    check(rankedWomen.includes('حي الأول') && rankedWomen.includes('60,000 شخص') && rankedWomen.includes('18,000 ر.س') && rankedWomen.includes('71/100'), 'women: the balanced ranking includes the segment count and the women workers\' income, not just the largest population')
+    await panel(page).getByRole('button', { name: 'أستهدف منشآت' }).click(); await settle(page, 800)
+    const exactActivity = panel(page).getByRole('textbox', { name: 'التخصص الدقيق للمنشآت' })
+    await exactActivity.fill('مساج'); await exactActivity.press('Enter'); await settle(page, 1200)
+    const massageRequest = asked.find((item) => item.path === '/api/market/district-counts' && item.body?.q === 'مساج')
+    check(massageRequest != null && !Object.hasOwn(massageRequest.body, 'objective'), 'marketers: the exact specialty reaches the taxonomy resolver unchanged as «مساج»')
+    check((await text(page)).includes('سبا ومساج') && (await text(page)).includes('340 منشأة'), 'marketers: a typed specialty shows the taxonomy interpretation and its measured count')
+    check(!(await text(page)).includes('أعلى حي لجمهورك (نساء)'), 'marketers: a remembered people segment never labels a business count')
+    await panel(page).getByRole('button', { name: 'أستهدف أفراداً' }).click(); await settle(page, 800)
     const peek = await page.locator('[aria-label^="اللوحة"]').first().innerText()
     check(/حجم الجمهور|اختر جمهورك|جارٍ حساب/.test(peek), 'phone: the peeking sheet says the step\'s answer or what to do')
     await tab(page, 'منشآت الأحياء'); await settle(page)
-    const line = page.locator('aside[aria-label="لوحة الخريطة"] button', { hasText: 'أعلى حي مطابق لجمهورك: حي الثالث' }).first()
+    const line = page.locator('aside[aria-label="لوحة الخريطة"] button', { hasText: 'حي الأول' }).first()
     check(await line.count() > 0, 'phone: at the last step the peeking sheet says the decision')
     if (await line.count()) { await line.click(); await settle(page, 1500) }
     const card = await page.locator('#journey-summary').boundingBox().catch(() => null)
     check(card != null && card.y >= 0 && card.y < 844, 'phone: a tap on the decision opens the closing card')
-    check((await text(page)).includes('ابدأ من حي الثالث'), 'the businesses step starts from the top audience district')
+    check((await text(page)).includes('ابدأ من حي الأول'), 'the businesses step starts from the top balanced audience district')
     const listAsked = () => asked.filter((item) => item.path === '/api/market/entities').length
     const close = panel(page).getByRole('button', { name: /جهّز حملة لمنشآت/ })
     check(await close.count() > 0, 'the marketer\'s journey closes on «جهّز حملة»')
     await shoot(page, 'marketers-phone')
     if (await close.count()) { await close.first().click(); await settle(page, 2000) }
-    check((await text(page)).includes('منشآت حي الثالث'), 'the decision opens the businesses list of the district, where the campaign is made after review')
+    check((await text(page)).includes('منشآت حي الأول'), 'the decision opens the businesses list of the district, where the campaign is made after review')
     check(listAsked() > 0, 'the campaign decision opens the list already searched (no extra tap on «كل الأنشطة»)')
     const wide = await page.evaluate(() => document.documentElement.scrollWidth)
     check(wide <= 390, 'phone: no sideways scroll')

@@ -66,6 +66,11 @@ export function audienceWhere({ selected, measured, scope }: { selected: number;
   return `في ${numberFormat.format(measured)} من ${counted(scope, 'district')}${selected ? ' محددة' : ''} مقاسة`
 }
 
+/** A demographic segment labels people audiences only; it must never qualify a business count. */
+export function audienceSegmentLabel(mode: 'people' | 'businesses', segment: string): string {
+  return mode === 'people' ? segment : ''
+}
+
 /** «حجم الجمهور في المدينة: 120,400 شخص · الأعلى: النرجس»; the sizes are the service's segment figures, one per measured district. */
 export function audienceSummary({ selected, scope, segment, sizes, unit, top, cityTotal }: {
   selected: number; scope: number; segment: string; sizes: number[]; unit: string; top: string | null
@@ -329,23 +334,21 @@ export function pairsVerdict(pairs: Pair[], first: string, second: string): Verd
 }
 
 /**
- * «أين جمهوري؟»: the best-matching district and how concentrated the audience is (the top five districts' share of
- * the sizes summed, each the service's figure), so a campaign knows whether a few districts carry it. `ranked` are
- * the districts in scope with a measured figure, largest first.
+ * «أين جمهوري؟»: the highest-scoring district and the audience size its ranked districts contain. The share describes
+ * where the measured audience is; it does not predict campaign response. `ranked` are districts with a measured score.
  */
-export function audienceVerdict(ranked: { name: string; size: number; populationSource?: string | null }[], unit: string, segment: string): VerdictText | null {
+export function audienceVerdict(ranked: { name: string; size: number; populationSource?: string | null }[], unit: string, segment: string, measuredTotal = ranked.reduce((sum, item) => sum + item.size, 0)): VerdictText | null {
   const top = ranked[0]
   if (!top || top.size <= 0) return null
-  const total = ranked.reduce((sum, item) => sum + item.size, 0)
+  if (measuredTotal <= 0) return null
   // the top five of a large city, fewer in a small one (a quarter of its districts at most), none under eight
   const k = Math.min(5, Math.floor(ranked.length / 4))
-  const share = (100 * ranked.slice(0, k).reduce((sum, item) => sum + item.size, 0)) / total
-  const focused = share >= THIN.focus * ((100 * k) / ranked.length)
+  const share = (100 * ranked.slice(0, k).reduce((sum, item) => sum + item.size, 0)) / measuredTotal
   return {
-    lead: `أعلى حي لجمهورك${segment ? ` (${segment})` : ''}: ${top.name}`,
+    lead: `أعلى حي في المؤشر${segment ? ` (${segment})` : ''}: ${top.name}`,
     why: [
       `فيه ${n(Math.round(top.size))} ${unit}${ranked[1] ? `، ويليه ${names(ranked.slice(1, 3).map((item) => item.name))}` : ''}.`,
-      ...(k >= 2 ? [`أعلى ${counted(k, 'district')} من ${n(ranked.length)} تجمع ${n(Math.round(share))}% من الجمهور، ${focused ? 'فحملة مركّزة عليها أجدى من توزيعها على المدينة' : 'فالجمهور موزّع، وحملة على المدينة كلها لا تضيّع كثيراً'}.`] : []),
+      ...(k >= 2 ? [`أعلى ${counted(k, 'district')} من ${n(ranked.length)} حياً بدرجة متاحة تضم ${n(Math.round(share))}% من ${unit === 'منشأة' ? 'المنشآت' : 'الجمهور'} المقاس في النطاق؛ هذا يصف توزيع العدد ولا يتنبأ بنتيجة الحملة.`] : []),
     ],
     // a people figure from a density grid: the size is a guess, and said where the campaign would be aimed
     caution: unit !== 'منشأة' && populationKind(top.populationSource) === 'grid' ? estimatedLine(top.name, 'حجم جمهوره تقريبي') : null,
