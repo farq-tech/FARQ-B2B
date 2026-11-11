@@ -254,3 +254,11 @@ class SpecialtyOpportunityTests(unittest.TestCase):
         out = so.opportunities(db, path, 'Riyadh', specialty_ids=self.KEY.split('|'))
         self.assertEqual([f['properties']['street_ar'] for f in out['features']], ['شارع الملك فهد'],
                          'the road burgers gather on is never reported as lacking them')
+
+    def test_a_specialty_corridor_whose_trade_row_was_not_kept_still_counts_in_the_citys_total(self):
+        # restaurants line more streets than the build keeps: a burger corridor may stand where its trade's row was cut
+        self.db.execute("""insert into t values ('Riyadh', '', 'برجر', 'food', 'food', 'شارع الثلاثين', 'الملقا', 'الملقا',
+            8, 0, 500, 1.6, null, 'main', '', ?, ?)""", [self.KEY, line(0, 6000)])
+        self.db.execute('copy t to ? (format parquet)', [self.path])
+        out = so.opportunities(self.db, self.path, 'Riyadh', specialty_ids=self.KEY.split('|'))
+        self.assertEqual(out['share'], round(20 / 173, 4), 'its 8 shops are in the total as in the share')

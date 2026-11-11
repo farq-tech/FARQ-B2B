@@ -245,9 +245,12 @@ def opportunities(db, path, city, subs=None, main_id=None, population=None, limi
                 s['kinds'].add(sub)
 
     if spec_key:
-        # the specialty's shops are part of its subcategory's row, so the street's other shops are the rest of it
+        # the specialty's shops are part of its subcategory's row, so the street's other shops are the rest of it;
+        # where that row was not kept (its subcategory passed the build's cap) the street still holds the specialty's
+        # shops, so they count in the city's total as they do in its share
         for s in streets.values():
-            s['others'] = max(0, s['total'] - s['requested'])
+            s['total'] = max(s['total'], s['requested'])
+            s['others'] = s['total'] - s['requested']
 
     all_total = sum(s['total'] for s in streets.values())
     all_requested = sum(s['requested'] for s in streets.values())
