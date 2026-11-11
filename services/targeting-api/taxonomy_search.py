@@ -45,6 +45,11 @@ def norm(s):
     return re.sub(r'\s+', ' ', s).strip()
 
 
+def _read_csv(path, encoding='utf-8'):
+    with open(path, encoding=encoding, newline='') as source:
+        return list(csv.DictReader(source))
+
+
 def strip_pfx(t):
     for p in PFX:
         if t.startswith(p) and len(t) - len(p) >= 3:
@@ -81,11 +86,12 @@ class Taxonomy:
         # SPD surveyors deleted these POIs (latest approved log = delete). They stay visible, ranked last, flagged, and never selected for a send.
         hd = os.environ.get('HUDHUD_STATUS', os.path.join(os.path.dirname(poi_taxonomy_path), 'enrich', 'hudhud_logs_status.parquet'))
         self.hudhud = hd if os.path.isfile(hd) else None
-        tax = json.load(open(os.path.join(tax_dir, 'farq_taxonomy.json'), encoding='utf-8'))
+        with open(os.path.join(tax_dir, 'farq_taxonomy.json'), encoding='utf-8') as source:
+            tax = json.load(source)
         self.subs = {s['sub_id']: s for s in tax['subs']}
-        self.families = {r['family_id']: r for r in csv.DictReader(open(os.path.join(tax_dir, 'product_families.csv'), encoding='utf-8-sig'))}
+        self.families = {r['family_id']: r for r in _read_csv(os.path.join(tax_dir, 'product_families.csv'), 'utf-8-sig')}
         self.rel = {'sells': {}, 'buys': {}}
-        for r in csv.DictReader(open(os.path.join(tax_dir, 'sub_family_relations.csv'), encoding='utf-8-sig')):
+        for r in _read_csv(os.path.join(tax_dir, 'sub_family_relations.csv'), 'utf-8-sig'):
             self.rel[r['relation']].setdefault(r['family_id'], []).append((r['sub_id'], STRENGTH[r['strength']]))
         # term -> {family_id: term weight}; names weigh more than examples, longer terms more than short ones
         self.terms = {}
@@ -122,7 +128,7 @@ class Taxonomy:
         self.specs, self.spec_rx = {}, []
         sp = os.path.join(tax_dir, 'specialties.csv')
         if os.path.isfile(sp):
-            for r in csv.DictReader(open(sp, encoding='utf-8')):
+            for r in _read_csv(sp):
                 if r['specialty_ar'] in ('', '—') or r['sub_id'] not in self.subs: continue
                 self.specs[r['specialty_id']] = r
                 terms = sorted({norm(t) for t in (r['match_terms'] or '').split('|') if len(norm(t)) >= 3} | {norm(r['specialty_ar'])}, key=len, reverse=True)
@@ -144,7 +150,7 @@ class Taxonomy:
         for fn, mined in (('saudi_market_terms.csv', False), ('search_lexicon.csv', True)):
             path = os.path.join(tax_dir, fn)
             if not os.path.isfile(path): continue
-            for r in csv.DictReader(open(path, encoding='utf-8')):
+            for r in _read_csv(path):
                 sid, t = r['sub_id'], norm(r['term'])
                 if sid not in self.subs or sid.startswith(('unc.', 'noncom.')) or len(t) < 3 or t in GENERIC: continue
                 if mined:
@@ -258,6 +264,14 @@ class Taxonomy:
         specs = [x for x in specs if self._sub_ok(self.specs[x]['sub_id'])]
         fams, fscore = self.families_in(q)
         named, sscore = self.subs_in(q)
+        # An exact activity term outranks specialties that merely reuse the same
+        # word in another trade («مساج» is also used by barber/salon/device
+        # specialties). Keep the specialty when extra words make it more specific
+        # («مساج علاجي», «جهاز مساج»), otherwise scope it to the matched activity.
+        if specs and named and sscore >= pscore - 1:
+            activity_specs = [x for x in specs if self.specs[x]['sub_id'] in named]
+            if activity_specs:
+                specs = activity_specs
         relation = 'buys' if objective == 'marketing' else 'sells'
         # a specialty wins over a family named by the same or fewer words; a business type named as precisely («سباك», «كاميرات
         # مراقبة») keeps the lead and the specialty only refines ranking inside it (market terms carry +20 in subs_in)

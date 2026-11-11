@@ -29,7 +29,18 @@ class ParseAqarListTest(unittest.TestCase):
 
     def test_unreadable_card_and_repeats(self):
         self.assertIsNone(parse.parse_row({'name': 'إعلان مميز', 'data': '1'}))
-        self.assertEqual(len(parse.parse_rows([SALE, SALE, RENT, {**RENT, 'image': 'x'}])), 2)
+        self.assertEqual(len(parse.parse_rows([SALE, SALE, RENT, RENT])), 2)
+
+    def test_different_listings_sharing_a_photo_are_not_deduplicated(self):
+        same_photo = {**SALE, 'name': 'شقة للبيع في شارع مختلف, حي بدر, مدينة الرياض, منطقة الرياض', 'data': '650,000 § ريال'}
+        self.assertEqual(len(parse.parse_rows([SALE, same_photo])), 2)
+
+    def test_conflicting_rows_with_the_same_listing_identity_are_rejected(self):
+        first = {'id': '77', 'url': 'https://sa.aqar.fm/ad/77', 'title': 'شقة للبيع في حي بدر, مدينة الرياض',
+                 'price': 600000, 'area': 120, 'location': {'lat': 24.7, 'lng': 46.7}}
+        conflict = {**first, 'price': 700000}
+        with self.assertRaisesRegex(ValueError, 'conflicting Aqar rows'):
+            parse.parse_rows([first, conflict])
 
     def test_collector_record(self):
         record = {'id': '6896439', 'url': 'https://sa.aqar.fm/x-6896439', 'image': 'https://images.aqar.fm/p.jpg',

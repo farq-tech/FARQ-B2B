@@ -53,6 +53,13 @@ def contains(term, text):
         return bool(re.search(r'(?<!\w)'+re.escape(term)+r'(?!\w)', text))
     return term in text
 
+
+def dedupe_key(poi_key):
+    """The release's stable POI identity; display names and districts are not unique business identities."""
+    if not isinstance(poi_key, str) or not poi_key.strip():
+        raise ValueError('directory row has no stable poi_key')
+    return poi_key
+
 def evidence(row, intent):
     name=norm(row['name']); category=norm(row['evidence_category']); text=name+' '+category
     if re.fullmatch(r'epsg:\d+|\d+', name): return None
@@ -179,7 +186,12 @@ class Directory:
                 self.categories=[str(value)[:80] for value,_ in values]
             if objective!='name': intent=extend_intent(q,intent,objective,self.categories)
             terms=(intent['seller']+intent['product']) if intent['key']=='extended' else (intent['seller'] or intent['product'])
-            if not terms: return {'rows':[],'total':0,'intent':intent['label'],'ranking':'business-evidence','understood':{'direction':'buyer' if objective=='marketing' else 'seller','family':intent.get('family',intent['label']),'target_label':intent.get('target_label',''),'target_types':intent['seller'],'source':intent.get('understanding_source','existing_rules')}}
+            if not terms:
+                empty = {'rows': [], 'total': 0, 'intent': intent['label'], 'ranking': 'business-evidence',
+                         'understood': {'direction': 'buyer' if objective == 'marketing' else 'seller', 'family': intent.get('family', intent['label']),
+                                        'target_label': intent.get('target_label', ''), 'target_types': intent['seller'],
+                                        'source': intent.get('understanding_source', 'existing_rules')}}
+                return self.page(empty, limit, offset, filters)
             expressions=[r'(^|[^[:alnum:]؀-ۿ_])'+re.escape(t)+r'($|[^[:alnum:]؀-ۿ_])' if len(t)<=3 else re.escape(t) for t in terms]
             pattern='|'.join(expressions)
             text="regexp_replace(translate(lower(concat_ws(' ',name_ar,name_en,category,category_ar,secondary_category,category_l3,google_category)), 'أإآةىؤئ', 'اااهيوي'), '[ً-ْـ]', '', 'g')"
@@ -226,7 +238,7 @@ class Directory:
                     hits=[t for t in intent['seller'] if contains(t,norm((geo.get('category') or '').split('|')[0]+' '+name))]
                     if not hits: continue
                 if not match: continue
-                identity=(norm(name),norm(district))
+                identity=dedupe_key(geo.get('poi_key'))
                 if identity in seen: continue
                 seen.add(identity)
                 supplier_signal=next((term for term in intent['seller'] if contains(term,norm(details))),str(category)[:100])

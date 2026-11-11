@@ -26,25 +26,30 @@ export async function POST(request: NextRequest) {
   const { session, refreshed } = await sessionForRequest(request)
   if (!session) return NextResponse.json({ error: 'سجّل الدخول لعرض منشآت المنطقة.' }, { status: 401, headers: { 'cache-control': 'no-store' } })
   if (!isTargetingAllowed(session) || !(await verifySession(session))) return NextResponse.json({ error: 'حسابك غير مخول لعرض دليل الجهات.' }, { status: 403, headers: { 'cache-control': 'no-store' } })
-  let input: { city?: unknown; districts?: unknown; q?: unknown; main_id?: unknown }
+  let input: { city?: unknown; district_ids?: unknown; districts?: unknown; q?: unknown; main_id?: unknown }
   try { input = await request.json() } catch { return NextResponse.json({ error: 'طلب غير صالح.' }, { status: 400 }) }
   const city = text(input.city, 80)
+  const districtIds = Array.isArray(input.district_ids)
+    ? [...new Set(input.district_ids.map((item) => typeof item === 'string' || typeof item === 'number' ? text(String(item), 40) : '').filter(Boolean))].slice(0, 600)
+    : []
   const districts = Array.isArray(input.districts) ? [...new Set(input.districts.map((item) => text(item, 80)).filter(Boolean))].slice(0, 600) : []
   const q = text(input.q, 120)
   const mainId = text(input.main_id, 40)
-  if (!city || !districts.length) return NextResponse.json({ error: 'اختر المدينة والأحياء.' }, { status: 400 })
+  if (!city || (!districtIds.length && !districts.length)) return NextResponse.json({ error: 'اختر المدينة والأحياء.' }, { status: 400 })
   const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
   const headers = targetingHeaders()
   if (!origin || !headers) return NextResponse.json({ error: 'خدمة الدليل غير مهيأة حالياً.' }, { status: 503 })
   try {
     const batches = []
-    for (let i = 0; i < districts.length; i += BATCH) batches.push(districts.slice(i, i + BATCH))
+    const values = districtIds.length ? districtIds : districts
+    for (let i = 0; i < values.length; i += BATCH) batches.push(values.slice(i, i + BATCH))
     const parts = await Promise.all(batches.map(async (batch) => {
       const upstream = await fetch(`${origin}/district-points`, {
         method: 'POST', headers, cache: 'no-store', signal: AbortSignal.timeout(45_000),
-        body: JSON.stringify({ city, districts: batch, ...(q ? { q } : mainId ? { main_id: mainId } : {}) }),
+        body: JSON.stringify({ city, ...(districtIds.length ? { district_ids: batch } : { districts: batch }), ...(q ? { q } : mainId ? { main_id: mainId } : {}) }),
       })
-      const payload = await upstream.json().catch(() => null) as { points?: unknown[]; truncated?: boolean } | null
+      const payload = await upstream.json().catch(() => null) as { points?: unknown[]; truncated?: boolean; error?: string } | null
+      if (upstream.status === 409 && payload?.error) throw new Error(`district_identity:${payload.error}`)
       if (!upstream.ok || !payload) throw new Error('upstream')
       return payload
     }))
@@ -52,7 +57,10 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({ points, truncated: parts.some((part) => part.truncated) }, { headers: { 'cache-control': 'no-store' } })
     if (refreshed) setSession(response, session)
     return response
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('district_identity:')) {
+      return NextResponse.json({ error: error.message.slice('district_identity:'.length) }, { status: 409, headers: { 'cache-control': 'no-store' } })
+    }
     return NextResponse.json({ error: 'تعذر تحميل منشآت المنطقة.' }, { status: 502 })
   }
 }

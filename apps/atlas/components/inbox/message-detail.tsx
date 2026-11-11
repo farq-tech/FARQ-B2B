@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { businessById, districtById } from '@/lib/mock-data'
 import { formatDateTime, formatPhone, formatSar } from '@/lib/format'
+import { numberFormat } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import type { InboxMessage } from '@/lib/types'
 import { SourceLabel } from './source-label'
@@ -50,7 +51,7 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
               {message.quote.lines.map((l) => (
                 <tr key={l.name} className="border-t">
                   <td className="py-1.5">{l.name}</td>
-                  <td className="py-1.5 tabular-nums">{l.qty}</td>
+                  <td className="py-1.5 tabular-nums">{numberFormat.format(l.qty)}</td>
                   <td className="py-1.5 text-left tabular-nums">{formatSar(l.unitPrice)}</td>
                 </tr>
               ))}
@@ -61,7 +62,7 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
               الإجمالي: <span className="font-semibold text-foreground tabular-nums">{formatSar(total)}</span>
             </span>
             <span>
-              التسليم خلال {message.quote.deliveryDays} أيام · صلاحية {message.quote.validity}
+              التسليم خلال {numberFormat.format(message.quote.deliveryDays)} أيام · صلاحية {message.quote.validity.replace(/\d+/g, (digits) => numberFormat.format(Number(digits)))}
             </span>
           </p>
         </section>

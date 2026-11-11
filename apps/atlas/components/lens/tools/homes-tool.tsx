@@ -7,6 +7,7 @@ import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { distanceKm } from '@/lib/geo-measure'
 import { BUDGETS, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Deal, type Listing, type ListingKind } from '@/lib/real-estate'
+import { parseListingResponse } from '@/lib/real-estate-response'
 import { cn } from '@/lib/utils'
 import { AdvisorPanel, type AdvisorSubject } from '../advisor-panel'
 import type { DistrictRow } from '../city-data'
@@ -16,6 +17,7 @@ import type { MyPoint } from '../listing-surroundings'
 import type { Overlay } from './overlay'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { useStickyState } from '@/lib/sticky-state'
+import { LoadError } from '@/components/shared/load-error'
 
 type Result = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; listings: Listing[] }
 const LIMIT = 1500
@@ -62,6 +64,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
   const [budget, setBudget] = useStickyState(`${sticky}.budget`, 0)
   const deal: Deal | null = kind === 'sale' ? 'sale' : rentDeal === 'all' ? null : rentDeal
   const [result, setResult] = useState<Result>({ status: 'loading', available: true, total: null, listings: [] })
+  const [attempt, setAttempt] = useState(0)
   const [active, setActive] = useState<Listing | null>(null)
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
   const [compare, setCompare] = useState<Listing[]>([])
@@ -82,18 +85,30 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
 
   useEffect(() => {
     let live = true
-    setResult((current) => ({ ...current, status: 'loading' }))
+    const controller = new AbortController()
+    setResult({ status: 'loading', available: true, total: null, listings: [] })
     setActive(null)
-    postMarket<{ available?: boolean; total?: number; listings?: Listing[] }>('real-estate-listings', {
+    setFocus(null)
+    postMarket<unknown>('real-estate-listings', {
       city, kind, types: [type], limit: LIMIT,
       ...(deal ? { deal } : {}),
       ...(budget && deal ? { max_price: budget } : {}),
       ...(districtKey ? { district_ids: districtKey.split('|') } : {}),
-    })
-      .then((data) => { if (live) setResult({ status: 'ready', available: data.available !== false, total: data.total ?? null, listings: (data.listings ?? []).filter(isPublishable) }) })
-      .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, listings: [] }) })
-    return () => { live = false }
-  }, [city, kind, type, deal, budget, districtKey])
+    }, controller.signal)
+      .then((data) => {
+        if (!live) return
+        const response = parseListingResponse(data)
+        setResult({ status: 'ready', available: response.available, total: response.total, listings: response.listings.filter(isPublishable) })
+      })
+      .catch(() => { if (live && !controller.signal.aborted) setResult({ status: 'error', available: true, total: null, listings: [] }) })
+    return () => { live = false; controller.abort() }
+  }, [city, kind, type, deal, budget, districtKey, attempt])
+
+  useEffect(() => {
+    setCompare([])
+    setAdvisor(null)
+    setSideBySide(false)
+  }, [city])
 
   const byId = useMemo(() => new Map(result.listings.map((listing) => [listing.id, listing])), [result.listings])
   const toggleCompare = useCallback((listing: Listing) => setCompare((current) => (
@@ -177,7 +192,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
       </div>
 
       {result.status === 'loading' && <Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ التحميل" />}
-      {result.status === 'error' && <p role="alert" className="text-base text-destructive">تعذر تحميل العروض.</p>}
+      {result.status === 'error' && <LoadError what="العروض" onRetry={() => setAttempt((value) => value + 1)} />}
       {result.status === 'ready' && !result.available && <p className="text-base text-muted-foreground">عروض العقار غير متاحة لهذه المدينة بعد.</p>}
       {result.status === 'ready' && result.available && (
         <>
@@ -241,7 +256,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
         <ListingCompare listings={[compare[0], compare[1]]} onClose={() => setSideBySide(false)} onRemove={toggleCompare}
           onAdvisor={() => { setSideBySide(false); setAdvisor({ kind: 'listings', listings: compare }) }} />
       )}
-      {advisor && <AdvisorPanel key={JSON.stringify(advisor.kind === 'listings' ? advisor.listings.map((item) => item.id) : advisor.rows.map((row) => row.id))} subject={advisor} rows={rows} onClose={() => setAdvisor(null)} />}
+      {advisor && <AdvisorPanel key={JSON.stringify(advisor.kind === 'listings' ? advisor.listings.map((item) => item.id) : advisor.rows.map((row) => row.id))} subject={advisor} rows={rows} mode="real_estate" onClose={() => setAdvisor(null)} />}
     </section>
   )
 }

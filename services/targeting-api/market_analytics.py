@@ -29,6 +29,46 @@ USABLE_WHATSAPP_SQL = """coalesce(p.has_whatsapp, false) and regexp_matches(
     '^(9665[0-9]{8}|009665[0-9]{8}|05[0-9]{8}|5[0-9]{8})$'
 )"""
 
+
+def _has_population_measurement(row):
+    value = row.get("population")
+    if type(value) not in (int, float) or value < 0:
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
+def _percentile_ranks(values):
+    """Percentile ranks on 0–100, with average ranks for ties and a neutral 50 for a one-row sample."""
+    if not values:
+        return {}
+    ordered = sorted(values.items(), key=lambda item: (item[1], item[0]))
+    if len(ordered) == 1:
+        return {ordered[0][0]: 50.0}
+    result = {}
+    start = 0
+    while start < len(ordered):
+        end = start + 1
+        while end < len(ordered) and ordered[end][1] == ordered[start][1]:
+            end += 1
+        average_rank = (start + end - 1) / 2
+        percentile = 100 * average_rank / (len(ordered) - 1)
+        for index in range(start, end):
+            result[ordered[index][0]] = percentile
+        start = end
+    return result
+
+
+def _has_nonnegative_finite(value):
+    if type(value) not in (int, float) or value < 0:
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
 NEAR_BASIS = "أقرب الأماكن من دليل فرق في دائرة 6 كم، والمسافة خط مستقيم. نوع المدرسة (حكومية أو أهلية) من اسمها؛ ما لا يذكر اسمه النوع يظهر «مدرسة» فقط."
 BRANDS_BASIS = "السلسلة: اسم تجاري له عدد الفروع المحدد أو أكثر (3 افتراضياً) في دليل فرق داخل المدينة لهذا النشاط، بعد توحيد كتابة الاسم وحذف اسم الفرع ورقمه وكلمة النشاط («صيدلية النهدي» و«النهدي» سلسلة واحدة). الاسمان العربي واللاتيني بسجل تجاري مشترك سلسلة واحدة إذا كان كل منهما أقرب اسم للآخر، وبلا سجل مشترك إذا تطابق نطقهما ولم يشبهه اسم آخر في النشاط، ولا تتسلسل الأسماء، وكلمة النشاط وحدها ليست سلسلة."
 MARKET_BASIS = (
@@ -365,11 +405,12 @@ class MarketAnalytics:
         tx = self._tx()
         if tx is None:
             if q or main_id:
-                return [], True
-            return sub_ids, False
+                return [], True, []
+            return sub_ids, False, []
         if sub_ids and not all(sid in tx.subs for sid in sub_ids):
             raise ValueError("unknown sub_id")
         resolved = None
+        query_specialties = []
         if q:
             # Use the same commercial-direction resolver as directory search.
             # A marketing query for «شركات مقاولات» must count contractors,
@@ -378,12 +419,14 @@ class MarketAnalytics:
             if hasattr(tx, "understand"):
                 understood = tx.understand(q, objective)
                 query_subs = list(understood.get("targets") or [])
+                query_specialties = list(understood.get("specialties") or [])
             else:
                 # Minimal legacy taxonomy fixtures expose only lexical lookup.
                 # Production taxonomy always has `understand`; this fallback
                 # preserves a safe, narrow answer for older read-only assets.
                 specialty_ids, _ = tx.spec_hits(q)
                 query_subs = list(dict.fromkeys(tx.specs[sid]["sub_id"] for sid in specialty_ids))
+                query_specialties = list(specialty_ids)
                 if not query_subs:
                     query_subs = tx.subs_in(q)[0]
             if not query_subs:
@@ -400,12 +443,21 @@ class MarketAnalytics:
         resolved = sorted(resolved) if resolved is not None else []
         if resolved and not all(sid in tx.subs for sid in resolved):
             raise ValueError("unknown sub_id")
-        return resolved, bool((main_id or q) and not resolved)
+        query_specialties = sorted({
+            sid for sid in query_specialties
+            if sid in tx.specs and (not resolved or tx.specs[sid].get("sub_id") in resolved)
+        })
+        return resolved, bool((main_id or q) and not resolved), query_specialties
 
     def _where(self, body):
         city, q, main_id, sub_ids, districts, objective, bounds = self._validate(body)
-        subs, empty_match = self._resolve_subs(q, main_id, sub_ids, objective)
-        specialty_ids = list(dict.fromkeys(body.get("specialty_ids") or []))
+        subs, empty_match, query_specialties = self._resolve_subs(q, main_id, sub_ids, objective)
+        requested_specialties = list(dict.fromkeys(body.get("specialty_ids") or []))
+        specialty_ids = requested_specialties or query_specialties
+        if requested_specialties and query_specialties:
+            specialty_ids = [sid for sid in requested_specialties if sid in set(query_specialties)]
+            if not specialty_ids:
+                empty_match = True
         specialty_available = not specialty_ids or self._has_specialty_column()
         clauses = [
             self.tiles.search_sql,
@@ -436,21 +488,27 @@ class MarketAnalytics:
             else:
                 clauses.append("list_has_any(string_split(coalesce(p.specialty_ids, ''), '|'), ?::varchar[])")
                 params.append(specialty_ids)
-        return city, subs, " and ".join(clauses), params, specialty_available, bounds
+        return city, subs, " and ".join(clauses), params, specialty_available, bounds, specialty_ids
 
     def district_points(self, body, limit=20000):
         """Located directory businesses in the given districts (and activity), for planning a visit route: id, name,
         district, coordinates and whether it is reachable on WhatsApp. Only point-precise locations are returned."""
         if not body.get("districts"):
             raise ValueError("districts")
-        _, _, where, params, _, _ = self._where(body)
+        _, _, where, params, _, _, _ = self._where(body)
         query = f"""
             select p.poi_key, coalesce(nullif(p.name_ar, ''), p.name_en), p.district_ar, p.longitude, p.latitude,
                    ({USABLE_WHATSAPP_SQL}) whatsapp
             from read_parquet(?) p
-            where {where} and coalesce(p.location_precision, 'unknown') = 'point'
+            where {where} and p.district_reliable is true
+              and coalesce(p.location_precision, 'unknown') = 'point'
               and p.longitude between -180 and 180 and p.latitude between -90 and 90
-            qualify row_number() over (partition by p.poi_key) = 1
+            qualify row_number() over (
+                partition by p.poi_key
+                order by coalesce(p.district_reliable, false) desc,
+                         coalesce(p.district_ar, ''), p.latitude, p.longitude,
+                         coalesce(p.name_ar, ''), coalesce(p.name_en, '')
+            ) = 1
             order by p.poi_key limit ?
         """
         with self.lock:
@@ -462,17 +520,20 @@ class MarketAnalytics:
             "truncated": len(rows) > limit,
         }
 
-    def _understood(self, body, subs):
+    def _understood(self, body, subs, specialty_ids=None):
         """The subcategories a typed activity was read as, so the reader sees what is counted («مغسلة» -> laundries)
         and can retype it when the reading is wrong; None for a main activity picked from the list."""
         tx = self._tx()
         if not body.get("q") or not subs or tx is None:
             return None
-        labels = list(dict.fromkeys(tx.subs[sub]["sub_ar"] for sub in subs if sub in tx.subs))
+        if specialty_ids:
+            labels = list(dict.fromkeys(tx.specs[sid]["specialty_ar"] for sid in specialty_ids if sid in tx.specs))
+        else:
+            labels = list(dict.fromkeys(tx.subs[sub]["sub_ar"] for sub in subs if sub in tx.subs))
         return {"labels": labels[:4], "more": max(0, len(labels) - 4)}
 
     def district_counts(self, body):
-        city, subs, where, params, specialty_available, bounds = self._where(body)
+        city, subs, where, params, specialty_available, bounds, specialty_ids = self._where(body)
         query = f"""
             select p.district_ar, count(distinct p.poi_key) n,
                    count(distinct p.poi_key) filter (where {USABLE_WHATSAPP_SQL}) n_whatsapp,
@@ -495,7 +556,7 @@ class MarketAnalytics:
                 for name, n, whatsapp, wholesale in rows
             ],
             "total": total,
-            "understood": self._understood(body, subs),
+            "understood": self._understood(body, subs, specialty_ids),
             "specialty_available": specialty_available,
             "scope": {"bounds": bounds} if bounds else {},
             "basis": MARKET_BASIS,
@@ -527,7 +588,7 @@ class MarketAnalytics:
         limit = body.get("limit", 30)
         if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
             raise ValueError("limit")
-        city, subs, where, params, specialty_available, bounds = self._where(body)
+        city, subs, where, params, specialty_available, bounds, specialty_ids = self._where(body)
         rows = self._chain_rows(where, params)
         total = len({row[0] for row in rows})
         chains = sorted((group for group in self._group_chains(rows).values() if len(group["pois"]) >= min_branches),
@@ -540,7 +601,7 @@ class MarketAnalytics:
             "total": total,
             "chains": len(chains),
             "in_chains": in_chains,
-            "understood": self._understood(body, subs),
+            "understood": self._understood(body, subs, specialty_ids),
             "brands": [
                 {"brand": group["brand"], "keys": [key for key, _ in group["keys"].most_common(10)],
                  "branches": len(group["pois"]), "districts": len(group["districts"]),
@@ -560,8 +621,11 @@ class MarketAnalytics:
             result["uncovered"] = [
                 {"district_ar": name, "population": round(row["population"]), "businesses": present.get(name, 0)}
                 for name, row in sorted(population.items(), key=lambda item: -(item[1].get("population") or 0))
-                if (row.get("population") or 0) >= UNCOVERED_MIN_POPULATION and name not in reached
+                if _has_population_measurement(row) and row["population"] >= UNCOVERED_MIN_POPULATION and name not in reached
             ][:20] if top else []
+            result["uncovered_population_unavailable"] = sum(
+                1 for name, row in population.items() if name not in reached and not _has_population_measurement(row)
+            ) if top else 0
             result["uncovered_by"] = [group["brand"] for group in top]
         return result
 
@@ -659,7 +723,7 @@ class MarketAnalytics:
                    for name, (a_lon, a_lat, label) in CITY_ANCHORS.get(city, {}).items()}
         return {"ok": True, "city": city, "radius_km": NEAR_RADIUS_KM, "places": groups, "anchors": anchors, "basis": NEAR_BASIS}
 
-    def market_gaps(self, body, population):
+    def market_gaps(self, body, population, income=None, district_ids_by_name=None, district_names_by_id=None):
         """Districts where an activity has fewer directory businesses than its residents would carry at the
         city's own rate. `population` maps a canonical district name to {"population", "male", "female"}.
 
@@ -673,41 +737,89 @@ class MarketAnalytics:
         limit = body.get("limit", 30)
         if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 200:
             raise ValueError("limit")
+        id_mode = district_ids_by_name is not None and district_names_by_id is not None
         counted = self.district_counts(body)
-        counts = {row["district_ar"]: row["n"] for row in counted["districts"]}
+        counts = {}
+        unresolved_count_rows = 0
+        for count in counted["districts"]:
+            name = count["district_ar"]
+            key = district_ids_by_name.get(name) if id_mode else name
+            if key is not None:
+                counts[key] = counts.get(key, 0) + count["n"]
+            elif id_mode and count["n"]:
+                unresolved_count_rows += 1
         city = body.get("city")
-        known = {name: row for name, row in population.items() if row.get("population")}
-        covered = [name for name in known if counts.get(name)]
-        city_population = sum(known[name]["population"] for name in covered)
-        city_businesses = sum(counts[name] for name in covered)
+        known = {(str(key) if id_mode else key): row for key, row in population.items() if _has_population_measurement(row)}
+        if unresolved_count_rows:
+            return {
+                "ok": True, "city": city, "residents_per_business": None,
+                "rate_sample_districts": 0, "districts_with_population": len(known),
+                "fit_sample_districts": 0, "fit_candidate_districts": 0, "districts": [],
+                "understood": counted["understood"], "basis": MARKET_GAPS_BASIS,
+                "message": "تعذر ربط بعض أعداد المنشآت بحي موحّد؛ أوقفنا ترتيب الفرص حتى لا تُحسب كأنها أحياء بلا منشآت.",
+            }
+        covered = [key for key in known if counts.get(key)]
+        city_population = sum(known[key]["population"] for key in covered)
+        city_businesses = sum(counts[key] for key in covered)
         if not city_businesses or not city_population:
-            return {"ok": True, "city": city, "residents_per_business": None, "districts": [], "understood": counted["understood"], "basis": MARKET_GAPS_BASIS,
+            return {"ok": True, "city": city, "residents_per_business": None,
+                    "rate_sample_districts": len(covered), "districts_with_population": len(known),
+                    "fit_sample_districts": 0, "fit_candidate_districts": 0,
+                    "districts": [], "understood": counted["understood"], "basis": MARKET_GAPS_BASIS,
                     "message": "لا توجد منشآت مطابقة في أحياء معروفة السكان لحساب معدل المدينة."}
         rate = city_population / city_businesses
         rows = []
-        for name, row in known.items():
+        shortfalls = {}
+        for key, row in known.items():
+            name = (row.get("district_ar") or district_names_by_id.get(key)) if id_mode else key
+            if not isinstance(name, str) or not name:
+                continue
             people = row["population"]
             if people < min_population:
                 continue
-            present = counts.get(name, 0)
+            present = counts.get(key, 0)
             expected = people / rate
             male, female = row.get("male"), row.get("female")
-            rows.append({
+            raw_shortfall = expected - present
+            shortfalls[key] = raw_shortfall
+            result_row = {
                 "district_ar": name,
                 "population": round(people),
                 "businesses": present,
                 "expected_businesses": round(expected, 1),
-                "shortfall": round(expected - present, 1),
+                "shortfall": round(raw_shortfall, 1),
                 "residents_per_business": round(people / present) if present else None,
-                "male_pct": round(100 * male / (male + female), 1) if male and female else None,
+                "male_pct": round(100 * male / (male + female), 1) if male is not None and female is not None and male + female > 0 else None,
                 "population_source": row.get("source"),
-            })
+            }
+            if id_mode:
+                result_row["district_id"] = key
+            rows.append(result_row)
         rows.sort(key=lambda row: (-row["shortfall"], row["district_ar"]))
+        measured_income = {
+            (str(key) if id_mode else key): value for key, value in (income or {}).items()
+            if _has_nonnegative_finite(value)
+        }
+        row_key = lambda row: str(row.get("district_id")) if id_mode else row["district_ar"]
+        score_candidates = [row for row in rows if row_key(row) in measured_income]
+        gap_ranks = _percentile_ranks({row_key(row): shortfalls[row_key(row)] for row in score_candidates})
+        income_ranks = _percentile_ranks({row_key(row): measured_income[row_key(row)] for row in score_candidates})
+        for row in rows:
+            district = row_key(row)
+            if district in gap_ranks and district in income_ranks:
+                row["fit_gap_rank"] = round(gap_ranks[district])
+                row["fit_income_rank"] = round(income_ranks[district])
+                row["fit_score"] = math.floor((gap_ranks[district] + income_ranks[district]) / 2 + 0.5)
+            else:
+                row["fit_gap_rank"] = row["fit_income_rank"] = row["fit_score"] = None
         return {
             "ok": True,
             "city": city,
             "residents_per_business": round(rate),
+            "rate_sample_districts": len(covered),
             "districts_with_population": len(known),
+            "fit_sample_districts": len(score_candidates),
+            "fit_candidate_districts": len(rows),
             "districts": rows[:limit],
             "understood": counted["understood"],
             "basis": MARKET_GAPS_BASIS,
@@ -832,7 +944,7 @@ class MarketAnalytics:
         }
 
     def market_summary(self, body):
-        city, subs, where, params, specialty_available, bounds = self._where(body)
+        city, subs, where, params, specialty_available, bounds, specialty_ids = self._where(body)
         aggregate = f"""
             select count(distinct p.poi_key) total,
                    count(distinct p.poi_key) filter (where {USABLE_WHATSAPP_SQL}) n_whatsapp,
@@ -894,7 +1006,7 @@ class MarketAnalytics:
         # The street asset has no portable spatial index for arbitrary viewport
         # clipping. Do not label a city-wide street as the viewport's strongest
         # signal until it can be filtered from the same spatial cohort.
-        dense = None if body.get("specialty_ids") or bounds else self._densest_street(city, subs, body.get("main_id"), body.get("districts") or [])
+        dense = None if specialty_ids or bounds else self._densest_street(city, subs, body.get("main_id"), body.get("districts") or [])
         total, n_whatsapp, n_wholesale, n_approx, n_cr, districts_count = row
         return {
             "ok": True,

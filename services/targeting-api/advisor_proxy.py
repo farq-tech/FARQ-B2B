@@ -14,6 +14,8 @@ MODEL = 'claude-opus-5-5'
 MAX_SYSTEM = 6000
 MAX_MESSAGES = 21
 MAX_TEXT = 10000
+MAX_REPLY_TOKENS = 1200
+UPSTREAM_TIMEOUT_SECONDS = 20
 
 
 def read(body):
@@ -37,13 +39,13 @@ def reply(system, messages, environ=os.environ, opener=urllib.request.urlopen):
     key = environ.get('ANTHROPIC_API_KEY')
     if not key:
         return 503, {'error': 'UNCONFIGURED'}
-    payload = {'model': MODEL, 'max_tokens': 16000, 'system': system, 'messages': messages,
+    payload = {'model': MODEL, 'max_tokens': MAX_REPLY_TOKENS, 'system': system, 'messages': messages,
                'output_config': {'effort': 'low'}, 'fallbacks': 'default'}
     request = urllib.request.Request('https://api.anthropic.com/v1/messages', data=json.dumps(payload).encode(), headers={
         'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'server-side-fallback-2026-07-01',
         'content-type': 'application/json'})
     try:
-        with opener(request, timeout=55) as response:
+        with opener(request, timeout=UPSTREAM_TIMEOUT_SECONDS) as response:
             answer = json.loads(response.read())
     except urllib.error.HTTPError as error:
         # what the API said, never the key or the conversation: enough to tell a bad key, no credit or a bad field apart

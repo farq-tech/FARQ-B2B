@@ -77,6 +77,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
   if (!origin || !gatewayToken) return NextResponse.json({ error: 'خدمة تخطيط المسارات غير مهيأة.' }, { status: 503 })
 
   const controller = new AbortController()
+  const abortFromClient = () => controller.abort()
+  if (request.signal.aborted) controller.abort()
+  else request.signal.addEventListener('abort', abortFromClient, { once: true })
   const timeout = setTimeout(() => controller.abort(), 50_000)
   try {
     const upstream = await fetch(`${origin}/${action}`, {
@@ -99,5 +102,6 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
     return NextResponse.json({ error: 'تعذر الاتصال بخدمة تخطيط المسارات.' }, { status: 502, headers: { 'cache-control': 'no-store' } })
   } finally {
     clearTimeout(timeout)
+    request.signal.removeEventListener('abort', abortFromClient)
   }
 }

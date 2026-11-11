@@ -1,11 +1,34 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { numberFormat } from './number-format.ts'
+
+export { numberFormat }
 
 export type City = { en: string; ar: string | null; districts?: number }
+export type CityCatalogStatus = 'loading' | 'ready' | 'error'
+const FALLBACK_CITIES: City[] = [{ en: 'Riyadh', ar: 'الرياض' }]
 
-// every figure in Atlas is written in English digits with English separators (docs/atlas-product-foundation.md §5)
-export const numberFormat = new Intl.NumberFormat('en-US')
+/** Validate the whole city catalog before a truncated or malformed response can hide cities. */
+export function parseCityCatalog(payload: unknown): City[] {
+  if (!Array.isArray(payload) || payload.length === 0) throw new Error('Missing city catalog')
+  const rows = payload as unknown[]
+  const hasDistrictCounts = rows.some((row) => typeof row === 'object' && row !== null && 'districts' in row)
+  const parsed = rows.map((row) => {
+    if (typeof row !== 'object' || row === null) throw new Error('Invalid city catalog row')
+    const item = row as Record<string, unknown>
+    if (typeof item.en !== 'string' || !item.en.trim() || !(typeof item.ar === 'string' || item.ar === null)) throw new Error('Invalid city identity')
+    if (hasDistrictCounts && (!Number.isInteger(item.districts) || (item.districts as number) < 0)) throw new Error('Invalid district count')
+    return { en: item.en, ar: item.ar, ...(hasDistrictCounts ? { districts: item.districts as number } : {}) }
+  })
+  return parsed
+}
+
+/** Keep cities without neighborhood boundaries selectable, but make that data gap visible in every city picker. */
+export function cityLabel(city: City): string {
+  const name = city.ar || city.en
+  return city.districts === 0 ? `${name} · الأحياء غير متاحة` : name
+}
 
 /**
  * Keeps a signed number, a percentage or a date in reading order inside an Arabic line. After an Arabic word the
@@ -41,32 +64,76 @@ export function nounAfter(value: number, noun: keyof typeof NOUNS): string {
 }
 
 /** POST a read-only market resource through the Atlas proxy and surface its Arabic error. */
-export async function postMarket<T>(resource: string, body: unknown): Promise<T> {
+export async function postMarket<T>(resource: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`/api/market/${resource}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
+    signal,
   })
   const payload = await response.json().catch(() => null)
   if (!response.ok) throw new Error((payload && payload.error) || 'تعذر تحميل البيانات.')
   return payload as T
 }
 
-/** Cities that have districts in the golden atlas, largest first: every insight works per district, so a city
- * without districts would only show an empty tool. Riyadh is the fallback while loading or on failure. */
-export function useCities(): City[] {
-  const [cities, setCities] = useState<City[]>([{ en: 'Riyadh', ar: 'الرياض' }])
+export type MainActivity = { main_id: string; main_ar: string }
+
+/** Preserve a cross-city activity choice when the destination city has no records in that category. */
+export function resolveMainActivitySelection(activities: MainActivity[], value: string, valueLabel?: string) {
+  const listed = activities.find((item) => item.main_id === value)
+  const missing = !listed && !!value && !!valueLabel
+  return {
+    activity: listed ?? (missing ? { main_id: value, main_ar: valueLabel! } : null),
+    missing,
+  }
+}
+
+/** Load the city's approved activity list without making a failed request look like an empty catalog. */
+export function useMainActivities(city: string) {
+  const [activities, setActivities] = useState<MainActivity[]>([])
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [attempt, setAttempt] = useState(0)
+
   useEffect(() => {
-    fetch('/api/market/cities')
-      .then((response) => response.json())
-      .then((rows: City[]) => {
-        if (!Array.isArray(rows)) return
-        const mapped = rows.some((row) => typeof row.districts === 'number') ? rows.filter((row) => (row.districts ?? 0) > 0) : rows
-        if (mapped.length) setCities(mapped)
+    let active = true
+    setActivities([])
+    setStatus('loading')
+    postMarket<{ summary?: { main_activities?: MainActivity[] } }>('market-summary', { city })
+      .then((payload) => {
+        if (!active) return
+        if (!Array.isArray(payload.summary?.main_activities)) throw new Error('Missing activity list')
+        setActivities(payload.summary.main_activities)
+        setStatus('ready')
       })
-      .catch(() => undefined)
-  }, [])
-  return cities
+      .catch(() => { if (active) setStatus('error') })
+    return () => { active = false }
+  }, [city, attempt])
+
+  return { activities, status, retry: () => setAttempt((value) => value + 1) }
+}
+
+/** Cities that have districts in the golden atlas; failures retain a visible Riyadh fallback with retry status. */
+export function useCities(): { cities: City[]; status: CityCatalogStatus; retry: () => void } {
+  const [cities, setCities] = useState<City[]>(FALLBACK_CITIES)
+  const [status, setStatus] = useState<CityCatalogStatus>('loading')
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    let active = true
+    setStatus('loading')
+    fetch('/api/market/cities')
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`City catalog request failed: ${response.status}`)
+        return parseCityCatalog(await response.json())
+      })
+      .then((items) => {
+        if (!active) return
+        setCities(items)
+        setStatus('ready')
+      })
+      .catch(() => { if (active) { setCities(FALLBACK_CITIES); setStatus('error') } })
+    return () => { active = false }
+  }, [attempt])
+  return { cities, status, retry: () => setAttempt((value) => value + 1) }
 }
 
 export type DistrictFeature = GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon, { id: string | number; ar?: string; district_ar?: string }>

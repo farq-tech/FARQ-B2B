@@ -1,5 +1,19 @@
 import SwiftUI
 
+enum CityCoverageCopy {
+    static func summary(city: String, total: Double, districtCount: Int) -> String {
+        let businessCount = Fmt.int(total)
+        guard districtCount > 0 else {
+            return "في \(city): \(businessCount) منشأة · حدود الأحياء غير متاحة"
+        }
+        return "في \(city): \(businessCount) منشأة في \(Fmt.counted(districtCount, .district))"
+    }
+
+    static func limitation(city: String) -> String {
+        "لا تتوفر حدود الأحياء في \(city)، لذلك لن تظهر نتائج أو مقارنات على مستوى الحي."
+    }
+}
+
 /// The app's root: one question, five ways in (docs/atlas-ios-flows.md).
 struct RootView: View {
     @Environment(AtlasStore.self) private var store
@@ -24,6 +38,7 @@ struct RootView: View {
                     case .realEstateKind: RealEstateKindView()
                     case .realEstateDeals: RealEstateDealsView()
                     case .listing(let listing): ListingDetail(listing: listing)
+                    case .listingCluster(let listings): ListingClusterView(listings: listings)
                     }
                 }
         }
@@ -47,7 +62,7 @@ struct HomeView: View {
         Way(id: .marketerAudience, title: "أصل لجمهوري", line: "أين يسكن جمهورك؟", symbol: "megaphone.fill"),
         Way(id: .distributorSetup, title: "أوزّع على مندوبيني", line: "قسّم المدينة بينهم بالعدل", symbol: "shippingbox.fill"),
         Way(id: .analystTable, title: "أقارن الأحياء", line: "أرقام موثوقة جنباً إلى جنب", symbol: "chart.bar.xaxis"),
-        Way(id: .realEstateKind, title: "أدوّر عقاراً", line: "أفضل الفرص اليوم", symbol: "house.fill"),
+        Way(id: .realEstateKind, title: "أدوّر عقاراً", line: "قارن العروض بسعر الحي", symbol: "house.fill"),
     ]
 
     var body: some View {
@@ -65,6 +80,17 @@ struct HomeView: View {
                 }
                 .buttonStyle(.farqPress)
                 .accessibilityLabel("المدينة: \(store.city.name)")
+
+                if store.citiesError != nil {
+                    HStack(spacing: 10) {
+                        Text("تعذر تحميل قائمة المدن.")
+                            .font(Typo.caption).foregroundStyle(Palette.warning)
+                        Spacer()
+                        Button("أعد المحاولة") { store.retryCities() }
+                            .font(Typo.font(13, .bold)).buttonStyle(.farqPress)
+                    }
+                    .accessibilityIdentifier("city-catalog-error")
+                }
 
                 Text("وش تبي تسوي اليوم؟")
                     .font(Typo.font(30, .bold))
@@ -100,15 +126,29 @@ struct HomeView: View {
                     HStack {
                         Text(error).font(Typo.subheadline)
                         Spacer()
-                        Button("إعادة المحاولة") { Task { await store.load() } }.font(Typo.font(14, .bold))
+                        Button("إعادة المحاولة") { Task { await store.start() } }.font(Typo.font(14, .bold))
                     }
                     .shadCard(tint: Palette.warning)
                 } else if store.loading {
                     HStack(spacing: 8) { ProgressView(); Text("جارٍ تحميل \(store.city.name)…").font(Typo.subheadline) }
                         .foregroundStyle(Tokens.mutedForeground)
+                } else if store.summaryLoading {
+                    HStack(spacing: 8) { ProgressView(); Text("جارٍ تجهيز ملخص المدينة…").font(Typo.subheadline) }
+                        .foregroundStyle(Tokens.mutedForeground)
+                } else if let error = store.summaryError {
+                    RetryNotice(message: error) { Task { await store.retrySummary() } }
                 } else if let total = store.summary?.total {
-                    Text("في \(store.city.name): \(Fmt.int(total)) منشأة في \(Fmt.counted(store.shapes.count, .district))")
-                        .font(Typo.subheadline).foregroundStyle(Tokens.mutedForeground)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(CityCoverageCopy.summary(city: store.city.name, total: total, districtCount: store.shapes.count))
+                            .font(Typo.subheadline).foregroundStyle(Tokens.mutedForeground)
+                            .accessibilityIdentifier("city-data-summary")
+                        if store.shapes.isEmpty {
+                            Label(CityCoverageCopy.limitation(city: store.city.name), systemImage: "map")
+                                .font(Typo.caption).foregroundStyle(Palette.warning)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("city-boundaries-unavailable")
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 18).padding(.top, 12).padding(.bottom, 30)

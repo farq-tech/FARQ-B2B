@@ -7,6 +7,31 @@ export type PublicDirectoryEntity = LiveBusinessSnapshot & {
   status: string | null
 }
 
+export function dedupeDirectoryEntities(rows: readonly PublicDirectoryEntity[]): PublicDirectoryEntity[] {
+  return [...new Map(rows.map((row) => [row.id, row])).values()]
+}
+
+/** Permanent closures must be excluded upstream, before total and page boundaries are calculated. */
+export function hasPermanentlyClosedEntity(rows: readonly PublicDirectoryEntity[]): boolean {
+  return rows.some((row) => row.status === 'closed_permanent')
+}
+
+export function exactDirectoryTotal({
+  scopeCount,
+  pendingScopes,
+  uniqueCount,
+  singleScopeTotal,
+}: {
+  scopeCount: number
+  pendingScopes: number
+  uniqueCount: number
+  singleScopeTotal: number
+}): number | null {
+  if (!Number.isSafeInteger(scopeCount) || scopeCount < 1) return null
+  if (scopeCount === 1) return singleScopeTotal
+  return pendingScopes > 0 ? null : uniqueCount
+}
+
 function asText(value: unknown, max: number) {
   return typeof value === 'string' ? value.trim().slice(0, max) : ''
 }

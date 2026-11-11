@@ -3,12 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { ChevronDown, Loader2, MousePointerClick, Search, X } from 'lucide-react'
 import { EmptyState } from '@/components/shared/empty-state'
+import { CityCatalogStatus } from '@/components/shared/city-catalog-status'
+import { CityBoundaryStatus } from '@/components/shared/city-boundary-status'
+import { CityDataStatus } from './city-data-status'
 import { LoadError } from '@/components/shared/load-error'
 import { ChipRow, PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
 import { Chip } from '@/components/ui/chip'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN, populationMethod } from '@/lib/explanations'
-import { numberFormat, useCities } from '@/lib/insights-api'
+import { cityLabel, numberFormat, useCities } from '@/lib/insights-api'
+import { useStickyState } from '@/lib/sticky-state'
+import { parseComparisonDistrictIds } from '@/lib/saved-comparisons'
+import type { AudienceMode } from '@/lib/audience'
 import { cn } from '@/lib/utils'
 import { useCityData, type DistrictRow } from './city-data'
 import { DistrictPanel } from './district-panel'
@@ -113,11 +119,15 @@ const DISTRICTS_MULTI = '__multi__'
  * three figures on the map, and one business search for every group.
  */
 export function LensMap() {
-  const cities = useCities()
+  const { cities, status: citiesStatus, retry: retryCities } = useCities()
   const [city, setCity] = useState('Riyadh')
   const [lens, setLens] = useState<LensId>('shops')
+  const [audienceMode, setAudienceMode] = useStickyState<AudienceMode>('audience.mode', 'people')
   const [metric, setMetric] = useState<MetricId>(lensById('shops').metric)
   const [selected, setSelected] = useState<string[]>([])
+  const pendingComparison = useRef<{ city: string; districtIds: string[] } | null>(null)
+  const [restoreNonce, setRestoreNonce] = useState(0)
+  const sharedLinkInitialized = useRef(false)
   const [tool, setTool] = useState<ToolId>(lensById('shops').steps[0].tool)
   const [overlay, setOverlay] = useState<Overlay>({})
   const [draft, setDraft] = useState('')
@@ -128,11 +138,12 @@ export function LensMap() {
   const phoneSearch = useRef<HTMLInputElement>(null)
   // the phone's bottom sheet: a picked district or a search opens it halfway so the answer shows beside the map
   const [sheet, setSheet] = useState<SheetSnap>('peek')
-  const data = useCityData(city)
+  const selectedCity = cities.find((item) => item.en === city)
+  const data = useCityData(city, selectedCity?.districts)
   const onOverlay = useCallback((next: Overlay) => setOverlay(next), [])
   const active = lensById(lens)
 
-  useEffect(() => { setSelected([]) }, [city])
+  useEffect(() => { if (pendingComparison.current?.city !== city) setSelected([]) }, [city])
   // a link's ?tool= wins once over the lens's first step, when it is one of that lens's steps
   const presetTool = useRef<ToolId | null>(null)
   useEffect(() => {
@@ -152,6 +163,28 @@ export function LensMap() {
     if (presetLens && LENSES.some((item) => item.id === presetLens)) setLens(presetLens as LensId)
     if (query.get('goal') === 'find-supplier' || query.get('search') != null) (window.matchMedia('(min-width: 64rem)').matches ? searchBox : phoneSearch).current?.focus()
   }, [])
+  useEffect(() => {
+    if (citiesStatus !== 'ready' || sharedLinkInitialized.current) return
+    sharedLinkInitialized.current = true
+    const query = new URLSearchParams(window.location.search)
+    const linkedCity = query.get('city')
+    const districtIds = parseComparisonDistrictIds(query.get('districts'))
+    if (linkedCity && districtIds.length && cities.some((item) => item.en === linkedCity)) {
+      pendingComparison.current = { city: linkedCity, districtIds }
+      setCity(linkedCity)
+      setLens('analysts')
+      setTool('compare')
+      setRestoreNonce((value) => value + 1)
+    }
+  }, [cities, citiesStatus])
+  useEffect(() => {
+    const pending = pendingComparison.current
+    if (!pending || pending.city !== city || data.city !== city || data.status !== 'ready') return
+    const known = new Set(data.rows.map((row) => row.id))
+    const restored = pending.districtIds.filter((id) => known.has(id))
+    setSelected(restored)
+    pendingComparison.current = null
+  }, [city, data.city, data.rows, data.status, restoreNonce])
   useEffect(() => { if (selected.length) setSheet((current) => (current === 'peek' ? 'half' : current)) }, [selected.length])
   useEffect(() => { if (search) setSheet((current) => (current === 'peek' ? 'half' : current)) }, [search])
 
@@ -168,7 +201,7 @@ export function LensMap() {
   }
   const pickFromList = (id: string) => { setSelected([id]); flyTo(id) }
   const toggleFromList = (id: string) => { if (!selected.includes(id)) flyTo(id); toggle(id) }
-  const cityName = cities.find((item) => item.en === city)?.ar || city
+  const cityName = selectedCity?.ar || city
   const step = active.steps.find((item) => item.tool === tool)
   // the fixed «الحي» filter: a non-map way to focus one district, kept in sync with map taps and steady across lenses
   const districtOptions = useMemo<[string, string][]>(() => {
@@ -178,6 +211,15 @@ export function LensMap() {
   }, [data.rows, selected.length])
   const districtValue = selected.length === 1 ? selected[0] : selected.length > 1 ? DISTRICTS_MULTI : ''
   const pickDistrict = (value: string) => { if (value !== DISTRICTS_MULTI) setSelected(value ? [value] : []) }
+  const restoreComparison = (savedCity: string, districtIds: string[]) => {
+    if (!cities.some((item) => item.en === savedCity) || districtIds.length !== 2) return
+    pendingComparison.current = { city: savedCity, districtIds }
+    presetTool.current = 'compare'
+    setCity(savedCity)
+    setLens('analysts')
+    setTool('compare')
+    setRestoreNonce((value) => value + 1)
+  }
   const submit = () => { if (draft.trim()) setSearch({ q: draft.trim(), nonce: Date.now() }) }
   // the step that paints the districts itself owns the map's colours while it is open; the metric chips wait
   const colorsNote = overlay.colors ? `ألوان الخريطة من «${step?.label}»` : null
@@ -191,7 +233,7 @@ export function LensMap() {
         <SearchPill label="ابحث عن مورد أو نشاط" onSubmit={submit}>
           <PillField label="المدينة" className="basis-[calc(50%-0.25rem)] sm:basis-auto sm:max-w-[11rem]">
             <select aria-label="المدينة" value={city} onChange={(e) => setCity(e.target.value)} className={pillControl}>
-              {cities.map((item) => <option key={item.en} value={item.en}>{item.ar || item.en}</option>)}
+              {cities.map((item) => <option key={item.en} value={item.en}>{cityLabel(item)}</option>)}
             </select>
           </PillField>
           <PillField label="الحي" className="basis-[calc(50%-0.25rem)] sm:basis-auto sm:max-w-[11rem]">
@@ -216,6 +258,10 @@ export function LensMap() {
         </ChipRow>
       </header>
 
+      <CityCatalogStatus status={citiesStatus} retry={retryCities} className="mx-3 mt-2 lg:mx-4" />
+      <CityBoundaryStatus city={cityName} districtCount={selectedCity?.districts} className="mx-3 mt-2 lg:mx-4" />
+      <CityDataStatus failedSources={data.failedSources} pendingSources={data.pendingSources} retry={() => data.reload?.()} className="mx-3 mt-2 lg:mx-4" />
+
       <div className="relative min-h-0 flex-1 lg:flex lg:flex-row">
         <div className="absolute inset-x-0 top-0 bottom-[var(--peek)] lg:relative lg:inset-auto lg:flex-1" style={{ '--peek': PEEK } as CSSProperties}>
           <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} focus={overlay.focus} zoomTo={zoomTo} />
@@ -230,7 +276,7 @@ export function LensMap() {
               <button type="submit" aria-label="ابحث" className="grid size-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60"><Search className="size-4" aria-hidden /></button>
             </form>
             <div className="pointer-events-auto -mx-3 flex gap-2 overflow-x-auto px-3 pb-1" role="group" aria-label="المدينة والفئة والمقياس">
-              <ChipSelect label="المدينة" value={city} onChange={setCity} options={cities.map((item) => [item.en, item.ar || item.en])} />
+              <ChipSelect label="المدينة" value={city} onChange={setCity} options={cities.map((item) => [item.en, cityLabel(item)])} />
               <ChipSelect label="الحي" value={districtValue} onChange={pickDistrict} options={districtOptions} />
               <ChipSelect label="الفئة" value={lens} onChange={(value) => setLens(value as LensId)} options={LENSES.map((item) => [item.id, item.label])} />
               {colorsNote
@@ -269,18 +315,19 @@ export function LensMap() {
                     ))}
                   </div>
                   {tool === 'gaps' && <GapsTool city={city} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} />}
-                  {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggleFromList} />}
+                  {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggleFromList} mode={audienceMode} onModeChange={setAudienceMode}
+                    incomeSourceStatus={data.pendingSources.includes('income') ? 'loading' : data.failedSources.includes('income') ? 'error' : 'ready'} onRetryIncome={data.reload ?? (() => undefined)} />}
                   {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} onActivity={setRival}
                     onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} />}
                   {tool === 'around' && <AroundTool onOverlay={onOverlay} />}
-                  {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
+                  {tool === 'territories' && <TerritoriesTool city={city} onOverlay={onOverlay} />}
                   {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} />}
-                  {tool === 'compare' && <CompareTool rows={data.rows} selected={chosen} />}
+                  {tool === 'compare' && <CompareTool rows={data.rows} selected={chosen} city={city} onRestore={restoreComparison} />}
                   {tool === 'businesses' && !selected.length && (
                     <EmptyState icon={MousePointerClick} title="اختر حياً" body="اضغط حياً أو أكثر على الخريطة، أو من ترتيب «أين جمهوري؟»، فتظهر منشآته هنا. أو ابحث عن نشاط من الأعلى." />
                   )}
                   {(tool === 'district' || tool === 'growth' || (selected.length > 0 && tool !== 'around' && tool !== 'homes')) && (
-                    <DistrictPanel city={city} cityName={cityName} lens={lens} rows={data.rows} selected={chosen} total={data.total} onClear={() => setSelected([])} />
+                    <DistrictPanel city={city} cityName={cityName} lens={lens} audienceMode={audienceMode} rows={data.rows} selected={chosen} total={data.total} districtSummary={data.districtSummary} districtSummaryStatus={data.districtSummaryStatus} onRetryCounts={data.reload} onClear={() => setSelected([])} />
                   )}
                   {showBusinesses && <BusinessesPanel key={`${tool}|${rival ?? ''}`} city={city} districts={chosen.map((row) => row.name)} query={tool === 'competitors' ? rival ?? undefined : undefined} />}
                   {(tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} full={lens === 'analysts' || tool === 'growth'} />}

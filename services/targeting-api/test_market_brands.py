@@ -81,9 +81,12 @@ class MarketBrandsTests(unittest.TestCase):
             self.analytics.brands({"city": "Riyadh", "min_branches": 1})
 
     def test_uncovered_lists_populated_districts_no_large_chain_reached(self):
-        population = {"العليا": {"population": 40000}, "الروضة": {"population": 30000}, "الصحافة": {"population": 20000}, "الملز": {"population": 900}}
+        population = {"العليا": {"population": 40000}, "الروضة": {"population": 30000}, "الصحافة": {"population": 20000},
+                      "الملز": {"population": 900}, "غير المقاس": {"population": None}, "صفر مقاس": {"population": 0}}
         result = self.analytics.brands({"city": "Riyadh"}, population=population)
         self.assertEqual([row["district_ar"] for row in result["uncovered"]], ["الروضة", "الصحافة"])
+        self.assertEqual(result["uncovered_population_unavailable"], 1,
+                         "missing population is disclosed separately, while measured zero is not called missing")
         self.assertEqual(result["uncovered_by"], ["صيدلية النهدي", "صيدلية ليمون"])
 
     def test_profile_counts_every_branch_and_its_activities(self):

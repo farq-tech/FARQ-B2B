@@ -1,4 +1,5 @@
 import type { ComponentProps } from 'react'
+import { numberFormat } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 
 /** A rounded filter or choice pill (the Airbnb chip row): outlined, olive and bold when on. */
@@ -21,5 +22,5 @@ export function Chip({ active, className, ...props }: ComponentProps<'button'> &
 
 /** The count beside a chip's label. */
 export function ChipCount({ value, active }: { value: number; active?: boolean }) {
-  return <span className={cn('rounded-full px-1.5 text-xs tabular-nums', active ? 'bg-primary/15' : 'bg-muted')}>{value}</span>
+  return <span className={cn('rounded-full px-1.5 text-xs tabular-nums', active ? 'bg-primary/15' : 'bg-muted')}>{numberFormat.format(value)}</span>
 }

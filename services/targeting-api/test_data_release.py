@@ -70,6 +70,19 @@ class DataReleaseTests(unittest.TestCase):
             report = validate_release(root)
             self.assertEqual(report["districts"]["duplicate_labels"], 1)
 
+    def test_rejects_substantial_overlaps_between_cities(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.make_release(root)
+            geometry = {"type": "Polygon", "coordinates": [[[46, 24], [47, 24], [47, 25], [46, 24]]]}
+            (root / "districts.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": [
+                {"type": "Feature", "properties": {"id": 1, "ar": "الربيع", "city_en": "Riyadh"}, "geometry": geometry},
+                {"type": "Feature", "properties": {"id": 2, "ar": "الربيع", "city_en": "Jeddah"}, "geometry": geometry},
+            ]}), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "cross-city overlapping boundaries: 1 pairs"):
+                validate_release(root)
+
     def test_rejects_duplicate_stable_keys(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

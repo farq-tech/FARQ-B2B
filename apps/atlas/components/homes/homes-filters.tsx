@@ -1,13 +1,14 @@
 'use client'
 
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Search } from 'lucide-react'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Chip } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import { numberFormat } from '@/lib/insights-api'
 import { FEATURES, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, TENANTS_LABEL } from '@/lib/real-estate'
-import { AGE_STEPS, COUNT_STEPS, DEFAULT_FILTERS, SORTS, STREET_STEPS, ageStepLabel, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
+import { AGE_STEPS, BELOW_MEDIAN_FILTER_LABEL, BELOW_MEDIAN_MAX_DISCOUNT_PCT, COUNT_STEPS, DEFAULT_FILTERS, DENSITY_STEPS, SORTS, STREET_STEPS, ageStepLabel, dealOf, invalidListingRange, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
+import { parseFilterInteger } from '@/lib/numeric-input'
 import { cn } from '@/lib/utils'
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
@@ -29,7 +30,7 @@ function NumberBox({ label, value, onChange, unit }: { label: string; value: num
       <span className="text-xs text-muted-foreground">{label}</span>
       <span className="flex items-center gap-1.5">
         <input type="text" inputMode="numeric" dir="ltr" placeholder="أي" value={value == null ? '' : numberFormat.format(value)}
-          onChange={(event) => { const digits = event.target.value.replace(/[^0-9]/g, ''); onChange(digits ? Number(digits) : null) }}
+          onChange={(event) => onChange(parseFilterInteger(event.target.value))}
           className="w-full min-w-0 bg-transparent text-end text-base font-semibold tabular-nums outline-none placeholder:font-normal placeholder:text-muted-foreground" />
         <span className="shrink-0 text-xs text-muted-foreground">{unit}</span>
       </span>
@@ -49,7 +50,7 @@ function Steps({ steps, value, onChange, label }: { steps: number[]; value: numb
  * Every filter of «العقار» in one sheet: from the bottom on a phone, from the side on a wide screen. Each change applies
  * at once, so the button at the bottom always says how many listings are left.
  */
-export function HomesFilters({ open, onClose, filters, onChange, districts, count, loading, cities, city, onCity }: {
+export function HomesFilters({ open, onClose, filters, onChange, districts, districtStatus, onRetryDistricts, count, loading, error, unavailable, cities, city, onCity }: {
   open: boolean
   cities: readonly (readonly [string, string])[]
   city: string
@@ -59,13 +60,19 @@ export function HomesFilters({ open, onClose, filters, onChange, districts, coun
   onChange: (next: Partial<HomeFilters>) => void
   /** The city's districts, by name. */
   districts: { id: string; name: string }[]
+  districtStatus: 'loading' | 'ready' | 'error'
+  onRetryDistricts?: () => void
   count: number
   loading: boolean
+  error?: boolean
+  unavailable?: boolean
 }) {
   const [query, setQuery] = useState('')
+  const [wide, setWide] = useState(false)
   const deal = dealOf(filters)
   const period = PERIOD_WORD[deal] ? ` ${PERIOD_WORD[deal]}` : ''
   const types = LISTING_TYPES.filter((item) => item.kinds.includes(filters.kind))
+  const invalidRange = invalidListingRange(filters)
   const chosen = new Set(filters.districts)
   const shownDistricts = useMemo(() => {
     const text = query.trim()
@@ -74,7 +81,14 @@ export function HomesFilters({ open, onClose, filters, onChange, districts, coun
     return [...list].sort((a, b) => Number(chosen.has(b.id)) - Number(chosen.has(a.id)) || a.name.localeCompare(b.name, 'ar'))
   }, [districts, query, filters.districts])
   const toggle = <T,>(list: T[], item: T) => (list.includes(item) ? list.filter((value) => value !== item) : [...list, item])
-  const wide = typeof window !== 'undefined' && window.matchMedia('(min-width: 64rem)').matches
+
+  useEffect(() => {
+    const breakpoint = window.matchMedia('(min-width: 64rem)')
+    const update = () => setWide(breakpoint.matches)
+    update()
+    breakpoint.addEventListener('change', update)
+    return () => breakpoint.removeEventListener('change', update)
+  }, [])
 
   return (
     <Sheet open={open} onOpenChange={(next) => { if (!next) onClose() }}>
@@ -119,7 +133,22 @@ export function HomesFilters({ open, onClose, filters, onChange, districts, coun
               {shownDistricts.map((item) => (
                 <Chip key={item.id} active={chosen.has(item.id)} onClick={() => onChange({ districts: toggle(filters.districts, item.id) })}>{item.name}</Chip>
               ))}
-              {!shownDistricts.length && <p className="text-sm text-muted-foreground">{districts.length ? 'لا حي بهذا الاسم.' : 'أحياء المدينة غير متاحة الآن.'}</p>}
+              {!shownDistricts.length && (districts.length ? <p className="text-sm text-muted-foreground">لا حي بهذا الاسم.</p>
+                : districtStatus === 'loading' ? <p className="text-sm text-muted-foreground">جارٍ تحميل أحياء المدينة…</p>
+                  : districtStatus === 'error' ? <p className="text-sm text-muted-foreground">تعذر تحميل أحياء المدينة.{' '}
+                    {onRetryDistricts && <button type="button" onClick={onRetryDistricts} className="font-semibold text-foreground underline underline-offset-2">أعد المحاولة</button>}
+                  </p>
+                    : <p className="text-sm text-muted-foreground">حدود الأحياء غير متاحة لهذه المدينة.</p>)}
+            </div>
+          </Section>
+
+          <Section title="كثافة سكان الحي" hint="تُحسب من السكان ÷ مساحة الحي. قد يكون رقم السكان مقاساً أو تقديرياً بحسب مصدره؛ الأحياء بلا كثافة متاحة تُستبعد عند تفعيل الفلتر.">
+            <div className="flex flex-wrap gap-2">
+              {DENSITY_STEPS.map((step) => (
+                <Chip key={String(step)} active={filters.minDistrictDensity === step} onClick={() => onChange({ minDistrictDensity: step })}>
+                  {step == null ? 'أي كثافة' : `${numberFormat.format(step)}+ ساكن/كم²`}
+                </Chip>
+              ))}
             </div>
           </Section>
 
@@ -128,6 +157,7 @@ export function HomesFilters({ open, onClose, filters, onChange, districts, coun
               <NumberBox label="من" value={filters.minPrice} onChange={(value) => onChange({ minPrice: value })} unit="ريال" />
               <NumberBox label="إلى" value={filters.maxPrice} onChange={(value) => onChange({ maxPrice: value })} unit="ريال" />
             </div>
+            {invalidRange === 'price' && <p role="alert" className="text-sm text-destructive">الحد الأدنى للسعر أعلى من الحد الأعلى.</p>}
           </Section>
 
           <Section title="المساحة">
@@ -135,6 +165,7 @@ export function HomesFilters({ open, onClose, filters, onChange, districts, coun
               <NumberBox label="من" value={filters.minArea} onChange={(value) => onChange({ minArea: value })} unit="م²" />
               <NumberBox label="إلى" value={filters.maxArea} onChange={(value) => onChange({ maxArea: value })} unit="م²" />
             </div>
+            {invalidRange === 'area' && <p role="alert" className="text-sm text-destructive">الحد الأدنى للمساحة أعلى من الحد الأعلى.</p>}
           </Section>
 
           <Section title="الغرف">
@@ -175,9 +206,9 @@ export function HomesFilters({ open, onClose, filters, onChange, districts, coun
             </div>
           </Section>
 
-          <Section title="مقارنة بالحي" hint="سعر المتر أقل من الوسيط: نصف عروض الحي المماثلة أرخص منه ونصفها أغلى.">
+          <Section title="مقارنة بالحي" hint={`وسيط سعر المتر يقسم عروض الحي المماثلة إلى نصفين. هذا الفلتر يعرض ما يقل عن الوسيط حتى ${numberFormat.format(BELOW_MEDIAN_MAX_DISCOUNT_PCT)}%؛ الخصم الأكبر لا يدخل فيه.`}>
             <div className="flex flex-wrap gap-2">
-              <Chip active={filters.belowMedian} onClick={() => onChange({ belowMedian: !filters.belowMedian })}>أقل من وسيط الحي</Chip>
+              <Chip active={filters.belowMedian} onClick={() => onChange({ belowMedian: !filters.belowMedian })}>{BELOW_MEDIAN_FILTER_LABEL}</Chip>
             </div>
           </Section>
 
@@ -189,7 +220,7 @@ export function HomesFilters({ open, onClose, filters, onChange, districts, coun
         </div>
         <SheetFooter className="flex-row items-center justify-between gap-3 border-t px-5 py-3">
           <Button variant="ghost" onClick={() => onChange({ ...DEFAULT_FILTERS, kind: filters.kind, rentDeal: filters.rentDeal, types: filters.types.slice(0, 1) })}>مسح الكل</Button>
-          <Button onClick={onClose} className="h-11 rounded-full px-6">{loading ? 'جارٍ التحميل…' : count ? `اعرض ${offersLabel(count)}` : 'لا عروض بهذه الفلاتر'}</Button>
+          <Button onClick={onClose} disabled={invalidRange != null} className="h-11 rounded-full px-6">{invalidRange ? 'صحّح نطاق الفلتر' : loading ? 'جارٍ التحميل…' : error ? 'تعذر تحديث العدد' : unavailable ? 'البيانات غير متاحة' : count ? `اعرض ${offersLabel(count)}` : 'لا عروض بهذه الفلاتر'}</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

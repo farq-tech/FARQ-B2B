@@ -12,8 +12,10 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import threading
+from functools import lru_cache
 from pathlib import Path
 
 import canonical_data
@@ -43,6 +45,66 @@ def _sha256(path):
         for block in iter(lambda: handle.read(4 * 1024 * 1024), b''):
             sha.update(block)
     return sha.hexdigest()
+
+
+@lru_cache(maxsize=8)
+def _file_matches_sha256(path, expected, size, modified_ns):
+    # Size and modification time invalidate the cache whenever an atomic upload replaces the input.
+    try:
+        return _sha256(path) == expected
+    except OSError:
+        return False
+
+
+def _buildings_match_configured_sha(path):
+    expected = os.environ.get('FARQ_BUILDINGS_SHA256', '').strip().lower()
+    if not expected:
+        return Path(path).is_file()
+    if not re.fullmatch(r'[0-9a-f]{64}', expected):
+        return False
+    try:
+        stat = Path(path).stat()
+        return _file_matches_sha256(str(path), expected, stat.st_size, stat.st_mtime_ns)
+    except OSError:
+        return False
+
+
+def _building_population_signature(data_dir, aux_dir, buildings, source):
+    import district_reference
+    data_dir, aux_dir = Path(data_dir), Path(aux_dir)
+    out_dir = aux_dir / 'buildings_ingest' / 'population'
+    official = out_dir / 'official_city_population.csv'
+    inputs = {
+        'buildings': buildings,
+        'districts': data_dir / 'districts.geojson',
+        'worldpop': out_dir / 'district_population_2025.parquet',
+        'official': official,
+        'pois': data_dir / 'targets.parquet',
+        'reference': Path(district_reference.PATH),
+        'corrections': Path(canonical_data.CORRECTIONS_PATH),
+    }
+    settings = {'elevation_mode': os.environ.get('FARQ_BUILDING_ELEVATION_MODE', 'auto')}
+    digest = os.environ.get('FARQ_BUILDINGS_SHA256', '').strip().lower()
+    if digest:
+        settings['buildings_sha256'] = digest
+    return _signature(source, inputs, settings)
+
+
+def building_population_output_current(data_dir, aux_dir=None):
+    """Whether building-derived outputs match the configured, verified building input and current job inputs."""
+    import build_building_population as job
+    data_dir = Path(data_dir)
+    aux_dir = Path(aux_dir or data_dir)
+    buildings = aux_dir / 'buildings_ingest' / 'normalized' / 'buildings.parquet'
+    if not _buildings_match_configured_sha(buildings):
+        return False
+    marker = aux_dir / 'buildings_ingest' / 'population' / 'district_population_buildings_signature.json'
+    try:
+        stored = json.loads(marker.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return False
+    current = _building_population_signature(data_dir, aux_dir, buildings, job.SOURCE)
+    return stored == current
 
 
 def _fetch_buildings(target):
@@ -101,9 +163,15 @@ def _building_population(data_dir, aux_dir=None):
     official = out_dir / 'official_city_population.csv'
     buildings = aux_dir / 'buildings_ingest' / 'normalized' / 'buildings.parquet'
     _adopt_legacy_buildings(buildings, data_dir)
-    if not buildings.is_file():
-        _fetch_buildings(buildings)
-    missing = [name for name, path in (('buildings', buildings), ('districts', data_dir / 'districts.geojson')) if not path.is_file()]
+    if not _buildings_match_configured_sha(buildings):
+        try:
+            _fetch_buildings(buildings)
+        except Exception as error:
+            LOGGER.error('startup_job_input_fetch_failed job=building_population input=buildings error_type=%s', type(error).__name__)
+    if not _buildings_match_configured_sha(buildings):
+        LOGGER.error('startup_job_skipped job=building_population reason=building_input_not_current')
+        return
+    missing = [name for name, path in (('districts', data_dir / 'districts.geojson'),) if not path.is_file()]
     if missing:
         LOGGER.error('startup_job_skipped job=building_population missing_input=%s', ','.join(missing))
         return
@@ -112,7 +180,7 @@ def _building_population(data_dir, aux_dir=None):
               'official': official, 'pois': data_dir / 'targets.parquet', 'reference': reference,
               'corrections': Path(canonical_data.CORRECTIONS_PATH)}   # renamed polygons change which reference row a district takes
     elevation_mode = os.environ.get('FARQ_BUILDING_ELEVATION_MODE', 'auto')
-    signature = _signature(job.SOURCE, inputs, {'elevation_mode': elevation_mode})
+    signature = _building_population_signature(data_dir, aux_dir, buildings, job.SOURCE)
     marker = out_dir / 'district_population_buildings_signature.json'
     try:
         if json.loads(marker.read_text(encoding='utf-8')) == signature:

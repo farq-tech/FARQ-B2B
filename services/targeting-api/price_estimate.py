@@ -1,10 +1,11 @@
-"""«سعّر عقارك»: a price range for one property from the listings most like it, then the stable rules for what makes it
-differ from them (reference/price_rules.json).
+"""«سعّر عقارك»: a price range for one property from the listings most like it, then calibrated rules within their
+documented coverage (reference/price_rules.json).
 
 Comparables are current publishable listings (insights.real_estate_listings' cards) of the same deal and property type,
 within AREA_BAND of its area, in its district; when the district has fewer than MIN_COMPARABLES, the nearest districts
 (by the centre of their listings) join one at a time, up to MAX_DISTRICTS. The range is the lower quartile, the median
-and the upper quartile of their price per m², times the area; each rule then moves all three by its percentage. Too few
+and the upper quartile of their price per m², times the area; each rule moves all three only when the city, district,
+deal and property type match the calibration metadata. Too few
 comparables even then, or no listing of the type in the city, answers available False and Atlas shows «غير متاح».
 """
 import json
@@ -49,6 +50,16 @@ def _quartiles(values):
     return q[0], statistics.median(values), q[2]
 
 
+def adjustments_calibrated(city, query, rules):
+    """A coefficient applies only to the exact geography, deal and types its source sample documents."""
+    return (
+        city == rules.get('calibrated_city')
+        and str(query.get('district_id')) in {str(value) for value in rules.get('calibrated_district_ids', [])}
+        and query.get('deal') in rules.get('calibrated_deals', [])
+        and query.get('type') in rules.get('calibrated_types', [])
+    )
+
+
 def estimate(city, query, cards_path=None, rules_path=None):
     """query: district_id, deal, type, area_sqm, and optional age, streets, street_width, furnished (see the tuples
     above). Returns the range, the comparables' scope and the adjustments, or available False with the reason."""
@@ -80,12 +91,14 @@ def estimate(city, query, cards_path=None, rules_path=None):
     if len(comparables) < MIN_COMPARABLES:
         return {'available': False, 'reason': 'too_few_comparables', 'comparables': len(comparables)}
     q1, median, q3 = _quartiles([c['price_sar'] / c['area_sqm'] for c in comparables])
+    calibrated = adjustments_calibrated(city, query, rules)
     adjustments = []
-    for key in ('age', 'streets', 'street_width', 'furnished'):
-        value = query.get(key)
-        pct = (rules.get(key) or {}).get(value) if value is not None else None
-        if pct:
-            adjustments.append({'factor': key, 'value': value, 'label': LABELS[key][value], 'pct': pct})
+    if calibrated:
+        for key in ('age', 'streets', 'street_width', 'furnished'):
+            value = query.get(key)
+            pct = (rules.get(key) or {}).get(value) if value is not None else None
+            if pct:
+                adjustments.append({'factor': key, 'value': value, 'label': LABELS[key][value], 'pct': pct})
     factor = math.prod(1 + a['pct'] / 100 for a in adjustments)
     names = {c['district_id']: c.get('district_ar') for c in comparables}
     examples = sorted(comparables, key=lambda c: (c.get('district_id') != query['district_id'], abs(c['area_sqm'] - area)))[:EXAMPLES]
@@ -99,6 +112,7 @@ def estimate(city, query, cards_path=None, rules_path=None):
         'price': {'low': round(q1 * factor * area, -3), 'mid': round(median * factor * area, -3), 'high': round(q3 * factor * area, -3)},
         'comparables_per_sqm': {'low': round(q1), 'mid': round(median), 'high': round(q3)},
         'adjustments': adjustments,
+        'adjustments_calibrated': calibrated,
         'examples': [{key: c.get(key) for key in ('id', 'url', 'photo', 'district_ar', 'type', 'price_sar', 'area_sqm', 'beds', 'age')} for c in examples],
         'rules_source': rules.get('source'), 'rules_retrieved': rules.get('retrieved'),
         'listings_retrieved': table.get('retrieved'),

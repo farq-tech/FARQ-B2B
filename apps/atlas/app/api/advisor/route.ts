@@ -1,6 +1,8 @@
 import { createHmac } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { isTargetingAllowed, sessionForRequest, setSession, verifySession } from '@/lib/atlas-session'
+import { canUseAdvisor } from '@/lib/advisor-access'
+import { realEstateAdvisorFallback } from '@/lib/real-estate-advisor-fallback'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -10,25 +12,40 @@ const MAX_FACTS = 8000
 const MAX_TURNS = 20
 const MAX_TEXT = 2000
 
-// The advisor compares two listings or two districts for one person's need, from Atlas figures only
-// (docs/atlas-product-foundation.md: every number from our inventory or «غير متاح», no final recommendation).
-const SYSTEM = `You are the comparison assistant inside Farq Atlas, a Saudi map of districts and current property listings. You help one person compare two listings or two districts against their own situation.
+type AdvisorMode = 'compare' | 'branch' | 'audience' | 'distribution' | 'analysis' | 'real_estate'
 
-Work only from the figures in the FACTS block of the first message. They are Farq's figures; never name an outside source. When something the person asks about is not in FACTS (schools, traffic, safety, building age, finishing quality, noise), say plainly that Atlas has no figure for it and suggest checking it on the ad or by visiting; never estimate it. A figure shown as «غير متاح» stays unavailable.
+const COMMON_RULES = `You are an advisor inside Farq Atlas, a Saudi map and market-data product. Work only from the figures in FACTS; never name an outside source. A figure shown as «غير متاح» stays unavailable. If FACTS says some rows were omitted, do not infer totals, rankings, or values from the partial rows. If the person asks about something not in FACTS (sales, safety, traffic, schools, construction quality, law), say Atlas has no figure for it and suggest how they can check it. Never estimate or promise revenue.
 
-If the person's need is still unclear after their profile (who will live or work there, what matters most, budget), ask at most two short questions in one message before comparing. Once you know enough, compare:
-- one line per point that matters to this person, naming which option is ahead and by how much, from FACTS;
+Write in clear Saudi-friendly Arabic, short lines, no tables. Write every number with English digits (0-9), thousands with commas, and the percent sign as %. Give 1–3 useful actions the person can take inside the current path. Explain the figure behind each suggestion, name its limits, and leave the decision with the user. Never contact anyone or take an external action.`
+
+const SYSTEMS: Record<AdvisorMode, string> = {
+  compare: `${COMMON_RULES}
+
+Compare the options in FACTS against the person's profile. If their need is unclear, ask at most two short questions in one message. Then explain:
+- one line per point that matters to this person, naming which option is ahead and by how much, from FACTS. Compare a figure only when both options have a valid value for that same measure; if either is «غير متاح», mark that measure unavailable for comparison and do not infer the missing value;
+- distinguish «أعلى» from «أفضل»: say which option better fits only when the person's stated priority makes that direction clear;
 - what each option gives up;
 - which option fits which kind of need.
-Do not make the final decision for them; end by naming the one or two things they should check on the ad or in person before deciding.
-
-Write in clear Saudi-friendly Arabic, short lines, no tables. Write every number with English digits (0-9), thousands with commas, and the percent sign as %. An asking price is not a deal price; say so once if prices drive the comparison.`
+An asking price is not a deal price; say so once if prices drive the comparison.`,
+  branch: `${COMMON_RULES}
+Help the person improve a branch-opening idea using the selected business activity and district figures. If the exact business concept, customer, or budget matters and is unknown, ask at most two short questions. Suggest how to validate fit, which available district figure supports the suggestion, and what important business fact Atlas cannot establish. Never claim that a low competitor count guarantees demand.`,
+  audience: `${COMMON_RULES}
+Help the person sharpen an audience-targeting plan using only the selected segment, income threshold, and district figures. Do not confuse residents with business establishments, or district average worker income with each person's income. Suggest which measured districts to test first and what message or offer hypothesis the person could validate.`,
+  distribution: `${COMMON_RULES}
+Help the person improve the assignment of representatives using only the activity, representative count, district membership, and workload figures in FACTS. Explain any coverage limitation. Suggest a practical adjustment to workload or route planning; do not claim that map distance is drive time or that a route is optimized unless FACTS says so.`,
+  analysis: `${COMMON_RULES}
+Help the person interpret the selected metric or district comparison in FACTS. Distinguish correlation, ranking, and measured totals. If useful, suggest one additional available metric to compare and one missing figure that could change the interpretation. Do not turn an association into a causal claim.`,
+  real_estate: `${COMMON_RULES}
+This is general help comparing property listings and search filters, not a legal, lending, valuation, or investment guarantee. Do not refuse a safe request merely because it concerns choosing, renting, or buying property. Help the person judge offers against their stated needs using only listing and district figures in FACTS. If no loaded offers match, say that clearly and suggest relaxing one nonessential filter at a time; do not invent offers or imply the loaded sample is the whole market. If household, purpose, or budget details are missing, ask at most two short questions. Distinguish asking price from a completed sale, and never infer legal status, construction quality, or ongoing availability unless stated in FACTS. End with one or two checks the person should make on the listing or in person.`,
+}
 
 type Turn = { role: 'user' | 'assistant'; content: string }
 
-function readInput(value: unknown): { facts: string; profile: string; turns: Turn[] } | null {
+function readInput(value: unknown): { mode: AdvisorMode; facts: string; profile: string; turns: Turn[] } | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const input = value as Record<string, unknown>
+  const mode = input.mode ?? 'compare'
+  if (typeof mode !== 'string' || !Object.prototype.hasOwnProperty.call(SYSTEMS, mode)) return null
   if (typeof input.facts !== 'string' || !input.facts.trim() || input.facts.length > MAX_FACTS) return null
   const profile = typeof input.profile === 'string' ? input.profile.slice(0, MAX_TEXT) : ''
   if (!Array.isArray(input.turns) || input.turns.length > MAX_TURNS) return null
@@ -40,7 +57,7 @@ function readInput(value: unknown): { facts: string; profile: string; turns: Tur
   }
   // the conversation alternates and the person speaks last
   if (turns.some((turn, index) => turn.role !== (index % 2 === 0 ? 'assistant' : 'user')) || (turns.length && turns[turns.length - 1].role !== 'user')) return null
-  return { facts: input.facts, profile, turns }
+  return { mode: mode as AdvisorMode, facts: input.facts, profile, turns }
 }
 
 // The model call runs in the targeting service, which holds the Anthropic key (services/targeting-api/advisor_proxy.py).
@@ -53,31 +70,44 @@ function targetingHeaders() {
 }
 
 const UPSTREAM_ERRORS: Record<string, [string, number]> = {
-  UNCONFIGURED: ['المقارنة غير متاحة الآن.', 503],
-  REFUSED: ['تعذرت المقارنة لهذا الطلب.', 422],
+  UNCONFIGURED: ['المستشار غير متاح الآن.', 503],
+  REFUSED: ['تعذر إعداد اقتراح لهذا الطلب.', 422],
   BUSY: ['الخدمة مشغولة، حاول بعد قليل.', 429],
 }
 
 export async function POST(request: NextRequest) {
   const { session, refreshed } = await sessionForRequest(request)
-  if (!session) return NextResponse.json({ error: 'سجّل الدخول لاستخدام المقارنة.' }, { status: 401, headers: { 'cache-control': 'no-store' } })
-  if (!isTargetingAllowed(session) || !(await verifySession(session))) return NextResponse.json({ error: 'حسابك غير مخول لاستخدام المقارنة.' }, { status: 403, headers: { 'cache-control': 'no-store' } })
+  if (!session) return NextResponse.json({ error: 'سجّل الدخول لاستخدام المستشار.' }, { status: 401, headers: { 'cache-control': 'no-store' } })
   const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
   const headers = targetingHeaders()
-  if (!origin || !headers) return NextResponse.json({ error: 'المقارنة غير متاحة الآن.' }, { status: 503, headers: { 'cache-control': 'no-store' } })
 
   let input: ReturnType<typeof readInput> = null
   try { input = readInput(await request.json()) } catch { input = null }
-  if (!input) return NextResponse.json({ error: 'طلب المقارنة غير صالح.' }, { status: 400 })
+  if (!input) return NextResponse.json({ error: 'طلب المستشار غير صالح.' }, { status: 400, headers: { 'cache-control': 'no-store' } })
+  if (!(await verifySession(session)) || !canUseAdvisor(input.mode, isTargetingAllowed(session))) {
+    return NextResponse.json({ error: 'حسابك غير مخول لاستخدام المستشار.' }, { status: 403, headers: { 'cache-control': 'no-store' } })
+  }
 
   // the first message carries the figures and the profile; later turns are the conversation itself
-  const opening = `FACTS\n${input.facts}\n\nPROFILE\n${input.profile || 'لم يحدد بعد.'}\n\nقارن لي بين الخيارين بحسب احتياجي.`
+  const opening = input.mode === 'compare'
+    ? `FACTS\n${input.facts}\n\nPROFILE\n${input.profile || 'لم يحدد بعد.'}\n\nقارن لي بين الخيارين بحسب احتياجي.`
+    : `FACTS\n${input.facts}\n\nPROFILE\n${input.profile || 'لم يحدد بعد.'}\n\nساعدني أحسّن قراري في هذا المسار.`
   const messages: Turn[] = [{ role: 'user', content: opening }, ...input.turns]
+  const fallback = () => {
+    const result = NextResponse.json({ reply: realEstateAdvisorFallback(input.facts, input.profile) }, { headers: { 'cache-control': 'no-store' } })
+    if (refreshed) setSession(result, session)
+    return result
+  }
+  if (!origin || !headers) {
+    if (input.mode === 'real_estate') return fallback()
+    return NextResponse.json({ error: 'المستشار غير متاح الآن.' }, { status: 503, headers: { 'cache-control': 'no-store' } })
+  }
 
   try {
-    const response = await fetch(`${origin}/advisor`, { method: 'POST', headers, body: JSON.stringify({ system: SYSTEM, messages }), cache: 'no-store', signal: AbortSignal.timeout(58000) })
+    const response = await fetch(`${origin}/advisor`, { method: 'POST', headers, body: JSON.stringify({ system: SYSTEMS[input.mode], messages }), cache: 'no-store', signal: AbortSignal.timeout(22000) })
     const answer = (await response.json().catch(() => ({}))) as { reply?: string; error?: string }
     if (!response.ok || !answer.reply) {
+      if (input.mode === 'real_estate') return fallback()
       const [error, status] = UPSTREAM_ERRORS[answer.error ?? ''] ?? ['تعذر الاتصال بالخدمة.', 502]
       return NextResponse.json({ error }, { status, headers: { 'cache-control': 'no-store' } })
     }
@@ -85,6 +115,7 @@ export async function POST(request: NextRequest) {
     if (refreshed) setSession(result, session)
     return result
   } catch {
+    if (input.mode === 'real_estate') return fallback()
     return NextResponse.json({ error: 'تعذر الاتصال بالخدمة.' }, { status: 502 })
   }
 }

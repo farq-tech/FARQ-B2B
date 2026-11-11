@@ -1,4 +1,5 @@
 import type { RequestStatus, RequestType } from './types'
+import { numberFormat } from './insights-api.ts'
 
 const dateFmt = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', {
   day: 'numeric',
@@ -15,12 +16,10 @@ const dateTimeFmt = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', {
   timeZone: 'Asia/Riyadh',
 })
 
-const numFmt = new Intl.NumberFormat('en-US')
-
 export const formatDate = (iso: string) => dateFmt.format(new Date(iso))
 export const formatDateTime = (iso: string) => dateTimeFmt.format(new Date(iso))
-export const formatNumber = (n: number) => numFmt.format(n)
-export const formatSar = (n: number) => `${numFmt.format(n)} ر.س`
+export const formatNumber = (n: number) => numberFormat.format(n)
+export const formatSar = (n: number) => `${numberFormat.format(n)} ر.س`
 
 export function formatPhone(p: string | null) {
   if (!p) return 'غير متاح'

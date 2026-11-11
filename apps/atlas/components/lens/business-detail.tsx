@@ -2,6 +2,15 @@ import { numberFormat } from '@/lib/insights-api'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
 
 const sar = (value: number) => `${numberFormat.format(Math.round(value))} ر.س`
+const STATUS_LABEL: Record<string, string> = {
+  open: 'مفتوح',
+  closed_temporary: 'مغلق مؤقتاً',
+  closed_permanent: 'مغلق نهائياً',
+  inactive: 'غير نشط',
+  hidden: 'الحالة غير متاحة',
+  unknown_empty: 'حالة التشغيل غير متاحة',
+  unknown_invalid: 'حالة التشغيل غير متاحة',
+}
 
 /**
  * One business's directory details, all from Farq (no source is ever named): its official description, delivery-app
@@ -28,8 +37,10 @@ export function BusinessDetail({ row }: { row: PublicDirectoryEntity }) {
   if (row.deliveryEta) delivery.push(['زمن التوصيل', row.deliveryEta])
 
   const empty = !row.description && facts.length === 0 && delivery.length === 0
+  const statusLabel = row.status ? STATUS_LABEL[row.status] ?? 'حالة التشغيل غير متاحة' : 'حالة التشغيل غير متاحة'
   return (
     <div className="mb-2 flex flex-col gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
+      <p><span className="text-muted-foreground">حالة التشغيل:</span> <span className="font-medium">{statusLabel}</span></p>
       {row.description && <p className="whitespace-pre-line leading-relaxed">{row.description}</p>}
       {facts.map(([label, value]) => (
         <p key={label}><span className="text-muted-foreground">{label}:</span> <span className="font-medium">{value}</span></p>

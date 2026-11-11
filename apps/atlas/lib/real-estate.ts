@@ -59,7 +59,7 @@ export type Listing = {
   updated_on?: string
   /** The ad carries the real-estate authority's advertising licence. */
   licensed?: boolean
-  /** The advertiser's number is on file; a signed-in person asks for it per listing (/api/market/listing-phone). */
+  /** A number exists privately; the UI requests it one listing at a time, never from the result list. */
   has_phone?: boolean
   /** Its district's market signal for its type (market_signals.py), or null: rent against the nearest districts read
    * with the prices paid there. Only yearly rent carries one. */
@@ -149,6 +149,7 @@ export function ageLabel(age: number | null | undefined): string {
 }
 
 export const sar = (value: number) => `${numberFormat.format(Math.round(value))} ريال`
+
 /** The price as the ad gives it, with its period: «3,500 ريال شهرياً», «… · المدة غير مذكورة», «السعر غير مذكور». */
 export function priceLine(listing: Pick<Listing, 'deal' | 'price_sar'>): string {
   if (listing.price_sar == null) return 'السعر غير مذكور'

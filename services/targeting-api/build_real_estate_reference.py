@@ -8,8 +8,11 @@ rentPeriod, areaSqm, latitude, longitude and publishedAt, and the golden distric
 A listing joins the district its coordinates fall in, never the district name it was filed under. Only the figures
 leave this script: per district, deal and property group, the number of listings and the median price per square
 metre. Each deal is its own median and nothing is converted: sale, rent per year, rent per month, and rent whose
-ad names no period. No listing id, advertiser, phone or coordinate is written. A median rests on at least
+ad names no period. No listing id, advertiser name or coordinate is written to aggregate district references. A median rests on at least
 MIN_LISTINGS listings, else the group is left out and Atlas shows «غير متاح».
+
+The separate listing-card snapshot may keep the advertiser's phone on the private data volume for one-at-a-time,
+signed-in requests; aggregate district references never carry it.
 
 These are asking prices from current offers, not deal prices, and Atlas says so.
 """
@@ -153,7 +156,11 @@ def _day(stamp):
     """A Unix time as its date (YYYY-MM-DD), else None."""
     if isinstance(stamp, bool) or not isinstance(stamp, (int, float)) or stamp <= 0:
         return None
-    return datetime.fromtimestamp(stamp, tz=timezone.utc).date().isoformat()
+    try:
+        return datetime.fromtimestamp(stamp, tz=timezone.utc).date().isoformat()
+    except (OverflowError, OSError, ValueError):
+        # A malformed or platform-out-of-range optional source date must not abort the whole snapshot.
+        return None
 
 
 # a building this many years old or less counts as new when a district's prices are split by age
@@ -171,7 +178,8 @@ def _card(listing, city, district_id, district_ar, found):
         photos = [listing['image']]
     full = [name if name.startswith('http') else GALLERY_URL.format(name) for name in photos]
     title = str(listing.get('title') or '')
-    aqar_id = str(listing.get('aqar_id') or '')
+    raw_aqar_id = listing.get('aqar_id')
+    aqar_id = str(raw_aqar_id).strip() if raw_aqar_id is not None else ''
     return {
         'id': aqar_id or str(listing.get('url') or ''),
         # Aqar's own short link for an ad (the one its share and WhatsApp messages carry): it opens the listing in the
@@ -195,9 +203,31 @@ def _card(listing, city, district_id, district_ar, found):
         # when the ad went up and when it was last touched, and whether it carries the real-estate authority's licence
         **{key: day for key, day in (('listed_on', _day(listing.get('create_time'))), ('updated_on', _day(listing.get('last_update')))) if day},
         **({'licensed': listing['rega_licensed']} if isinstance(listing.get('rega_licensed'), bool) else {}),
-        # the advertiser's number: kept in the file, never in a listings answer (insights.listing_phone serves it one at a time)
+        # kept only in the private source-volume snapshot; the service reveals it only for one requested listing
         **({'phone': listing['phone']} if listing.get('phone') else {}),
     }
+
+
+def _unique_listings(listings):
+    """Collapse exact repeats by listing identity; conflicting snapshots must be reviewed, never guessed."""
+    seen = {}
+    unique = []
+    for listing in listings:
+        raw_id = listing.get('aqar_id')
+        raw_url = listing.get('url')
+        identity = str(raw_id).strip() if raw_id is not None and str(raw_id).strip() else (
+            str(raw_url).strip() if raw_url is not None and str(raw_url).strip() else None)
+        if identity is None:
+            unique.append(listing)
+            continue
+        previous = seen.get(identity)
+        if previous is not None:
+            if previous != listing:
+                raise ValueError(f'conflicting listing rows share identity {identity!r}')
+            continue
+        seen[identity] = listing
+        unique.append(listing)
+    return unique
 
 
 def build(listings, atlases, retrieved, default_city=None, cards=None):
@@ -210,7 +240,7 @@ def build(listings, atlases, retrieved, default_city=None, cards=None):
     # the same figures split by the building's age, where the ad states it: new (NEW_MAX_AGE years or less) and older
     by_age = defaultdict(list)
     names, seen, placed, by_coordinates = {}, 0, 0, 0
-    for listing in listings:
+    for listing in _unique_listings(listings):
         found_figure = assess(listing)
         figure =(found_figure['deal'], found_figure['group'], found_figure['per_sqm']) if found_figure['trusted'] else None
         if figure:
@@ -242,10 +272,16 @@ def build(listings, atlases, retrieved, default_city=None, cards=None):
                     by_age[(city, district_id, kind, group, 'new' if age <= NEW_MAX_AGE else 'older')].append(value)
                 placed += 1
             if cards is not None and lon is not None:
-                cards.append(_card(listing, city, district_id, district_ar, found_figure))
+                card = _card(listing, city, district_id, district_ar, found_figure)
+                if not card['id'].strip():
+                    raise ValueError('located listing has no aqar_id or URL identity')
+                cards.append(card)
         elif cards is not None and lon is not None and lat is not None:
             # outside every atlas district (another city, the city's edge): still on the map, with no district
-            cards.append(_card(listing, listing.get('city_en') or default_city, None, listing.get('districtArabic'), found_figure))
+            card = _card(listing, listing.get('city_en') or default_city, None, listing.get('districtArabic'), found_figure)
+            if not card['id'].strip():
+                raise ValueError('located listing has no aqar_id or URL identity')
+            cards.append(card)
     cities = defaultdict(dict)
     for (city, district_id, kind, group), prices in values.items():
         if len(prices) < MIN_LISTINGS:

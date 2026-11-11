@@ -28,6 +28,8 @@ class FakeTaxonomy:
 
     def understand(self, text, objective):
         self.last_understanding = (text, objective)
+        if text == "مغاسل":
+            return {"targets": ["plumbing.fixtures"], "specialties": ["spec.sinks"]}
         if objective == "marketing":
             return {"targets": ["plumbing.tools"]}
         return {"targets": ["plumbing.fixtures"]}
@@ -138,7 +140,7 @@ class MarketAnalyticsSpecialtyTests(unittest.TestCase):
         self.assertEqual(next(row for row in districts if row["district_ar"] == "حي النخيل")["n_whatsapp"], 1)
 
     def test_unmatched_query_and_activity_intersection_returns_zero(self):
-        city, subs, where, params, _, _ = self.analytics._where({
+        city, subs, where, params, _, _, _ = self.analytics._where({
             "city": "Riyadh",
             "q": "مغاسل",
             "sub_ids": ["plumbing.tools"],
@@ -178,6 +180,29 @@ class MarketAnalyticsSpecialtyTests(unittest.TestCase):
         # a main activity picked from the list names itself
         picked = self.analytics.district_counts({"city": "Riyadh", "main_id": "plumbing"})
         self.assertIsNone(picked["understood"])
+
+    def test_typed_specialty_narrows_counts_and_market_gaps(self):
+        body = {"city": "Riyadh", "q": "مغاسل"}
+        counted = self.analytics.district_counts(body)
+        self.assertEqual(counted["total"], 2, "only the two exact specialty records remain; the unrelated category row is excluded")
+        self.assertEqual(counted["understood"], {"labels": ["مغاسل"], "more": 0})
+
+        result = self.analytics.market_gaps(body, {
+            "حي النخيل": {"population": 20_000},
+            "حي الياسمين": {"population": 40_000},
+        })
+        self.assertEqual(result["residents_per_business"], 20_000)
+        self.assertEqual(result["rate_sample_districts"], 1, "the baseline includes only districts with population and an observed activity record")
+        self.assertEqual(result["districts_with_population"], 2)
+        by_district = {row["district_ar"]: row for row in result["districts"]}
+        self.assertEqual(by_district["حي النخيل"]["businesses"], 1)
+        self.assertEqual(by_district["حي الياسمين"]["businesses"], 0)
+
+    def test_explicit_specialty_conflicting_with_typed_activity_matches_nothing(self):
+        result = self.analytics.district_counts({
+            "city": "Riyadh", "q": "مغاسل", "specialty_ids": ["spec.taps"],
+        })
+        self.assertEqual(result["total"], 0)
 
     def test_missing_specialty_column_fails_closed(self):
         missing_column = self.root / "targets-without-specialties.parquet"

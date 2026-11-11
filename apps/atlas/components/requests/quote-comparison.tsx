@@ -4,6 +4,7 @@ import { Check, Trophy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { businessById } from '@/lib/mock-data'
 import { formatSar } from '@/lib/format'
+import { numberFormat } from '@/lib/insights-api'
 import type { InboxMessage } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -39,7 +40,7 @@ export function QuoteComparison({ quotes, acceptedId, canDecide, onAccept }: Quo
                 <div className="min-w-0">
                   <p className="truncate font-medium">{b?.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    التوريد خلال {m.quote?.deliveryDays} أيام · صلاحية {m.quote?.validity}
+                    التوريد خلال {m.quote?.deliveryDays == null ? 'غير متاح' : numberFormat.format(m.quote.deliveryDays)} أيام · صلاحية {m.quote?.validity.replace(/\d+/g, (digits) => numberFormat.format(Number(digits)))}
                   </p>
                 </div>
                 {m.id === best ? (
@@ -61,7 +62,7 @@ export function QuoteComparison({ quotes, acceptedId, canDecide, onAccept }: Quo
                   {m.quote?.lines.map((l) => (
                     <tr key={l.name} className="border-t">
                       <td className="py-1.5">
-                        {l.name} <span className="text-xs text-muted-foreground">× {l.qty}</span>
+                        {l.name} <span className="text-xs text-muted-foreground">× {numberFormat.format(l.qty)}</span>
                       </td>
                       <td className="py-1.5 text-left tabular-nums">{formatSar(l.unitPrice)}</td>
                     </tr>

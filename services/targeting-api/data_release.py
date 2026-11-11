@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
+import canonical_data
 
 
 REQUIRED_ASSETS = (
@@ -101,6 +102,10 @@ def validate_release(data_dir: Path) -> dict[str, Any]:
     if duplicate_district_ids:
         raise ValueError("districts GeoJSON contains duplicate stable ids")
     duplicate_district_labels = len(names) - len(set(names))
+    canonical_districts, _ = canonical_data.canonical_districts(districts, canonical_data.load_corrections())
+    cross_city_overlaps = canonical_data.cross_city_duplicates(canonical_districts)
+    if cross_city_overlaps:
+        raise ValueError(f"districts GeoJSON contains cross-city overlapping boundaries: {len(cross_city_overlaps)} pairs")
 
     target_path = data_dir / "targets.parquet"
     db = duckdb.connect(":memory:")

@@ -20,7 +20,9 @@ class StartupJobsTests(unittest.TestCase):
         (self.data / 'districts.geojson').write_text('{}', encoding='utf-8')
 
     def tearDown(self):
-        os.environ.pop('FARQ_BUILD_BUILDING_POPULATION', None)
+        for name in ('FARQ_BUILD_BUILDING_POPULATION', 'FARQ_BUILDINGS_OBJECT', 'FARQ_BUILDINGS_SHA256', 'BUCKET',
+                     'FARQ_BUILDING_ELEVATION_MODE'):
+            os.environ.pop(name, None)
 
     def test_nothing_runs_unless_switched_on(self):
         with mock.patch.object(startup_jobs, '_building_population') as job:
@@ -117,6 +119,50 @@ class StartupJobsTests(unittest.TestCase):
             for name in ('FARQ_BUILDINGS_OBJECT', 'BUCKET'):
                 os.environ.pop(name, None)
             self.assertFalse(startup_jobs._fetch_buildings(target), 'without a configured source nothing is fetched')
+
+    def test_a_stale_volume_building_layer_is_not_rebuilt_or_marked_current(self):
+        os.environ.update({
+            'FARQ_BUILDINGS_OBJECT': 'inputs/buildings.parquet',
+            'FARQ_BUILDINGS_SHA256': __import__('hashlib').sha256(b'new-layer').hexdigest(),
+            'BUCKET': 'farq-data-inputs',
+        })
+        target = self.data / 'buildings_ingest' / 'normalized' / 'buildings.parquet'
+        target.write_bytes(b'old-layer')
+        calls = []
+
+        class MissingObject:
+            def download_file(self, bucket, key, path):
+                raise FileNotFoundError(key)
+
+        module = mock.Mock(build=lambda **kwargs: calls.append(kwargs), SOURCE='v3')
+        with mock.patch.dict('sys.modules', {'boto3': mock.Mock(client=lambda *a, **k: MissingObject()),
+                                             'build_building_population': module}), \
+                self.assertLogs('farq.targeting', level=logging.ERROR) as logs:
+            startup_jobs._building_population(self.data)
+
+        self.assertEqual(calls, [], 'a source that fails its configured checksum cannot feed a new result')
+        self.assertEqual(target.read_bytes(), b'old-layer', 'keep the old source file for recovery, without trusting it')
+        self.assertFalse(startup_jobs.building_population_output_current(self.data))
+        self.assertTrue(any('building_input_not_current' in line for line in logs.output))
+
+    def test_building_outputs_need_a_success_marker_for_the_configured_source(self):
+        import hashlib
+        payload = b'approved-layer'
+        target = self.data / 'buildings_ingest' / 'normalized' / 'buildings.parquet'
+        target.write_bytes(payload)
+        expected = hashlib.sha256(payload).hexdigest()
+        os.environ['FARQ_BUILDINGS_SHA256'] = expected
+        module = mock.Mock(build=mock.Mock(), SOURCE='v3')
+        with mock.patch.dict('sys.modules', {'build_building_population': module}):
+            marker = self.data / 'buildings_ingest' / 'population' / 'district_population_buildings_signature.json'
+            marker.parent.mkdir(parents=True)
+            signature = startup_jobs._building_population_signature(self.data, self.data, target, 'v3')
+            marker.write_text(json.dumps(signature), encoding='utf-8')
+            self.assertTrue(startup_jobs.building_population_output_current(self.data))
+
+            os.environ['FARQ_BUILDINGS_SHA256'] = hashlib.sha256(b'new-approved-layer').hexdigest()
+            self.assertFalse(startup_jobs.building_population_output_current(self.data),
+                             'results from the previous source cannot be served for a new configured checksum')
 
     def test_real_estate_inputs_are_fetched_once_per_digest(self):
         out = Path(tempfile.mkdtemp())

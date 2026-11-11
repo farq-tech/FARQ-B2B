@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowLeft, BadgeCheck, ChartNoAxesCombined, CheckCircle2, FileSearch, MapPinned, MessageSquareText, SearchCheck, ShieldCheck } from 'lucide-react'
 import { AtlasGoalLinks } from '@/components/landing/atlas-goal-links'
+import { numberFormat } from '@/lib/number-format'
 
 const steps = [
   { icon: SearchCheck, title: 'حدّد ما تريد', text: 'ابدأ بهدف واضح: موردون، عملاء، أو فهم السوق.' },
@@ -48,7 +49,7 @@ export default function AtlasLandingPage() {
               <div className="flex items-center justify-between"><p className="font-bold">من البحث إلى القرار</p><ChartNoAxesCombined className="size-5 text-primary" aria-hidden /></div>
               <ol className="mt-5 space-y-3">
                 {['اختر هدفك التجاري', 'استكشف النطاق والجهات المطابقة', 'حدّد القائمة التي تناسبك', 'راجع طلبك أو مسودتك قبل التنفيذ'].map((step, index) => (
-                  <li key={step} className="flex items-center gap-3 rounded-xl bg-card p-3"><span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">{index + 1}</span><span className="font-medium">{step}</span></li>
+                  <li key={step} className="flex items-center gap-3 rounded-xl bg-card p-3"><span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">{numberFormat.format(index + 1)}</span><span className="font-medium">{step}</span></li>
                 ))}
               </ol>
             </div>
@@ -62,7 +63,7 @@ export default function AtlasLandingPage() {
       </section>
 
       <section id="how" className="border-y bg-card">
-        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8"><div className="max-w-2xl"><p className="text-sm font-semibold text-primary">كيف تعمل</p><h2 className="mt-2 text-3xl font-bold">رحلة واحدة بدل التنقل بين أدوات كثيرة</h2></div><ol className="mt-10 grid gap-4 md:grid-cols-3">{steps.map(({ icon: Icon, title, text }, index) => <li key={title} className="rounded-2xl border bg-background p-6"><span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="size-5" aria-hidden /></span><p className="mt-5 text-sm font-semibold text-primary">{String(index + 1).padStart(2, '0')}</p><h3 className="mt-1 text-lg font-bold">{title}</h3><p className="mt-2 leading-7 text-muted-foreground">{text}</p></li>)}</ol></div>
+        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8"><div className="max-w-2xl"><p className="text-sm font-semibold text-primary">كيف تعمل</p><h2 className="mt-2 text-3xl font-bold">رحلة واحدة بدل التنقل بين أدوات كثيرة</h2></div><ol className="mt-10 grid gap-4 md:grid-cols-3">{steps.map(({ icon: Icon, title, text }, index) => <li key={title} className="rounded-2xl border bg-background p-6"><span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="size-5" aria-hidden /></span><p className="mt-5 text-sm font-semibold text-primary">{numberFormat.format(index + 1).padStart(2, '0')}</p><h3 className="mt-1 text-lg font-bold">{title}</h3><p className="mt-2 leading-7 text-muted-foreground">{text}</p></li>)}</ol></div>
       </section>
 
       <section className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 lg:grid-cols-[.9fr_1.1fr] lg:items-center">

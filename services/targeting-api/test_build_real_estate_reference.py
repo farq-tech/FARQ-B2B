@@ -23,6 +23,12 @@ def listing(kind, kind_of, price, area, lon=46.685, lat=24.695, period='annually
 
 
 class RealEstateReferenceTests(unittest.TestCase):
+    def test_optional_listing_dates_reject_invalid_or_unrepresentable_timestamps(self):
+        self.assertEqual(ref._day(1793000000), '2026-10-26')
+        for stamp in (0, -1, True, float('nan'), float('inf'), 10**100):
+            with self.subTest(stamp=stamp):
+                self.assertIsNone(ref._day(stamp))
+
     def test_median_per_district_by_coordinates_with_a_listing_floor(self):
         rows = [listing('rent', 'apartment', 60000 + i * 1000, 120) for i in range(5)]       # العليا: 5 rents
         rows += [listing('sale', 'land', 1_000_000, 500, lon=46.605, lat=24.805) for _ in range(4)]   # الملقا: only 4
@@ -33,9 +39,9 @@ class RealEstateReferenceTests(unittest.TestCase):
         self.assertNotIn('9665', str(doc), 'no advertiser detail leaves the script')
 
     def test_a_district_splits_its_figure_by_building_age_where_ads_state_it(self):
-        rows = [dict(listing('rent', 'floor', 100000 + i * 1000, 160), age=0) for i in range(5)]        # five new
-        rows += [dict(listing('rent', 'floor', 60000 + i * 1000, 160), age=11) for i in range(5)]      # five older
-        rows += [listing('rent', 'floor', 80000, 160) for _ in range(3)]                                # three unstated
+        rows = [dict(listing('rent', 'floor', 100000 + i * 1000, 160), age=0, aqar_id=f'new-{i}') for i in range(5)]        # five new
+        rows += [dict(listing('rent', 'floor', 60000 + i * 1000, 160), age=11, aqar_id=f'old-{i}') for i in range(5)]      # five older
+        rows += [dict(listing('rent', 'floor', 80000, 160), aqar_id=f'unknown-{i}') for i in range(3)]                    # three unstated
         cards = []
         group = ref.build(rows, {'Riyadh': ATLAS}, 'd', cards=cards)['cities']['Riyadh'][0]['groups']['rent_year_residential']
         self.assertEqual(group['listings'], 13, 'every ad counts in the district figure, stated age or not')
@@ -70,9 +76,9 @@ class RealEstateReferenceTests(unittest.TestCase):
         self.assertEqual(ref.build(rows, {'Riyadh': twice}, 'd', default_city='Riyadh')['listings_placed'], 0, 'a shared name is not guessed')
 
 
-    def test_cards_carry_the_district_comparison_and_nothing_about_the_advertiser(self):
+    def test_listing_cards_keep_contact_on_the_private_snapshot_not_the_aggregate(self):
         rows = [dict(listing('rent', 'apartment', 60000 + i * 1000, 120), aqar_id=str(i), url=f'https://sa.aqar.fm/x-{i}',
-                     images=[f'{i}.jpg'], title='شقة للإيجار في شارع س, حي العليا, مدينة الرياض', beds=3) for i in range(5)]
+                     images=[f'{i}.jpg'], title='شقة للإيجار في شارع س, حي العليا, مدينة الرياض', beds=3, phone='0501234567') for i in range(5)]
         cards = []
         ref.build(rows, {'Riyadh': ATLAS}, '2026-10-28', cards=cards)
         self.assertEqual(len(cards), 5)
@@ -83,7 +89,9 @@ class RealEstateReferenceTests(unittest.TestCase):
         self.assertEqual(first['url'], 'https://sa.aqar.fm/ad/0/ar', 'the ad opens in the Aqar app, where the person makes contact')
         self.assertEqual(first['address'], 'شارع س, حي العليا, مدينة الرياض')
         self.assertEqual(first['vs_district_pct'], -3)   # 500 per m² against the district's 516.67
+        self.assertEqual(first['phone'], '0501234567')
         self.assertFalse({'sellerPhone', 'sellerName'} & set(first))
+        self.assertNotIn('0501234567', str(ref.build(rows, {'Riyadh': ATLAS}, '2026-10-28')))
 
     def test_cards_carry_what_the_property_has_its_dates_and_licence_when_stated(self):
         row = dict(listing('rent', 'apartment', 60000, 120), aqar_id='7', images=['7.jpg'], lift=1, furnished=0,
@@ -94,6 +102,25 @@ class RealEstateReferenceTests(unittest.TestCase):
         self.assertEqual(card['features'], {'lift': 1, 'furnished': 0}, 'unstated and unreadable values stay out')
         self.assertEqual((card['tenants'], card['listed_on'], card['licensed']), ('families', '2026-10-26', True))
         self.assertNotIn('updated_on', card)
+
+    def test_exact_duplicate_listing_rows_count_and_render_once(self):
+        rows = [dict(listing('rent', 'apartment', 60000 + i * 1000, 120), aqar_id=str(i)) for i in range(5)]
+        rows.append(dict(rows[0]))
+        cards = []
+        doc = ref.build(rows, {'Riyadh': ATLAS}, '2026-10-28', cards=cards)
+        self.assertEqual(doc['listings_with_price'], 5)
+        self.assertEqual(doc['cities']['Riyadh'][0]['groups']['rent_year_residential']['listings'], 5)
+        self.assertEqual([card['id'] for card in cards], ['0', '1', '2', '3', '4'])
+
+    def test_conflicting_listing_rows_with_the_same_identity_stop_the_build(self):
+        first = dict(listing('rent', 'apartment', 60000, 120), aqar_id='same')
+        conflicting = dict(first, priceSar=75000)
+        with self.assertRaisesRegex(ValueError, 'conflicting listing rows'):
+            ref.build([first, conflicting], {'Riyadh': ATLAS}, '2026-10-28', cards=[])
+
+    def test_located_listing_without_an_openable_identity_stops_card_build(self):
+        with self.assertRaisesRegex(ValueError, 'no aqar_id or URL identity'):
+            ref.build([listing('rent', 'apartment', 60000, 120)], {'Riyadh': ATLAS}, '2026-10-28', cards=[])
 
     def test_every_located_listing_is_a_card_and_doubtful_ones_are_marked(self):
         rows = [dict(listing('rent', 'apartment', 60000, 120), aqar_id=str(i)) for i in range(5)]

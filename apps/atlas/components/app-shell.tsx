@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { ClipboardList, House, Inbox, LogIn, LogOut, Map as MapIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useAppStore } from '@/lib/store'
+import { numberFormat } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 import { WhatsNew } from '@/components/shared/whats-new'
 
@@ -97,7 +98,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 <item.icon className={cn('size-[17px]', active && 'text-primary')} aria-hidden />
                 {item.label}
-                {item.count ? <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-xs font-bold leading-5 text-primary-foreground">{item.count}</span> : null}
+                {item.count ? <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-xs font-bold leading-5 text-primary-foreground">{numberFormat.format(item.count)}</span> : null}
               </Link>
             )
           })}
@@ -127,13 +128,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <div className="flex min-w-0 flex-col pb-16 lg:pb-0 lg:has-[[data-viewport-workspace]]:h-[calc(100dvh-4rem)] lg:has-[[data-viewport-workspace]]:min-h-0">
+      <div className="flex min-w-0 flex-col pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0 lg:has-[[data-viewport-workspace]]:h-[calc(100dvh-4rem)] lg:has-[[data-viewport-workspace]]:min-h-0">
         {children}
       </div>
 
       <WhatsNew onMap={pathname === '/map'} />
 
-      <nav aria-label="التنقل الرئيسي" className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-4 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
+      <nav aria-label="التنقل الرئيسي" className="fixed inset-x-0 bottom-0 z-40 grid h-[calc(4rem+env(safe-area-inset-bottom))] grid-cols-4 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
         {items.map((item) => {
           const active = isActive(item.href)
           return (
@@ -141,11 +142,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               key={item.href}
               href={item.href}
               aria-current={active ? 'page' : undefined}
-              className={cn('relative flex flex-col items-center justify-center gap-1 text-xs font-medium', active ? 'text-primary' : 'text-muted-foreground')}
+              className={cn('relative flex min-w-0 flex-col items-center justify-center gap-1 touch-manipulation text-xs font-medium', active ? 'text-primary' : 'text-muted-foreground')}
             >
               <span className="relative">
                 <item.icon className="size-5" aria-hidden />
-                {item.count ? <span className="absolute -top-1.5 -left-2.5 min-w-4 rounded-full bg-primary px-1 text-center text-xs leading-4 text-primary-foreground">{item.count}</span> : null}
+                {item.count ? <span className="absolute -top-1.5 -left-2.5 min-w-4 rounded-full bg-primary px-1 text-center text-xs leading-4 text-primary-foreground">{numberFormat.format(item.count)}</span> : null}
               </span>
               {item.label}
             </Link>

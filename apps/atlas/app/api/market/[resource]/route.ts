@@ -23,6 +23,7 @@ const READ_ONLY: Record<string, readonly string[]> = {
   'population-around': ['POST'],
   'population-within': ['POST'],
   territories: ['POST'],
+  'territory-centres': ['POST'],
   'district-income': ['POST'],
   'district-audience': ['POST'],
   'housing-level': ['POST'],
@@ -71,6 +72,9 @@ export async function proxy(request: NextRequest, context: { params: Promise<{ r
   }
 
   const controller = new AbortController()
+  const abortFromClient = () => controller.abort()
+  if (request.signal.aborted) controller.abort()
+  else request.signal.addEventListener('abort', abortFromClient, { once: true })
   const timeout = setTimeout(() => controller.abort(), 12_000)
   try {
     const target = new URL(`${origin}/${resource}`)
@@ -94,6 +98,7 @@ export async function proxy(request: NextRequest, context: { params: Promise<{ r
     return NextResponse.json({ error: 'تعذر الاتصال بخدمة بيانات السوق.' }, { status: 502 })
   } finally {
     clearTimeout(timeout)
+    request.signal.removeEventListener('abort', abortFromClient)
   }
 }
 

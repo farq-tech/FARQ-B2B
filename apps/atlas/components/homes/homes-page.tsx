@@ -5,15 +5,21 @@ import Link from 'next/link'
 import { Building2, Calculator, List, Map as MapIcon, Scale, Search, SearchX, SlidersHorizontal, X } from 'lucide-react'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
+import { CityCatalogStatus } from '@/components/shared/city-catalog-status'
+import { CityBoundaryStatus } from '@/components/shared/city-boundary-status'
+import { CityDataStatus } from '../lens/city-data-status'
 import { LoadError } from '@/components/shared/load-error'
 import { ChipRow } from '@/components/shared/search-pill'
 import { Chip } from '@/components/ui/chip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket, useCities } from '@/lib/insights-api'
+import { cityLabel, numberFormat, postMarket, useCities } from '@/lib/insights-api'
 import { LISTING_TYPES, RENT_DEALS, priceLine, toneColor, typeLabel, versusDistrict, type Listing, ageLabel } from '@/lib/real-estate'
-import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
+import { parseListingResponse } from '@/lib/real-estate-response'
+import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, invalidListingRange, listingsSubsetLabel, listingsEmptyStateHeading, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
+import { densityFilterReadiness, districtsAtMinDensity, districtsWithoutDensity } from '@/lib/real-estate-density'
+import { requestWithDeadline } from '@/lib/optional-source'
 import { HomesFilters } from './homes-filters'
 import { cn } from '@/lib/utils'
 import { AdvisorPanel } from '../lens/advisor-panel'
@@ -24,6 +30,7 @@ import { ListingCompare } from '../lens/listing-compare'
 
 const LIMIT = 1500
 const PAGE = 24
+const LISTING_QUERY_DEBOUNCE_MS = 250
 const NO_STEPS = new Map<string, number>()
 
 /** «45k» or «1.2M» for a price pin. */
@@ -40,14 +47,16 @@ function shortPrice(price: number | null): string | undefined {
  * assistant. Modelled on the search-results-with-map pattern (Screenrove: airbnb-product-results).
  */
 export function HomesPage() {
-  const cities = useCities()
-  const cityOptions = useMemo(() => cities.map((item) => [item.en, item.ar || item.en] as const), [cities])
+  const { cities, status: citiesStatus, retry: retryCities } = useCities()
+  const cityOptions = useMemo(() => cities.map((item) => [item.en, cityLabel(item)] as const), [cities])
   const [city, setCity] = useState<string>('Riyadh')
+  const selectedCity = cities.find((item) => item.en === city)
   const [filters, setFilters] = useState<HomeFilters>(DEFAULT_FILTERS)
   const [sheet, setSheet] = useState(false)
   const { kind, types } = filters
   const deal = dealOf(filters)
-  const typesKey = types.join(','), districtsKey = filters.districts.join(',')
+  const invalidRange = invalidListingRange(filters)
+  const typesKey = types.join(',')
   const change = useCallback((next: Partial<HomeFilters>) => setFilters((current) => ({ ...current, ...next })), [])
   const [result, setResult] = useState<{ status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; listings: Listing[] }>({ status: 'loading', available: true, total: null, listings: [] })
   const [inView, setInView] = useState(true)
@@ -61,7 +70,27 @@ export function HomesPage() {
   const [shown, setShown] = useState(PAGE)
   const [mobileMap, setMobileMap] = useState(false)
   const [attempt, setAttempt] = useState(0)
-  const data = useCityData(city)
+  const data = useCityData(city, selectedCity?.districts)
+  const hasAvailableDensity = data.rows.some((row) => row.density != null)
+  const districtsWithoutDensityCount = districtsWithoutDensity(data.rows)
+  const densityCoverageMissing = filters.minDistrictDensity != null && data.status === 'ready'
+    && data.districtSummaryStatus === 'ready' && !hasAvailableDensity
+  const densityDistrictIds = useMemo(() => districtsAtMinDensity(data.rows, filters.minDistrictDensity), [data.rows, filters.minDistrictDensity])
+  const chosenDistrictIds = useMemo(() => {
+    if (filters.districts.length && densityDistrictIds) {
+      const allowed = new Set(densityDistrictIds)
+      return filters.districts.filter((id) => allowed.has(id))
+    }
+    return filters.districts.length ? filters.districts : densityDistrictIds
+  }, [filters.districts, densityDistrictIds])
+  const serverFiltersKey = JSON.stringify({
+    minPrice: filters.minPrice, maxPrice: filters.maxPrice, minArea: filters.minArea, maxArea: filters.maxArea,
+    beds: filters.beds, livings: filters.livings, wc: filters.wc, street: filters.street, maxAge: filters.maxAge,
+    belowMedian: filters.belowMedian, tenants: kind === 'rent' ? filters.tenants : null, features: filters.features,
+    sort: filters.sort, districts: chosenDistrictIds,
+  })
+  const boundsToQuery = inView ? bounds : null
+  const boundsKey = boundsToQuery?.join(',') ?? ''
 
   // a type the deal does not offer (land for rent) falls back to a flat; a new city or deal starts its own ranges
   useEffect(() => {
@@ -73,18 +102,53 @@ export function HomesPage() {
 
   useEffect(() => {
     let live = true
-    setResult((current) => ({ ...current, status: 'loading' }))
+    const controller = new AbortController()
+    setResult({ status: 'loading', available: true, total: null, listings: [] })
     setActive(null)
     setShown(PAGE)
-    // the deal, types, districts and (with a deal) the top price go to the service; the other filters narrow its answer
-    postMarket<{ available?: boolean; total?: number; listings?: Listing[] }>('real-estate-listings', {
-      city, kind, types, deal, limit: LIMIT, ...(filters.maxPrice ? { max_price: filters.maxPrice } : {}),
-      ...(filters.districts.length ? { district_ids: filters.districts } : {}),
-    })
-      .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? null, listings: payload.listings ?? [] }) })
-      .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, listings: [] }) })
-    return () => { live = false }
-  }, [city, kind, typesKey, deal, filters.maxPrice, districtsKey, attempt])
+    if (invalidRange) {
+      setResult({ status: 'ready', available: true, total: null, listings: [] })
+      return () => { live = false }
+    }
+    const densityReadiness = densityFilterReadiness(filters.minDistrictDensity, data.status, data.districtSummaryStatus, hasAvailableDensity)
+    if (densityReadiness === 'error') {
+      setResult({ status: 'error', available: true, total: null, listings: [] })
+      return () => { live = false }
+    }
+    if (densityReadiness === 'loading') return () => { live = false }
+    if (densityReadiness === 'unavailable') {
+      setResult({ status: 'ready', available: false, total: 0, listings: [] })
+      return () => { live = false }
+    }
+    // Wait for quick edits (especially multi-digit price input) to settle before querying the service.
+    // Filter every card before the service's result cap so its total and best matching sample share one scope.
+    const timer = window.setTimeout(() => {
+      void requestWithDeadline((signal) => postMarket<unknown>('real-estate-listings', {
+        city, kind, types, deal, limit: LIMIT, sort: filters.sort,
+        ...(boundsToQuery ? { bbox: boundsToQuery } : {}),
+        ...(chosenDistrictIds ? { district_ids: chosenDistrictIds } : {}),
+        ...(filters.minPrice != null ? { min_price: filters.minPrice } : {}),
+        ...(filters.maxPrice != null ? { max_price: filters.maxPrice } : {}),
+        ...(filters.minArea != null ? { min_area: filters.minArea } : {}),
+        ...(filters.maxArea != null ? { max_area: filters.maxArea } : {}),
+        ...(filters.beds ? { min_beds: filters.beds } : {}),
+        ...(filters.livings ? { min_livings: filters.livings } : {}),
+        ...(filters.wc ? { min_wc: filters.wc } : {}),
+        ...(filters.street ? { min_street_width: filters.street } : {}),
+        ...(filters.maxAge != null ? { max_age: filters.maxAge } : {}),
+        ...(filters.belowMedian ? { min_vs_district_pct: -30, max_vs_district_pct: -0.000001 } : {}),
+        ...(kind === 'rent' && filters.tenants ? { tenants: filters.tenants } : {}),
+        ...(filters.features.length ? { features: filters.features } : {}),
+      }, signal), controller.signal, 15_000)
+        .then((payload) => {
+          if (!live) return
+          const response = parseListingResponse(payload)
+          setResult({ status: 'ready', available: response.available, total: response.total, listings: response.listings })
+        })
+        .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, listings: [] }) })
+    }, LISTING_QUERY_DEBOUNCE_MS)
+    return () => { live = false; window.clearTimeout(timer); controller.abort() }
+  }, [city, kind, typesKey, deal, serverFiltersKey, filters.minDistrictDensity, data.status, data.districtSummaryStatus, hasAvailableDensity, boundsKey, attempt, invalidRange])
 
   // narrowing: the filters first, then (when asked) what the map shows
   const filtered = useMemo(() => applyFilters(result.listings, filters), [result.listings, filters])
@@ -110,6 +174,7 @@ export function HomesPage() {
   const applied = activeFilters(filters, districtName)
   const dealLabel = kind === 'sale' ? 'شراء' : `إيجار ${RENT_DEALS.find((item) => item.id === filters.rentDeal)?.label ?? ''}`
   const cityAr = cities.find((item) => item.en === city)?.ar || city
+  const sourceStateHeading = result.status === 'ready' ? listingsEmptyStateHeading(result.available, densityCoverageMissing, cityAr) : null
 
   return (
     <div className="flex h-[calc(100dvh-8rem)] flex-col lg:h-[calc(100dvh-4rem)]">
@@ -160,9 +225,20 @@ export function HomesPage() {
           </ChipRow>
         )}
       </header>
+      <CityCatalogStatus status={citiesStatus} retry={retryCities} className="mx-4 mt-2 lg:mx-6" />
+      <CityBoundaryStatus city={cityAr} districtCount={selectedCity?.districts} className="mx-4 mt-2 lg:mx-6" />
+      <CityDataStatus failedSources={data.failedSources} pendingSources={data.pendingSources} retry={() => data.reload?.()} className="mx-4 mt-2 lg:mx-6" />
+      {filters.minDistrictDensity != null && data.status === 'ready' && data.districtSummaryStatus === 'ready'
+        && hasAvailableDensity && districtsWithoutDensityCount > 0 && (
+          <p role="status" className="mx-4 mt-2 text-sm text-muted-foreground lg:mx-6">
+            {numberFormat.format(districtsWithoutDensityCount)} من الأحياء ذات الحدود المتاحة بلا كثافة متاحة؛ لا تدخل في نتائج هذا الفلتر.
+          </p>
+        )}
       <HomesFilters open={sheet} onClose={() => setSheet(false)} filters={filters} onChange={change} districts={districtList}
+        districtStatus={data.status} onRetryDistricts={data.reload}
         cities={cityOptions} city={city} onCity={setCity}
-        count={visible.length} loading={result.status === 'loading'} />
+        count={result.total ?? 0} loading={result.status === 'loading'} error={result.status === 'error'}
+        unavailable={result.status === 'ready' && !result.available} />
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         {/* results: two columns of photo cards */}
@@ -171,7 +247,7 @@ export function HomesPage() {
             <h1 className="text-xl font-bold">
               {/* the service sends the best LIMIT of a larger match: then the count is «the best N», never the city's */}
               {result.status === 'ready'
-                ? `${result.total != null && result.total > result.listings.length && !(inView && bounds) ? 'أنسب ' : ''}${visible.length ? offersLabel(visible.length) : 'لا عروض'} ${inView && bounds ? 'في ما تُظهره الخريطة' : `في ${cityAr}`}`
+                ? invalidRange ? 'راجع نطاق الفلتر' : sourceStateHeading ?? `${result.total != null && result.total > result.listings.length ? listingsSubsetLabel(filters.sort, offersLabel(result.listings.length), offersLabel(result.total)) : result.total ? offersLabel(result.total) : 'لا عروض'} ${inView && bounds ? 'في ما تُظهره الخريطة' : `في ${cityAr}`}`
                 : `عروض ${cityAr}`}
             </h1>
             <label className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
@@ -189,9 +265,17 @@ export function HomesPage() {
               ))}
             </ul>
           )}
-          {result.status === 'error' && <LoadError what="العروض" onRetry={() => setAttempt((n) => n + 1)} />}
-          {result.status === 'ready' && !result.available && <EmptyState icon={Building2} title="غير متاحة بعد" body={`عروض العقار غير متاحة في ${cityAr} بعد. جرّب الرياض أو جدة.`} />}
-          {result.status === 'ready' && result.available && visible.length === 0 && (
+          {result.status === 'error' && <LoadError what={filters.minDistrictDensity != null && (data.status === 'error' || data.districtSummaryStatus === 'error') ? 'كثافة سكان الأحياء' : 'العروض'} onRetry={() => {
+            if (filters.minDistrictDensity != null && (data.status === 'error' || data.districtSummaryStatus === 'error')) data.reload?.()
+            setAttempt((n) => n + 1)
+          }} />}
+          {result.status === 'ready' && invalidRange && <EmptyState icon={SearchX}
+            title={invalidRange === 'price' ? 'راجع نطاق السعر' : 'راجع نطاق المساحة'}
+            body="قيمة «من» أعلى من «إلى». عدّل الحدين أو امسح أحدهما؛ لم نبحث عن عروض بهذا النطاق." />}
+          {densityCoverageMissing && <EmptyState icon={Building2} title="كثافة السكان غير متاحة" body={`لا تتوفر قيم كثافة سكان للأحياء في ${cityAr}، لذلك لم أطبّق هذا الفلتر.`}
+            action={<Chip onClick={() => change({ minDistrictDensity: null })}>أزل فلتر الكثافة</Chip>} />}
+          {result.status === 'ready' && !result.available && !densityCoverageMissing && <EmptyState icon={Building2} title="غير متاحة بعد" body={`عروض العقار غير متاحة في ${cityAr} بعد. جرّب الرياض أو جدة.`} />}
+          {result.status === 'ready' && result.available && !invalidRange && visible.length === 0 && (
             <EmptyState icon={SearchX} title="لا عروض بهذه الشروط" body="جرّب مدة أخرى، أو أزل بعض الفلاتر، أو حرّك الخريطة."
               action={(
                 <div className="flex flex-wrap justify-center gap-2">
@@ -237,7 +321,7 @@ export function HomesPage() {
           )}
           {result.status === 'ready' && result.total != null && result.total > result.listings.length && (
             <p className="mt-4 text-center text-xs text-muted-foreground">
-              <Explained title="أنسب العروض" lines={EXPLAIN.bestListings} className="text-xs">في المدينة {numberFormat.format(result.total)} عرضاً، والمعروض أنسب {numberFormat.format(result.listings.length)} منها</Explained>
+              <Explained title="أنسب العروض" lines={EXPLAIN.bestListings} className="text-xs">بعد الفلاتر {numberFormat.format(result.total)} عرضاً، ويعرض التطبيق أنسب {numberFormat.format(result.listings.length)} منها</Explained>
             </p>
           )}
         </section>
@@ -278,7 +362,7 @@ export function HomesPage() {
       {advise && compare.length === 2 && (
         <div className="fixed inset-0 z-30 grid place-items-center bg-background/70 p-4 backdrop-blur" role="dialog" aria-label="مقارنة العرضين">
           <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl border bg-card p-4">
-            <AdvisorPanel subject={{ kind: 'listings', listings: compare }} rows={data.rows} onClose={() => setAdvise(false)} />
+            <AdvisorPanel subject={{ kind: 'listings', listings: compare }} rows={data.rows} mode="real_estate" onClose={() => setAdvise(false)} />
           </div>
         </div>
       )}

@@ -1,5 +1,14 @@
 import { numberFormat } from './insights-api'
+import { ageStepLabel as formatAgeStepLabel, ageWithin } from './real-estate-age'
+export { AGE_STEPS } from './real-estate-age'
 import { FEATURES, PERIOD_WORD, TENANTS_LABEL, isPublishable, typeLabel, type Deal, type Feature, type Listing, type ListingKind } from './real-estate'
+import { isBelowDistrictMedian } from './real-estate-comparison'
+import { listingsSubsetLabel, type ListingSort } from './real-estate-result-summary'
+import { BELOW_MEDIAN_FILTER_LABEL } from './real-estate-filter-label'
+
+export { listingsEmptyStateHeading, listingsSubsetLabel } from './real-estate-result-summary'
+export { BELOW_MEDIAN_FILTER_LABEL, BELOW_MEDIAN_MAX_DISCOUNT_PCT } from './real-estate-filter-label'
+export type SortId = ListingSort
 
 /** Every filter «العقار» offers. The deal, types and districts go to the service; the rest narrow what it sent. */
 export type HomeFilters = {
@@ -8,6 +17,8 @@ export type HomeFilters = {
   types: string[]
   /** District ids (the atlas ids the listings carry). */
   districts: string[]
+  /** Minimum available resident density (people/km²) for a listing's district; its population source may be estimated. */
+  minDistrictDensity: number | null
   minPrice: number | null
   maxPrice: number | null
   minArea: number | null
@@ -26,10 +37,8 @@ export type HomeFilters = {
   sort: SortId
 }
 
-export type SortId = 'best' | 'price_asc' | 'price_desc' | 'area_desc' | 'sqm_asc'
-
 export const DEFAULT_FILTERS: HomeFilters = {
-  kind: 'rent', rentDeal: 'rent_year', types: ['apartment'], districts: [],
+  kind: 'rent', rentDeal: 'rent_year', types: ['apartment'], districts: [], minDistrictDensity: null,
   minPrice: null, maxPrice: null, minArea: null, maxArea: null, beds: 0, livings: 0, wc: 0, street: 0, maxAge: null,
   belowMedian: false, tenants: null, features: [], sort: 'best',
 }
@@ -53,10 +62,16 @@ export function offersLabel(count: number): string {
 export const COUNT_STEPS = [0, 1, 2, 3, 4, 5]
 export const STREET_STEPS = [0, 12, 15, 20, 30]
 /** Building age steps: any, new, and «up to N years». */
-export const AGE_STEPS: (number | null)[] = [null, 0, 2, 5, 10]
-export const ageStepLabel = (step: number | null) => (step == null ? 'أي عمر' : step === 0 ? 'جديد' : step === 2 ? 'سنتان أو أقل' : `حتى ${numberFormat.format(step)} سنوات`)
+export const ageStepLabel = (step: number | null) => formatAgeStepLabel(step, (value) => numberFormat.format(value))
+export const DENSITY_STEPS: (number | null)[] = [null, 5000, 10000, 15000, 20000]
 
 export const dealOf = (filters: Pick<HomeFilters, 'kind' | 'rentDeal'>): Deal => (filters.kind === 'sale' ? 'sale' : filters.rentDeal)
+
+export function invalidListingRange(filters: Pick<HomeFilters, 'minPrice' | 'maxPrice' | 'minArea' | 'maxArea'>): 'price' | 'area' | null {
+  if (filters.minPrice != null && filters.maxPrice != null && filters.minPrice > filters.maxPrice) return 'price'
+  if (filters.minArea != null && filters.maxArea != null && filters.minArea > filters.maxArea) return 'area'
+  return null
+}
 
 /** A figure the ad does not state never passes a range or a minimum on it: it is not taken as zero. */
 const within = (value: number | null | undefined, low: number | null, high: number | null) =>
@@ -66,8 +81,8 @@ const atLeast = (value: number | undefined, step: number) => !step || (value ?? 
 export function applyFilters(listings: Listing[], filters: HomeFilters): Listing[] {
   const kept = listings.filter((l) => isPublishable(l) && within(l.price_sar, filters.minPrice, filters.maxPrice) && within(l.area_sqm, filters.minArea, filters.maxArea)
     && atLeast(l.beds, filters.beds) && atLeast(l.livings, filters.livings) && atLeast(l.wc, filters.wc) && atLeast(l.street_width, filters.street)
-    && within(l.age, null, filters.maxAge)
-    && (!filters.belowMedian || (l.vs_district_pct ?? 0) < 0)
+    && ageWithin(l.age, filters.maxAge)
+    && (!filters.belowMedian || isBelowDistrictMedian(l.vs_district_pct))
     // an ad that does not say who may live there, or whether it has a feature, does not pass a filter on it
     && (!filters.tenants || filters.kind !== 'rent' || l.tenants === filters.tenants || l.tenants === 'both')
     && filters.features.every((key) => l.features?.[key] === 1))
@@ -93,6 +108,7 @@ export function activeFilters(filters: HomeFilters, districtName: (id: string) =
   const out: { id: string; label: string; clear: Partial<HomeFilters> }[] = []
   if (filters.types.length > 1) out.push({ id: 'types', label: filters.types.map(typeLabel).join('، '), clear: { types: filters.types.slice(0, 1) } })
   for (const id of filters.districts) out.push({ id: `d:${id}`, label: districtName(id), clear: { districts: filters.districts.filter((item) => item !== id) } })
+  if (filters.minDistrictDensity != null) out.push({ id: 'density', label: `كثافة سكان الحي: ${numberFormat.format(filters.minDistrictDensity)}+ ساكن/كم²`, clear: { minDistrictDensity: null } })
   if (filters.minPrice != null || filters.maxPrice != null) out.push({ id: 'price', label: range(filters.minPrice, filters.maxPrice, ` ريال${period}`), clear: { minPrice: null, maxPrice: null } })
   if (filters.minArea != null || filters.maxArea != null) out.push({ id: 'area', label: range(filters.minArea, filters.maxArea, ' م²'), clear: { minArea: null, maxArea: null } })
   if (filters.beds) out.push({ id: 'beds', label: `${numberFormat.format(filters.beds)}+ غرف`, clear: { beds: 0 } })
@@ -100,7 +116,7 @@ export function activeFilters(filters: HomeFilters, districtName: (id: string) =
   if (filters.wc) out.push({ id: 'wc', label: `${numberFormat.format(filters.wc)}+ دورات مياه`, clear: { wc: 0 } })
   if (filters.street) out.push({ id: 'street', label: `شارع ${numberFormat.format(filters.street)} م فأكثر`, clear: { street: 0 } })
   if (filters.maxAge != null) out.push({ id: 'age', label: `عمر العقار: ${ageStepLabel(filters.maxAge)}`, clear: { maxAge: null } })
-  if (filters.belowMedian) out.push({ id: 'below', label: 'أقل من وسيط الحي', clear: { belowMedian: false } })
+  if (filters.belowMedian) out.push({ id: 'below', label: BELOW_MEDIAN_FILTER_LABEL, clear: { belowMedian: false } })
   if (filters.tenants && filters.kind === 'rent') out.push({ id: 'tenants', label: TENANTS_LABEL[filters.tenants], clear: { tenants: null } })
   for (const key of filters.features) out.push({ id: `f:${key}`, label: FEATURES.find(([id]) => id === key)?.[1] ?? key, clear: { features: filters.features.filter((item) => item !== key) } })
   if (filters.sort !== 'best') out.push({ id: 'sort', label: SORTS.find((item) => item.id === filters.sort)?.label ?? '', clear: { sort: 'best' } })

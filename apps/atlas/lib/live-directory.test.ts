@@ -1,22 +1,33 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { isMapQuery, sanitizeLiveDirectoryEntity } from './live-directory.ts'
+import { dedupeDirectoryEntities, exactDirectoryTotal, hasPermanentlyClosedEntity, type PublicDirectoryEntity } from './live-directory.ts'
 
-test('directory map profile returns only the basic entity fields', () => {
-  const entity = sanitizeLiveDirectoryEntity({
-    poi_key: 'poi-1', name_ar: 'شركة مقاولات', category_ar: 'مقاولات عامة', district_ar: 'الربيع', street_ar: 'طريق الملك',
-    latitude: 24.8, longitude: 46.7, has_whatsapp: true, phone_norm: '966500000000', email: 'private@example.test', sources: ['private'],
-  })
-  assert.deepEqual(entity, {
-    id: 'poi-1', name: 'شركة مقاولات', category: 'مقاولات عامة', district: 'الربيع', street: 'طريق الملك', latitude: 24.8, longitude: 46.7,
-    wholesale: false, whatsapp: true, verification: null, roles: [], specialties: [], reason: '', fit: null, status: null,
-  })
-  assert.equal(JSON.stringify(entity).includes('9665'), false)
-  assert.equal(JSON.stringify(entity).includes('private@example'), false)
+function row(id: string, district: string, status: PublicDirectoryEntity['status'] = null): PublicDirectoryEntity {
+  return { id, district, status } as PublicDirectoryEntity
+}
+
+test('directory pages deduplicate businesses by their stable ID', () => {
+  const merged = dedupeDirectoryEntities([row('poi-1', 'حي أ'), row('poi-2', 'حي ب'), row('poi-1', 'حي ج')])
+  assert.equal(merged.length, 2)
+  assert.deepEqual(merged.map((item) => item.id), ['poi-1', 'poi-2'])
+  assert.equal(merged[0].district, 'حي ج')
 })
 
-test('map query must be an opaque 32-character hexadecimal token', () => {
-  assert.equal(isMapQuery('0123456789abcdef0123456789abcdef'), true)
-  assert.equal(isMapQuery('not-a-map-token'), false)
-  assert.equal(isMapQuery('../secret'), false)
+test('rejects a page containing permanent closures before trusting its total or page cursor', () => {
+  assert.equal(hasPermanentlyClosedEntity([row('poi-1', 'حي أ'), row('poi-2', 'حي ب', 'closed_permanent')]), true)
+  assert.equal(hasPermanentlyClosedEntity([row('poi-1', 'حي أ', 'closed_temporary'), row('poi-2', 'حي ب')]), false,
+    'temporary closures remain visible with their status label')
+})
+
+test('multi-district totals stay unknown until all pages are loaded', () => {
+  assert.equal(exactDirectoryTotal({ scopeCount: 3, pendingScopes: 2, uniqueCount: 400, singleScopeTotal: 0 }), null)
+  assert.equal(exactDirectoryTotal({ scopeCount: 3, pendingScopes: 0, uniqueCount: 742, singleScopeTotal: 0 }), 742)
+})
+
+test('one-scope totals remain exact while more rows are available', () => {
+  assert.equal(exactDirectoryTotal({ scopeCount: 1, pendingScopes: 1, uniqueCount: 200, singleScopeTotal: 255 }), 255)
+})
+
+test('a search with no selected scope cannot claim a measured zero', () => {
+  assert.equal(exactDirectoryTotal({ scopeCount: 0, pendingScopes: 0, uniqueCount: 0, singleScopeTotal: 0 }), null)
 })

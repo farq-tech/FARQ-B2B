@@ -3,6 +3,7 @@
 import { ShieldCheck } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AUTO_VARIABLES, TEMPLATES, businessById, districtById } from '@/lib/mock-data'
+import { numberFormat } from '@/lib/insights-api'
 import type { Business, CampaignDetails, LiveBusinessSnapshot } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -124,7 +125,7 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
               المستلمون ومراجعة الأهلية
             </h2>
             <p className="text-xs text-muted-foreground">
-              {value.included.length} مؤهلون للإرسال السحابي من {businessIds.length}. نستبعد من لا يملك رقم واتساب.
+              {numberFormat.format(value.included.length)} مؤهلون للإرسال السحابي من {numberFormat.format(businessIds.length)}. نستبعد من لا يملك رقم واتساب.
             </p>
           </div>
           <ShieldCheck className="size-5 shrink-0 text-primary" aria-hidden />

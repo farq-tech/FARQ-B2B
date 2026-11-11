@@ -5,6 +5,7 @@ import { BadgeCheck, Check, ChevronDown, ExternalLink, MessageCircle, Phone, Sca
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat } from '@/lib/insights-api'
+import { listingRoomFacts } from '@/lib/listing-room-facts'
 import { FEATURES, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
@@ -39,7 +40,7 @@ export function Gallery({ photos, className = 'h-40' }: { photos: string[]; clas
   )
 }
 
-/** The advertiser's number, asked for one listing at a time by a signed-in person; a call and a WhatsApp link. */
+/** The signed-in user requests one advertiser number, then chooses whether to call or open WhatsApp. */
 function ListingPhone({ id }: { id: string }) {
   const [state, setState] = useState<{ phone?: string | null; error?: string; loading?: boolean }>({})
   const reveal = async () => {
@@ -97,11 +98,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
   const [around, setAround] = useState(false)
   const versus = listing.check ? null : versusDistrict(listing)
   const perSqm = perSqmLine(listing)
-  const rooms = [
-    listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null,
-    listing.beds ? `${numberFormat.format(listing.beds)} غرف` : null,
-    listing.wc ? `${numberFormat.format(listing.wc)} دورات مياه` : null,
-  ].filter(Boolean)
+  const rooms = listingRoomFacts(listing).map(({ kind, value }) => `${numberFormat.format(value)} ${{ area: 'م²', beds: 'غرف نوم', livings: 'صالات', wc: 'دورات مياه' }[kind]}`)
   const photos = listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
   // what the property has, as the ad's form records it; what it lacks shows in the comparison
   const has = FEATURES.filter(([key]) => listing.features?.[key] === 1).map(([, label]) => label)
@@ -172,7 +169,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
           {listing.has_phone ? null : listing.url ? (
             <a href={listing.url} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">
-              <ExternalLink className="size-4" aria-hidden /> اتصل أو راسل المعلن
+              <ExternalLink className="size-4" aria-hidden /> افتح الإعلان في عقار
             </a>
           ) : <span />}
           <button onClick={onCompare} aria-pressed={comparing}

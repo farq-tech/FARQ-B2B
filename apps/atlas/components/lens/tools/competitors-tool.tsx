@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { counted, ltr, nounAfter, numberFormat, percent, postMarket } from '@/lib/insights-api'
+import { counted, ltr, nounAfter, numberFormat, percent, postMarket, useMainActivities } from '@/lib/insights-api'
+import { isDistrictCountResponse } from '@/lib/district-counts'
+import { joinDistrictByIdOrUniqueName } from '@/lib/district-join'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
 import { MapLegend } from './map-legend'
@@ -15,14 +17,13 @@ import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 
-type Activity = { main_id: string; main_ar: string }
 // per_km2 (businesses ÷ km²) and residents_per (residents ÷ businesses) come ready from the service for the activity's
 // counts; a brand's by_district carries only n
-type Count = { district_ar: string; n: number; per_km2?: number | null; residents_per?: number | null }
+type Count = { district_id?: string | null; district_ar: string; n: number; per_km2?: number | null; residents_per?: number | null }
 type Growth = { since: string | null; before: number; now: number } | null
 type Brand = { brand: string; keys: string[]; branches: number; districts: number; share_pct: number | null; by_district: Count[]; growth: Growth }
-type Uncovered = { district_ar: string; population: number; businesses: number }
-type Brands = { total: number; chains: number; in_chains: number; brands: Brand[]; uncovered?: Uncovered[]; uncovered_by?: string[] }
+type Uncovered = { district_id?: string | null; district_ar: string; population: number; businesses: number }
+type Brands = { total: number; chains: number; in_chains: number; brands: Brand[]; uncovered?: Uncovered[]; uncovered_by?: string[]; uncovered_population_unavailable?: number }
 type Profile = { branches: number; districts: number; activity: { main_ar: string; classified: number; agree: number } | null; activities: { main_ar: string; n: number }[] }
 
 /** «+5 فروع», or null until the service has a long enough directory history (market_analytics.chain_growth). */
@@ -31,7 +32,7 @@ function growthLine(growth: Growth): string | null {
   const change = growth.now - growth.before
   return change === 0 ? 'بلا تغيير' : `${ltr(`${change > 0 ? '+' : '−'}${numberFormat.format(Math.abs(change))}`)} ${nounAfter(change, 'branch')}`
 }
-type Row = { row: DistrictRow; competitors: number; perKm2: number | null; residentsPer: number | null }
+type Row = { row: DistrictRow; competitors: number | null; perKm2: number | null; residentsPer: number | null }
 
 const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطعم', 'صالون حلاقة', 'مقهى']
 // competition reads as heat: pale for few competitors per km², deep amber for many
@@ -52,7 +53,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   /** Opens every branch of a chain across the city, for a quote request or campaign to all of them. */
   onAllBranches: (brand: string) => void
 }) {
-  const [activities, setActivities] = useState<Activity[]>([])
+  const { activities, status: activityStatus, retry: retryActivities } = useMainActivities(city)
   // the map opens painted with the activity studied in any step; any other activity replaces it
   const [studied, setStudied] = useStudiedActivity()
   const [query, setQuery] = useState(studied.q ?? '')
@@ -71,68 +72,78 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   useEffect(() => {
     if (!brand) return
     let live = true
+    const controller = new AbortController()
     setProfile(null)
-    postMarket<Profile>('brand-profile', { city, keys: brand.keys })
+    postMarket<Profile>('brand-profile', { city, keys: brand.keys }, controller.signal)
       .then((data) => { if (live) setProfile(data) })
       .catch(() => { if (live) setProfile('error') })
-    return () => { live = false }
+    return () => { live = false; controller.abort() }
   }, [city, brand])
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
 
   useEffect(() => {
-    setCounts(null)
-    postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
-      .then((payload) => setActivities(payload.summary?.main_activities ?? []))
-      .catch(() => setActivities([]))
-  }, [city])
-
-  useEffect(() => {
     if (!studied) return
     let live = true
+    const controller = new AbortController()
     setStatus('loading')
     setBrand(null)
+    setCounts(null)
+    setCityTotal(null)
+    setLocated(null)
+    setUnderstood(null)
+    setBrands(null)
     onActivity(studied.q ?? studied.label)
     const activity = { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
     Promise.all([
-      postMarket<{ districts?: Count[]; total?: number; located?: number; understood?: Understanding }>('district-counts', activity),
+      postMarket<unknown>('district-counts', activity, controller.signal).then((payload) => {
+        if (!isDistrictCountResponse(payload)) throw new Error('Invalid district counts')
+        return payload as { districts: Count[]; total: number; located?: number; understood?: Understanding }
+      }),
       // chains are a second reading of the same businesses; the districts still show when they are unavailable
-      postMarket<Brands>('brands', { ...activity, limit: 50 }).catch(() => null),
+      postMarket<Brands>('brands', { ...activity, limit: 50 }, controller.signal).catch((error) => {
+        if (controller.signal.aborted) throw error
+        return null
+      }),
     ])
       .then(([data, chains]) => { if (live) { setCounts(data.districts ?? []); setCityTotal(typeof data.total === 'number' ? data.total : null); setLocated(typeof data.located === 'number' ? data.located : null); setUnderstood(data.understood); setBrands(chains); setStatus('idle') } })
-      .catch(() => { if (live) setStatus('error') })
-    return () => { live = false }
+      .catch(() => { if (live && !controller.signal.aborted) setStatus('error') })
+    return () => { live = false; controller.abort() }
   }, [city, studied, onActivity])
 
   const table = useMemo<Row[]>(() => {
     if (!counts) return []
-    const byName = new Map(counts.map((count) => [count.district_ar, count]))
+    const byDistrict = joinDistrictByIdOrUniqueName(rows.map((row) => ({ id: row.id, name: row.name })), counts)
     return rows.map((row) => {
-      const count = byName.get(row.name)
-      return { row, competitors: count?.n ?? 0, perKm2: count?.per_km2 ?? null, residentsPer: count?.residents_per ?? null }
+      const count = byDistrict.get(row.id)
+      return { row, competitors: count?.n ?? (cityTotal === 0 ? 0 : null), perKm2: count?.per_km2 ?? null, residentsPer: count?.residents_per ?? null }
     })
-  }, [counts, rows])
+  }, [counts, rows, cityTotal])
 
   useEffect(() => {
     if (brand) {
       // one chain: its branches per district, in the same heat scale
-      const ids = new Map(rows.map((row) => [row.name, row.id]))
-      const counts = brand.by_district.map((item) => item.n).sort((a, b) => a - b)
+      const byDistrict = joinDistrictByIdOrUniqueName(rows.map((row) => ({ id: row.id, name: row.name })), brand.by_district)
+      const mapped = rows.flatMap((row) => {
+        const count = byDistrict.get(row.id)
+        return count ? [{ id: row.id, n: count.n }] : []
+      })
+      const counts = mapped.map((item) => item.n).sort((a, b) => a - b)
       const colors = new Map<string, string>()
-      for (const item of brand.by_district) {
-        const id = ids.get(item.district_ar)
-        if (!id) continue
+      for (const item of mapped) {
         let below = 0
         while (below < counts.length && counts[below] < item.n) below++
-        colors.set(id, HEAT[Math.min(4, Math.floor((5 * below) / counts.length))])
+        colors.set(item.id, HEAT[Math.min(4, Math.floor((5 * below) / counts.length))])
       }
       onOverlay({ colors })
       return
     }
     if (!table.length) { onOverlay({}); return }
-    const dense = table.flatMap((item) => (item.competitors > 0 && item.perKm2 != null ? [item.perKm2] : [])).sort((a, b) => a - b)
+    const dense = table.flatMap((item) => (item.competitors != null && item.competitors > 0 && item.perKm2 != null ? [item.perKm2] : [])).sort((a, b) => a - b)
     const colors = new Map<string, string>()
     for (const item of table) {
-      if (!item.competitors || item.perKm2 == null) { colors.set(item.row.id, NONE); continue }
+      if (item.competitors == null) continue
+      if (item.competitors === 0) { colors.set(item.row.id, NONE); continue }
+      if (item.perKm2 == null) continue
       let below = 0
       while (below < dense.length && dense[below] < item.perKm2) below++
       colors.set(item.row.id, HEAT[Math.min(4, Math.floor((5 * below) / Math.max(1, dense.length)))])
@@ -140,10 +151,11 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     onOverlay({ colors })
   }, [table, brand, rows, onOverlay])
 
-  const ranked = [...table].filter((item) => order === 'dense' ? item.competitors > 0 : item.row.population != null)
+  const leastCompetition = (item: Row) => item.competitors == null ? Infinity : item.competitors === 0 ? 0 : item.perKm2 ?? Infinity
+  const ranked = [...table].filter((item) => order === 'dense' ? item.competitors != null && item.competitors > 0 : item.row.population != null)
     .sort((a, b) => (order === 'dense'
       ? (b.perKm2 ?? -1) - (a.perKm2 ?? -1)
-      : (a.perKm2 ?? Infinity) - (b.perKm2 ?? Infinity) || (b.row.population ?? 0) - (a.row.population ?? 0)))
+      : leastCompetition(a) - leastCompetition(b) || (b.row.population ?? 0) - (a.row.population ?? 0)))
   const study = (next: StudiedActivity) => setStudied(next)
   const pickBrand = (next: Brand | null) => {
     setBrand(next)
@@ -162,8 +174,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
           {status === 'loading' ? <Loader2 className="size-5 animate-spin" aria-label="جارٍ الحساب" /> : 'ادرس'}
         </button>
       </div>
-      <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
-        onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); study({ main_id: item.main_id, label: item.main_ar }) } }} />
+      <MainActivityPicker activities={activities} value={studied.main_id ?? ''} valueLabel={studied.main_id ? studied.label : undefined} placeholder="أو اختر نشاطاً رئيسياً"
+        onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); study({ main_id: item.main_id, label: item.main_ar }) } }} status={activityStatus} onRetry={retryActivities} />
       <div className="flex flex-wrap gap-2">
           {EXAMPLES.map((example) => (
             <button key={example} onClick={() => { setQuery(example); study({ q: example, label: example }) }} className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary"><Icon3D activity={example} />{example}</button>
@@ -199,11 +211,11 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{item.row.name}</span>
                       <span className="block text-sm text-muted-foreground">
-                        {item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي'}
+                        {item.competitors == null ? 'عدد المنافسين غير متاح' : item.competitors === 0 ? 'لا منافس في الحي' : item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : 'السكان غير متاح'}
                       </span>
                     </span>
                     <span className="shrink-0 text-end">
-                      <span className="block font-bold">{numberFormat.format(item.competitors)}</span>
+                      <span className="block font-bold">{item.competitors == null ? 'غير متاح' : numberFormat.format(item.competitors)}</span>
                       <span className="block text-sm text-muted-foreground">{item.perKm2 != null ? `${numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²` : 'المساحة غير متاحة'}</span>
                     </span>
                   </button>
@@ -237,24 +249,30 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                   </li>
                 ))}
               </ol>
-              {brands.uncovered && brands.uncovered.length > 0 && (
+              {((brands.uncovered?.length ?? 0) > 0 || (brands.uncovered_population_unavailable ?? 0) > 0) && (
                 <div className="flex flex-col gap-1.5 rounded-xl border p-3">
-                  <Explained title="أين لم تصل السلاسل" lines={EXPLAIN.uncovered(brands.uncovered_by ?? [])} className="font-semibold">
-                    أحياء مأهولة لم تصلها أكبر {numberFormat.format(brands.uncovered_by?.length ?? 0)} سلاسل
-                  </Explained>
-                  <ol className="max-h-[30vh] divide-y overflow-y-auto text-base">
-                    {brands.uncovered.map((item) => {
-                      const id = rows.find((row) => row.name === item.district_ar)?.id
-                      return (
-                        <li key={item.district_ar}>
-                          <button disabled={!id} onClick={() => id && onSelect(id)} className="flex w-full items-center justify-between gap-2 py-2 text-start hover:text-primary disabled:hover:text-inherit">
-                            <span className="min-w-0 flex-1 truncate">{item.district_ar}</span>
-                            <span className="shrink-0 text-end text-sm text-muted-foreground">{numberFormat.format(item.population)} ساكن · {numberFormat.format(item.businesses)} منشأة من النشاط</span>
-                          </button>
-                        </li>
-                      )
-                    })}
-                  </ol>
+                  {(brands.uncovered?.length ?? 0) > 0 && <>
+                    <Explained title="أين لم تصل السلاسل" lines={EXPLAIN.uncovered(brands.uncovered_by ?? [])} className="font-semibold">
+                      أحياء مأهولة لم تصلها أكبر {numberFormat.format(brands.uncovered_by?.length ?? 0)} سلاسل
+                    </Explained>
+                    <ol className="max-h-[30vh] divide-y overflow-y-auto text-base">
+                      {brands.uncovered?.map((item) => {
+                        const matches = joinDistrictByIdOrUniqueName(rows.map((row) => ({ id: row.id, name: row.name })), [item])
+                        const id = rows.find((row) => matches.has(row.id))?.id
+                        return (
+                          <li key={item.district_ar}>
+                            <button disabled={!id} onClick={() => id && onSelect(id)} className="flex w-full items-center justify-between gap-2 py-2 text-start hover:text-primary disabled:hover:text-inherit">
+                              <span className="min-w-0 flex-1 truncate">{item.district_ar}</span>
+                              <span className="shrink-0 text-end text-sm text-muted-foreground">{numberFormat.format(item.population)} ساكن · {numberFormat.format(item.businesses)} منشأة من النشاط</span>
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ol>
+                  </>}
+                  {(brands.uncovered_population_unavailable ?? 0) > 0 && <p className="text-sm text-muted-foreground">
+                    لا يتوفر قياس السكان لـ {numberFormat.format(brands.uncovered_population_unavailable ?? 0)} من الأحياء التي لم تصلها السلاسل؛ لذلك لا يمكن تأكيد إن كان أي منها يضم {numberFormat.format(5_000)} ساكن أو أكثر.
+                  </p>}
                 </div>
               )}
             </>

@@ -8,7 +8,7 @@ import { FEATURES, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, type
 import { cn } from '@/lib/utils'
 import { Gallery } from './listing-card'
 
-const count = (value: number | null | undefined, unit = '') => (value ? `${numberFormat.format(value)}${unit}` : 'غير متاح')
+const count = (value: number | null | undefined, unit = '') => (value != null ? `${numberFormat.format(value)}${unit}` : 'غير متاح')
 
 const has = (value: 0 | 1 | undefined) => (value === 1 ? 'يوجد' : value === 0 ? 'لا يوجد' : 'غير متاح')
 const licence = (value: boolean | undefined) => (value === true ? 'مرخّص' : value === false ? 'غير مرخّص' : 'غير متاح')

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { Loader2, Scale, Send, X } from 'lucide-react'
 import { ltr, numberFormat } from '@/lib/insights-api'
-import { perSqmLine, priceLine, typeLabel, type Listing } from '@/lib/real-estate'
+import { ageLabel, perSqmLine, priceLine, TENANTS_LABEL, typeLabel, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from './city-data'
 
@@ -47,6 +47,8 @@ function listingFacts(listing: Listing, letter: string): string {
     ...(listing.check ? ['أرقام الإعلان تحتاج تحققاً'] : []),
     `مقارنة بوسيط الحي ${listing.vs_district_pct == null ? 'غير متاح' : ltr(`${listing.vs_district_pct > 0 ? '+' : ''}${numberFormat.format(listing.vs_district_pct)}%`)}`,
     `غرف النوم ${figure(listing.beds)}`,
+    `عمر العقار ${listing.age == null ? 'غير مذكور' : listing.age === 0 ? 'جديد' : ageLabel(listing.age)}`,
+    `السكن ${listing.tenants ? TENANTS_LABEL[listing.tenants] : 'غير مذكور'}`,
     `دورات المياه ${figure(listing.wc)}`,
     `عرض الشارع ${figure(listing.street_width, ' م')}`,
   ].join(' | ')
@@ -81,7 +83,7 @@ function Chips({ options, chosen, onToggle }: { options: string[]; chosen: strin
  * The comparison assistant: a few taps on who it is for and what matters, then the assistant compares the two options
  * from Atlas figures only and may ask a follow-up. It never decides for the person.
  */
-export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubject; rows: DistrictRow[]; onClose?: () => void }) {
+export function AdvisorPanel({ subject, rows, onClose, mode = 'compare' }: { subject: AdvisorSubject; rows: DistrictRow[]; onClose?: () => void; mode?: 'compare' | 'real_estate' }) {
   const [who, setWho] = useState<string[]>([])
   const [priorities, setPriorities] = useState<string[]>([])
   const [note, setNote] = useState('')
@@ -105,7 +107,7 @@ export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubje
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ facts: subjectFacts(subject, rows), profile, turns: next }),
+        body: JSON.stringify({ mode, facts: subjectFacts(subject, rows), profile, turns: next }),
       })
       const body = await response.json().catch(() => null) as { reply?: string; error?: string } | null
       if (response.status === 401) { giveBack(); setStatus('login'); return }

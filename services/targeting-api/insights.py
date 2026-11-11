@@ -5,10 +5,13 @@ import glob
 import json
 import math
 import os
+from collections import Counter
 
 import canonical_data
 import district_reference
+import golden
 import market_signals
+from shapely.geometry import shape
 
 EARTH_M = 6_371_000.0
 
@@ -26,52 +29,59 @@ def growth(db, path, polygon_ids, id_map, names):
         return None
     rows = db.execute("""select district_id, district_ar, under_construction, new_buildings, homes_under_construction, floor_area_m2
                          from read_parquet(?) where cast(district_id as varchar) in (select unnest(?::varchar[]))""", [path, list(polygon_ids)]).fetchall()
-    merged, order = {}, []
+    fields = ('under_construction', 'new_buildings', 'homes_under_construction', 'floor_area_m2')
+    merged, complete, order = {}, {}, []
     for district_id, district_ar, building, new, homes, area in rows:
         canonical = str(id_map.get(str(district_id), district_id))
         if canonical not in merged:
             merged[canonical] = {'district_id': canonical, 'district_ar': names.get(canonical, (district_ar, None))[0] or district_ar,
-                                 'under_construction': 0, 'new_buildings': 0, 'homes_under_construction': 0, 'floor_area_m2': 0.0}
+                                 **{field: 0 for field in fields}}
+            complete[canonical] = {field: True for field in fields}
             order.append(canonical)
         out = merged[canonical]
-        out['under_construction'] += building or 0
-        out['new_buildings'] += new or 0
-        out['homes_under_construction'] += homes or 0
-        out['floor_area_m2'] += float(area or 0)
+        for field, value in zip(fields, (building, new, homes, area)):
+            valid = type(value) in (int, float) and value >= 0 and math.isfinite(value)
+            if valid:
+                out[field] += value
+            else:
+                complete[canonical][field] = False
     result = [merged[key] for key in order]
     for row in result:
-        row['floor_area_m2'] = round(row['floor_area_m2'])
-    result.sort(key=lambda row: (-(row['under_construction'] + row['new_buildings']), row['district_ar'] or ''))
+        for field in fields:
+            if not complete[row['district_id']][field]:
+                row[field] = None
+        if row['floor_area_m2'] is not None:
+            row['floor_area_m2'] = round(row['floor_area_m2'])
+    result.sort(key=lambda row: (row['under_construction'] is None or row['new_buildings'] is None,
+                                 -(row['under_construction'] + row['new_buildings']) if row['under_construction'] is not None and row['new_buildings'] is not None else 0,
+                                 row['district_ar'] or ''))
     return result
 
 
-MIN_HOUSING_UNITS = 200
+MIN_HOUSING_UNITS = golden.MIN_HOUSING_UNITS
 
 
 def housing_level(db, path, polygon_ids, id_map, names):
-    """Share of a canonical district's homes that are villas, from the buildings layer: a named stand-in for income
-    where no income is published (docs/atlas-product-foundation.md §7). A district with fewer than MIN_HOUSING_UNITS
-    dwellings is left out: a handful of buildings is no level."""
+    """Estimated share of classified dwelling units in villa buildings, from the buildings layer.
+    Old layers with only a villa building count cannot produce this ratio and are unavailable. Every canonical
+    district polygon must occur exactly once in the layer before its merged ratio is shown."""
     if not path:
         return None
-    rows = db.execute("""select district_id, district_ar, villas, dwelling_units from read_parquet(?)
+    columns = {row[0].casefold() for row in db.execute("describe select * from read_parquet(?)", [path]).fetchall()}
+    if not {"villa_units", "classified_home_units"}.issubset(columns):
+        return None
+    rows = db.execute("""select district_id, district_ar, villa_units, classified_home_units from read_parquet(?)
                          where cast(district_id as varchar) in (select unnest(?::varchar[]))""", [path, list(polygon_ids)]).fetchall()
-    merged = {}
-    for district_id, district_ar, villas, units in rows:
-        canonical = str(id_map.get(str(district_id), district_id))
-        out = merged.setdefault(canonical, {'district_id': canonical, 'district_ar': names.get(canonical, (district_ar, None))[0] or district_ar,
-                                            'villas': 0, 'dwelling_units': 0.0})
-        out['villas'] += int(villas or 0)
-        out['dwelling_units'] += float(units or 0)
-    result = []
-    for row in merged.values():
-        if row['dwelling_units'] < MIN_HOUSING_UNITS:
-            continue
-        row['villa_share_pct'] = round(min(100.0, 100 * row['villas'] / row['dwelling_units']), 1)
-        row['dwelling_units'] = round(row['dwelling_units'])
-        result.append(row)
-    result.sort(key=lambda row: (-row['villa_share_pct'], row['district_ar'] or ''))
-    return result
+    expected = {str(polygon_id) for polygon_id in polygon_ids}
+    observed = Counter(str(row[0]) for row in rows)
+    incomplete_districts = {
+        str(id_map.get(polygon_id, polygon_id))
+        for polygon_id in expected
+        if observed[polygon_id] != 1
+    }
+    if incomplete_districts:
+        rows = [row for row in rows if str(id_map.get(str(row[0]), row[0])) not in incomplete_districts]
+    return golden.housing(rows, id_map, names)
 
 
 def _haversine_sql(lon_col, lat_col):
@@ -85,21 +95,27 @@ def _box(lon, lat, radius_m):
     return lon - dlon, lon + dlon, lat - dlat, lat + dlat
 
 
-def population_around(db, points_path, targets_path, search_sql, lon, lat, radius_m, household_size):
-    """Homes, people and directory businesses within radius_m metres of a point."""
+def population_around(db, points_path, targets_path, search_sql, lon, lat, radius_m):
+    """Measured building population, dwellings and directory businesses within radius_m metres of a point."""
     west, east, south, north = _box(lon, lat, radius_m)
-    result = {'radius_m': radius_m, 'dwellings': None, 'population': None, 'businesses': None, 'top_activities': []}
+    result = {'radius_m': radius_m, 'dwellings': None, 'population': None, 'businesses': None,
+              'people_per_district': False, 'top_activities': []}
     if points_path:
         dist = _haversine_sql('longitude', 'latitude')
-        # v3 layers carry each building's people (its district's population spread over the district's dwellings);
-        # older layers only have dwellings, counted at household_size people each
+        # Building population is the district population allocated by dwellings.
+        # Older layers with dwellings only cannot support a population count.
         has_people = 'population' in {row[0] for row in db.execute('describe select * from read_parquet(?)', [points_path]).fetchall()}
-        people = 'sum(population)' if has_people else f'sum(dwellings) * {float(household_size)}'
-        homes, dwellings, population = db.execute(
-            f"""select count(*), sum(dwellings), {people} from read_parquet(?) where longitude between ? and ? and latitude between ? and ?
+        people = 'sum(population)' if has_people else 'NULL::DOUBLE'
+        missing_dwellings = 'count(*) filter (where dwellings is null)'
+        missing_people = 'count(*) filter (where population is null)' if has_people else '0'
+        homes, dwellings, population, missing_dwelling_count, missing_population = db.execute(
+            f"""select count(*), sum(dwellings), {people}, {missing_dwellings}, {missing_people} from read_parquet(?) where longitude between ? and ? and latitude between ? and ?
                 and {dist} <= ?""", [points_path, west, east, south, north, lat, lat, lon, radius_m]).fetchone()
-        dwellings = float(dwellings or 0)   # parquet decimals and doubles alike
-        result.update(home_buildings=homes or 0, dwellings=round(dwellings, 1), population=round(float(population or 0)), people_per_district=has_people)
+        # Each output measure has its own coverage: a missing dwelling count must
+        # not lower the radius total, nor hide a complete population figure.
+        dwellings = round(float(dwellings or 0), 1) if not missing_dwelling_count else None
+        population = round(float(population or 0)) if has_people and not missing_population else None
+        result.update(home_buildings=homes or 0, dwellings=dwellings, population=population, people_per_district=has_people)
     if targets_path:
         dist = _haversine_sql('p.longitude', 'p.latitude')
         where = (f"{search_sql} and p.longitude between ? and ? and p.latitude between ? and ? and {dist} <= ?")
@@ -128,26 +144,29 @@ def _inside(x, y, polygons):
     return False
 
 
-def population_within(db, points_path, targets_path, search_sql, geometry, household_size):
+def population_within(db, points_path, targets_path, search_sql, geometry):
     """Homes, people and directory businesses inside a polygon, such as a drive-time area. Same layers and the same
     people figure as population_around; only the boundary differs. Points are pre-filtered by the polygon's box in
     SQL and then tested exactly."""
     polygons = canonical_data._polygons(geometry)
     coords = [point for rings in polygons for ring in rings for point in ring]
-    result = {'dwellings': None, 'population': None, 'businesses': None, 'top_activities': []}
+    result = {'dwellings': None, 'population': None, 'businesses': None,
+              'people_per_district': False, 'top_activities': []}
     if not coords:
         return result
     west, east = min(p[0] for p in coords), max(p[0] for p in coords)
     south, north = min(p[1] for p in coords), max(p[1] for p in coords)
     if points_path:
         has_people = 'population' in {row[0] for row in db.execute('describe select * from read_parquet(?)', [points_path]).fetchall()}
-        people = 'population' if has_people else f'dwellings * {float(household_size)}'
+        people = 'population' if has_people else 'NULL::DOUBLE'
         rows = db.execute(f"""select longitude, latitude, dwellings, {people} from read_parquet(?)
                               where longitude between ? and ? and latitude between ? and ?""",
                           [points_path, west, east, south, north]).fetchall()
         inside = [row for row in rows if _inside(row[0], row[1], polygons)]
-        result.update(home_buildings=len(inside), dwellings=round(sum(float(r[2] or 0) for r in inside), 1),
-                      population=round(sum(float(r[3] or 0) for r in inside)), people_per_district=has_people)
+        population = round(sum(float(row[3]) for row in inside)) if has_people and not any(row[3] is None for row in inside) else None
+        dwellings = round(sum(float(row[2]) for row in inside), 1) if not any(row[2] is None for row in inside) else None
+        result.update(home_buildings=len(inside), dwellings=dwellings,
+                      population=population, people_per_district=has_people)
     if targets_path:
         rows = db.execute(f"""select p.longitude, p.latitude, coalesce(nullif(p.category_ar, ''), p.category) from read_parquet(?) p
                               where {search_sql} and p.longitude between ? and ? and p.latitude between ? and ?""",
@@ -178,26 +197,68 @@ def _hilbert(n, x, y):
 
 
 def _centre(geometry):
-    points = []
-    for polygon in canonical_data._polygons(geometry):
-        if polygon:
-            points.extend(polygon[0])
-    if not points:
+    """Return an interior representative point; a concave district's centroid may fall outside it."""
+    try:
+        district = shape(geometry)
+        if district.is_empty or not district.is_valid:
+            return None
+        point = district.centroid
+        if not district.contains(point):
+            point = district.representative_point()
+        if not math.isfinite(point.x) or not math.isfinite(point.y):
+            return None
+        return point.x, point.y
+    except (TypeError, ValueError, AttributeError):
         return None
-    return sum(p[0] for p in points) / len(points), sum(p[1] for p in points) / len(points)
 
 
-def territories(features, weights, count):
-    """Split a city's districts into `count` territories of near-equal weight. Districts are ordered along a
-    Hilbert curve through their centres, so each territory is a compact run of neighbouring districts, and
-    the run is cut where the running weight crosses each equal share."""
+def territory_centres(features):
+    """Interior representative points in the same compact Hilbert order used for territory groups."""
     items = []
     for feature in features:
         props = feature.get('properties') or {}
         name = props.get('ar') or props.get('district_ar')
         centre = _centre(feature.get('geometry'))
-        weight = weights.get(name) or 0
-        if centre and weight > 0:
+        if name and centre and 34 <= centre[0] <= 56 and 16 <= centre[1] <= 33:
+            items.append((name, props.get('id'), centre))
+    if not items:
+        return []
+    xs = [item[2][0] for item in items]
+    ys = [item[2][1] for item in items]
+    span_x, span_y, grid = (max(xs) - min(xs)) or 1e-9, (max(ys) - min(ys)) or 1e-9, 1024
+    ordered = sorted(items, key=lambda item: _hilbert(
+        grid,
+        min(grid - 1, int((item[2][0] - min(xs)) / span_x * (grid - 1))),
+        min(grid - 1, int((item[2][1] - min(ys)) / span_y * (grid - 1))),
+    ))
+    return [
+        {'district_ar': name, 'district_id': ident, 'lon': centre[0], 'lat': centre[1]}
+        for name, ident, centre in ordered
+    ]
+
+
+def territories(features, weights, count, by_id=False):
+    """Split a city's districts into `count` territories of near-equal weight. Districts are ordered along a
+    Hilbert curve through their centres, so each territory is a compact run of neighbouring districts, and
+    the run is cut where the running weight crosses each equal share. Measured zero-weight districts remain in the
+    run for geographic coverage; districts absent from `weights` stay excluded as unmeasured."""
+    items = []
+    id_counts = {}
+    if by_id:
+        for feature in features:
+            district_id = (feature.get('properties') or {}).get('id')
+            if district_id is not None:
+                key = str(district_id)
+                id_counts[key] = id_counts.get(key, 0) + 1
+    for feature in features:
+        props = feature.get('properties') or {}
+        name = props.get('ar') or props.get('district_ar')
+        centre = _centre(feature.get('geometry'))
+        district_id = props.get('id')
+        if by_id and (district_id is None or id_counts.get(str(district_id)) != 1):
+            continue
+        weight = weights.get(str(district_id)) if by_id and district_id is not None else weights.get(name) if not by_id else None
+        if centre and isinstance(weight, (int, float)) and not isinstance(weight, bool) and math.isfinite(weight) and weight >= 0:
             items.append((name, props.get('id'), centre, float(weight)))
     if not items or count < 1:
         return []
@@ -206,6 +267,8 @@ def territories(features, weights, count):
     keyed = sorted(items, key=lambda item: _hilbert(grid, min(grid - 1, int((item[2][0] - min(xs)) / span_x * (grid - 1))),
                                                     min(grid - 1, int((item[2][1] - min(ys)) / span_y * (grid - 1)))))
     total = sum(item[3] for item in keyed)
+    if total <= 0:
+        return []
     share = total / count
     groups = [{'territory': i + 1, 'weight': 0.0, 'districts': []} for i in range(count)]
     running = 0.0
@@ -264,6 +327,8 @@ BEST_DISCOUNT_FLOOR = -30
 LISTING_TYPES = ('apartment', 'studio', 'floor', 'villa', 'house', 'building', 'room', 'store', 'showroom', 'office', 'warehouse',
                  'land', 'rest_house', 'chalet', 'farm', 'factory', 'workshop', 'compound', 'other')
 LISTINGS_MAX = 1500
+LISTING_FEATURES = ('furnished', 'ketchen', 'ac', 'lift', 'car_entrance', 'extra_unit', 'two_entrances', 'private_roof', 'stairs', 'maid', 'driver', 'backyard', 'pool', 'basement', 'tent')
+LISTING_SORTS = ('best', 'price_asc', 'price_desc', 'area_desc', 'sqm_asc')
 _listings_cache = {}
 
 
@@ -293,44 +358,63 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
     never counted as zero. Only a publishable listing is served: one with a price, a stated period, at least one photo,
     and figures that do not need checking. Sorted with the listings
     furthest under their district's median price per m² first, then those without a comparison, then those marked
-    for checking; capped at `limit`, while `total` counts every match. Each served card carries `signal`, its district's
+    for checking; paged by `offset` and capped at `limit`, while `total` counts every match. Each served card carries `signal`, its district's
     market signal for its type (market_signals.tag), or None. None when there is no file yet."""
     try:
         table = _listing_cards(path or REAL_ESTATE_LISTINGS_PATH)
     except (OSError, ValueError):
         return None
-    box, districts = filters.get('bbox'), set(filters.get('district_ids') or [])
+    box, district_filter = filters.get('bbox'), filters.get('district_ids')
+    districts = set(district_filter or [])
     types, kind, deal = set(filters.get('types') or []), filters.get('kind'), filters.get('deal')
+    features, tenants = set(filters.get('features') or []), filters.get('tenants')
     within = lambda value, low, high: (low is None and high is None) or (value is not None and (low is None or value >= low) and (high is None or value <= high))
     found = [card for card in table.get('listings', []) if card['city'] == city and _publishable(card)
              and (not kind or card['kind'] == kind) and (not deal or card.get('deal') == deal) and (not types or card['type'] in types)
-             and (not districts or card['district_id'] in districts)
+             and (district_filter is None or card['district_id'] in districts)
              and (not box or (box[0] <= card['lon'] <= box[2] and box[1] <= card['lat'] <= box[3]))
              and within(card.get('price_sar'), filters.get('min_price'), filters.get('max_price'))
              and within(card.get('area_sqm'), filters.get('min_area'), filters.get('max_area'))
+             and within(card.get('beds'), filters.get('min_beds'), None)
+             and within(card.get('livings'), filters.get('min_livings'), None)
+             and within(card.get('wc'), filters.get('min_wc'), None)
+             and within(card.get('street_width'), filters.get('min_street_width'), None)
+             and (not tenants or card.get('tenants') in (tenants, 'both'))
+             and all((card.get('features') or {}).get(feature) == 1 for feature in features)
+             and within(card.get('vs_district_pct'), filters.get('min_vs_district_pct'), filters.get('max_vs_district_pct'))
              and within(card.get('age'), None, filters.get('max_age'))]
-    # a card to check (its figures look wrong) goes after every other, then those without a district comparison
-    # best value first among believable prices: a discount past BEST_DISCOUNT_FLOOR is more often a typo than a bargain,
-    # so those follow the rest; an ad with photos goes before one without at the same price standing
-    floor = lambda card: (card.get('vs_district_pct') or 0) < BEST_DISCOUNT_FLOOR
-    found.sort(key=lambda card: (bool(card.get('check')), card.get('vs_district_pct') is None, floor(card), not card.get('photo'),
-                                 card.get('vs_district_pct') or 0))
-    shown = found[:filters.get('limit') or LISTINGS_MAX]
+    sort = filters.get('sort', 'best')
+    def sort_key(card):
+        if sort == 'price_asc':
+            return (card.get('price_sar') is None, card.get('price_sar') or 0, str(card.get('id') or ''))
+        if sort == 'price_desc':
+            return (card.get('price_sar') is None, -(card.get('price_sar') or 0), str(card.get('id') or ''))
+        if sort == 'area_desc':
+            return (card.get('area_sqm') is None, -(card.get('area_sqm') or 0), str(card.get('id') or ''))
+        if sort == 'sqm_asc':
+            return (card.get('sar_per_sqm') is None, card.get('sar_per_sqm') or 0, str(card.get('id') or ''))
+        # A card to check goes last; otherwise rank by district discount, then photo presence.
+        floor = (card.get('vs_district_pct') or 0) < BEST_DISCOUNT_FLOOR
+        return (bool(card.get('check')), card.get('vs_district_pct') is None, floor, not card.get('photo'),
+                card.get('vs_district_pct') or 0, str(card.get('id') or ''))
+    found.sort(key=sort_key)
+    limit = filters.get('limit') or LISTINGS_MAX
+    offset = filters.get('offset') or 0
+    shown = found[offset:offset + limit]
     signals = _market_signals(city, table, path or REAL_ESTATE_LISTINGS_PATH, deals_path)
-    # the number stays out of a list of listings: a signed-in person asks for one listing's number (listing_phone)
+    # The number stays out of a list: a signed-in person requests one displayed listing's number separately.
     shown = [{**{key: value for key, value in card.items() if key != 'phone'}, 'has_phone': bool(card.get('phone')),
               'signal': market_signals.tag(card, signals)} for card in shown]
-    return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': shown}
+    return {'retrieved': table.get('retrieved'), 'total': len(found), 'offset': offset, 'listings': shown}
 
 
 def listing_phone(listing_id, path=None):
-    """One listing's advertiser number (05XXXXXXXX), or None when it has none or there is no file."""
+    """One displayed listing's advertiser number, or None when it has none or the source is unavailable."""
     try:
         table = _listing_cards(path or REAL_ESTATE_LISTINGS_PATH)
     except (OSError, ValueError):
         return None
-    index = _phone_index(table)
-    return index.get(str(listing_id))
+    return _phone_index(table).get(str(listing_id))
 
 
 _phone_indexes = {}
@@ -340,7 +424,7 @@ def _phone_index(table):
     key = id(table)
     if key not in _phone_indexes:
         _phone_indexes.clear()
-        # only a listing Atlas shows gives its number: a hidden one cannot be reached by guessing its id
+        # only a listing Atlas shows gives its number; the page never receives a directory of advertiser phones
         _phone_indexes[key] = {str(card['id']): card['phone'] for card in table.get('listings', []) if card.get('phone') and _publishable(card)}
     return _phone_indexes[key]
 
@@ -360,23 +444,57 @@ def _market_signals(city, table, cards_path, deals_path=None):
 AUDIENCE_FIELDS = ('male_pct', 'saudi_pct')
 
 
-def district_audience(city, path=None):
+def district_audience(city, path=None, id_map=None):
     """Measured audience shares by district: the share of men and of Saudis, from the 910ths reference table. A
-    district without a measured share is left out, so the caller shows «غير متاح» for it rather than a guess."""
+    district is kept when either share is measured; the caller can still use that segment while showing the other as
+    «غير متاح». A district with neither measured share is omitted. When supplied, id_map adds the canonical district
+    identity resolved from every source polygon; an unresolved mapping is explicit null, never inferred from its name."""
     table = district_reference.load(path or district_reference.PATH)
-    rows = ((table or {}).get('cities') or {}).get(city)
-    if rows is None:
+    rows_by_name = district_reference.city_rows(city, path or district_reference.PATH)
+    cities = (table or {}).get('cities') or {}
+    if city not in cities or cities.get(city) is None:
         return None
-    return {'districts': [{'district_ar': row['district_ar'], **{key: row.get(key) for key in AUDIENCE_FIELDS}} for row in rows
-                          if all(row.get(key) is not None for key in AUDIENCE_FIELDS)]}
+    rows = rows_by_name.values()
+    districts = []
+    for row in rows:
+        if not any(row.get(key) is not None for key in AUDIENCE_FIELDS):
+            continue
+        result = {'district_ar': row['district_ar'], **{key: row.get(key) for key in AUDIENCE_FIELDS}}
+        if id_map is not None:
+            result['district_id'] = canonical_reference_district_id(row, id_map)
+        districts.append(result)
+    return {'districts': districts}
 
 
-def district_income(city, path=None):
+def canonical_reference_district_id(row, id_map):
+    """Resolve a 910ths row to one canonical district only when all of its source polygons agree."""
+    polygon_ids = row.get('polygon_ids') if isinstance(row, dict) else None
+    if not isinstance(polygon_ids, list) or not polygon_ids:
+        return None
+    canonical = set()
+    for polygon_id in polygon_ids:
+        if isinstance(polygon_id, bool) or not isinstance(polygon_id, (str, int)) or not str(polygon_id).strip():
+            return None
+        key = str(polygon_id)
+        if key not in id_map:
+            return None
+        canonical.add(str(id_map[key]))
+    return next(iter(canonical)) if len(canonical) == 1 else None
+
+
+def district_income(city, path=None, id_map=None):
     """Average monthly income per working person by district, from the 910ths reference table (district_reference)."""
     table = district_reference.load(path or district_reference.PATH)
     rows = ((table or {}).get('cities') or {}).get(city)
     if rows is None:
         return None
-    rows = [{'district_ar': row['district_ar'], **{key: row.get(key) for key in INCOME_FIELDS}} for row in rows
-            if any(row.get(key) is not None for key in INCOME_FIELDS)]
+    selected = []
+    for row in rows:
+        if not any(row.get(key) is not None for key in INCOME_FIELDS):
+            continue
+        item = {'district_ar': row['district_ar'], **{key: row.get(key) for key in INCOME_FIELDS}}
+        if id_map is not None:
+            item['district_id'] = canonical_reference_district_id(row, id_map)
+        selected.append(item)
+    rows = selected
     return {'source': table.get('source'), 'retrieved': table.get('retrieved'), 'unit': table.get('unit', 'SAR/month'), 'districts': rows}

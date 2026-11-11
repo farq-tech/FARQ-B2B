@@ -24,11 +24,17 @@ type Action =
   | { type: 'mark-read'; id: string; unread?: boolean }
   | { type: 'update-message'; id: string; patch: Partial<InboxMessage> }
   | { type: 'restore'; state: Pick<State, 'requests' | 'inbox'> }
+  | { type: 'merge-cloud-requests'; requests: RequestItem[] }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'restore':
       return { ...state, requests: action.state.requests, inbox: action.state.inbox }
+    case 'merge-cloud-requests': {
+      const knownIds = new Set(state.requests.flatMap((request) => [request.id, request.remoteId].filter((id): id is string => Boolean(id))))
+      const additions = action.requests.filter((request) => !knownIds.has(request.id) && !(request.remoteId && knownIds.has(request.remoteId)))
+      return { ...state, requests: [...state.requests, ...additions] }
+    }
     case 'toggle-select':
       return {
         ...state,
@@ -220,9 +226,21 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [workspaceReady, setWorkspaceReady] = useState(false)
   const requestsRef = useRef<RequestItem[]>([])
   const cloudUpdateTimers = useRef(new Map<string, number>())
+  const cloudUpdateQueues = useRef(new Map<string, Promise<void>>())
 
   useEffect(() => { requestsRef.current = state.requests }, [state.requests])
   useEffect(() => () => { cloudUpdateTimers.current.forEach((timer) => clearTimeout(timer)) }, [])
+
+  const queueCloudUpdate = useCallback((request: RequestItem) => {
+    const remoteId = request.remoteId
+    if (!remoteId) return
+    const previous = cloudUpdateQueues.current.get(remoteId) ?? Promise.resolve()
+    const next = previous.catch(() => undefined).then(() => updateCloudRequest(request)).catch(() => undefined)
+    cloudUpdateQueues.current.set(remoteId, next)
+    void next.then(() => {
+      if (cloudUpdateQueues.current.get(remoteId) === next) cloudUpdateQueues.current.delete(remoteId)
+    })
+  }, [])
 
   useEffect(() => {
     const saved = readWorkspace()
@@ -235,9 +253,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       })
       .then((cloud) => {
         if (!cloud.length) return
-        const local = readWorkspace()?.requests ?? []
-        const localIds = new Set(local.map((request) => request.remoteId ?? request.id))
-        dispatch({ type: 'restore', state: { requests: [...local, ...cloud.filter((request) => !localIds.has(request.remoteId ?? request.id))], inbox: readWorkspace()?.inbox ?? [] } })
+        // Merge against reducer state, not a second localStorage snapshot: the user may
+        // have created or edited drafts while this cloud request was still in flight.
+        dispatch({ type: 'merge-cloud-requests', requests: cloud })
       })
       .catch(() => undefined)
       .finally(() => setWorkspaceReady(true))
@@ -271,11 +289,11 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       // If the user edited while the initial save was in flight, send the latest draft next.
       window.setTimeout(() => {
         const latest = requestsRef.current.find((item) => item.id === request.id)
-        if (latest) void updateCloudRequest({ ...latest, remoteId })
+        if (latest) queueCloudUpdate({ ...latest, remoteId })
       }, 0)
     })
     return request.id
-  }, [])
+  }, [queueCloudUpdate])
   const updateRequest = useCallback(
     (id: string, patch: Partial<RequestItem>) => {
       const current = requestsRef.current.find((request) => request.id === id)
@@ -286,11 +304,11 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         if (existing) clearTimeout(existing)
         cloudUpdateTimers.current.set(next.id, window.setTimeout(() => {
           cloudUpdateTimers.current.delete(next.id)
-          void updateCloudRequest(next)
+          queueCloudUpdate(next)
         }, 600))
       }
     },
-    [],
+    [queueCloudUpdate],
   )
   const markRead = useCallback((id: string, unread?: boolean) => dispatch({ type: 'mark-read', id, unread }), [])
   const updateMessage = useCallback(

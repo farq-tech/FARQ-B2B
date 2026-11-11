@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState, type SetStateAction } from 'react'
+import { useCallback, useEffect, useState, type SetStateAction } from 'react'
 
 // A filter outlives the step tab that shows it: moving between steps unmounts a tool, and coming back must find
 // the same choices. The values live for the page's life, never in storage.
@@ -30,10 +30,13 @@ export function useStudiedActivity() {
 export function useStudiedMainId(activities: { main_id: string; main_ar: string }[]) {
   const [studied, setStudied] = useStudiedActivity()
   const [mainId, setMainId] = useState(studied.main_id ?? '')
+  // Keep the picker aligned with an activity selected in another step. An empty audience-only choice
+  // stays local to that picker and does not clear the activity shared by the other tools.
+  useEffect(() => { setMainId(studied.main_id ?? '') }, [studied])
   const pick = useCallback((id: string) => {
     setMainId(id)
     const item = activities.find((activity) => activity.main_id === id)
     if (item) setStudied({ main_id: item.main_id, label: item.main_ar })
   }, [activities, setStudied])
-  return [mainId, pick] as const
+  return [mainId, pick, studied.main_id === mainId ? studied.label : undefined] as const
 }

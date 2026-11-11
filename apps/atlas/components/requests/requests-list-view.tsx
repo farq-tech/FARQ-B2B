@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { cityById } from '@/lib/mock-data'
 import { STATUS_LABEL, formatDate } from '@/lib/format'
+import { numberFormat } from '@/lib/insights-api'
 import { normalizeArabic } from '@/lib/search'
 import { useAppStore } from '@/lib/store'
 import type { RequestStatus } from '@/lib/types'
@@ -78,10 +79,10 @@ export function RequestsListView() {
                     <h2 className="truncate font-semibold">{r.title}</h2>
                     <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                       <span>{cityById.get(r.cityId)?.name}</span>
-                      <span>{r.businessIds.length} منشأة</span>
+                      <span>{numberFormat.format(r.businessIds.length)} منشأة</span>
                       {replies.length ? (
                         <span className={cn(unread && 'font-semibold text-primary')}>
-                          {replies.length} رد{unread ? ` (${unread} جديد)` : ''}
+                          {numberFormat.format(replies.length)} رد{unread ? ` (${numberFormat.format(unread)} جديد)` : ''}
                         </span>
                       ) : null}
                       <span>آخر تحديث {formatDate(r.updatedAt)}</span>

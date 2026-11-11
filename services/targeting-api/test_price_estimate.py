@@ -24,8 +24,10 @@ class PriceEstimateTests(unittest.TestCase):
         self.cards = self.root / 'cards.json'
         self.cards.write_text(json.dumps({'retrieved': 'd', 'listings': cards}), encoding='utf-8')
         self.rules = self.root / 'rules.json'
-        self.rules.write_text(json.dumps({'source': 's', 'retrieved': 'r', 'age': {'0': 4, '6-10': -7}, 'streets': {'1': 0, '2': 10},
-                                          'street_width': {'20-29': 5}, 'furnished': {'yes': 24}}), encoding='utf-8')
+        self.rules.write_text(json.dumps({'source': 's', 'retrieved': 'r', 'calibrated_city': 'Riyadh',
+                                          'calibrated_district_ids': ['1'], 'calibrated_deals': ['rent_year'],
+                                          'calibrated_types': ['apartment', 'floor', 'villa'], 'age': {'0': 4, '6-10': -7},
+                                          'streets': {'1': 0, '2': 10}, 'street_width': {'20-29': 5}, 'furnished': {'yes': 24}}), encoding='utf-8')
 
     def run_estimate(self, **query):
         base = {'district_id': '1', 'deal': 'rent_year', 'type': 'floor', 'area_sqm': 180}
@@ -40,6 +42,7 @@ class PriceEstimateTests(unittest.TestCase):
 
     def test_the_range_is_the_comparables_quartiles_moved_by_the_rules(self):
         plain = self.run_estimate()
+        self.assertTrue(plain['adjustments_calibrated'])
         self.assertLess(plain['price']['low'], plain['price']['mid'])
         self.assertLess(plain['price']['mid'], plain['price']['high'])
         ruled = self.run_estimate(age='0', streets='2', street_width='20-29')
@@ -47,6 +50,22 @@ class PriceEstimateTests(unittest.TestCase):
         self.assertAlmostEqual(ruled['per_sqm']['mid'] / plain['per_sqm']['mid'], 1.04 * 1.10 * 1.05, delta=0.01)
         self.assertEqual(ruled['comparables_per_sqm'], plain['comparables_per_sqm'], 'the comparables themselves are shown as they are')
         self.assertEqual(self.run_estimate(streets='1')['adjustments'], [], 'a rule worth 0 is not listed')
+
+    def test_coefficients_are_not_applied_outside_the_verified_city_district_deal_and_type(self):
+        rules = price_estimate._rules(str(self.rules))
+        query = {'district_id': '1', 'deal': 'rent_year', 'type': 'floor'}
+        self.assertTrue(price_estimate.adjustments_calibrated('Riyadh', query, rules))
+        self.assertFalse(price_estimate.adjustments_calibrated('Jeddah', query, rules))
+        self.assertFalse(price_estimate.adjustments_calibrated('Riyadh', {**query, 'district_id': '2'}, rules))
+        self.assertFalse(price_estimate.adjustments_calibrated('Riyadh', {**query, 'deal': 'rent_month'}, rules))
+        self.assertFalse(price_estimate.adjustments_calibrated('Riyadh', {**query, 'deal': 'sale'}, rules))
+        self.assertFalse(price_estimate.adjustments_calibrated('Riyadh', {**query, 'type': 'house'}, rules))
+
+        plain = self.run_estimate(district_id='2')
+        outside = self.run_estimate(district_id='2', age='0', streets='2', street_width='20-29')
+        self.assertFalse(outside['adjustments_calibrated'])
+        self.assertEqual(outside['adjustments'], [])
+        self.assertEqual(outside['price'], plain['price'], 'out-of-scope fields must not change the local comparable range')
 
     def test_too_few_comparables_or_none_of_the_type_is_unavailable_not_a_guess(self):
         self.assertEqual(self.run_estimate(type='villa')['reason'], 'too_few_comparables')

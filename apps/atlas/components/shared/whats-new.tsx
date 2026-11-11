@@ -35,7 +35,7 @@ export function WhatsNew({ onMap = false }: {
     try { localStorage.setItem(KEY, RELEASE.id) } catch { /* private window: it shows again next visit */ }
   }
   return (
-    <aside aria-label="ما الجديد" className={cn('fixed inset-x-3 z-40 mx-auto flex max-w-lg items-center gap-3 rounded-2xl border bg-card/95 px-3 py-1 shadow-lg backdrop-blur animate-in fade-in slide-in-from-bottom-2 duration-300 lg:start-6 lg:end-auto lg:bottom-6 lg:mx-0 lg:items-start lg:py-3', onMap ? 'top-[11.75rem] slide-in-from-top-2 lg:top-auto' : 'bottom-20')}>
+    <aside aria-label="ما الجديد" className={cn('fixed inset-x-3 z-40 mx-auto flex max-w-lg items-center gap-3 rounded-2xl border bg-card/95 px-3 py-1 shadow-lg backdrop-blur animate-in fade-in slide-in-from-bottom-2 duration-300 lg:start-6 lg:end-auto lg:bottom-6 lg:mx-0 lg:items-start lg:py-3', onMap ? 'top-[11.75rem] slide-in-from-top-2 lg:top-auto' : 'bottom-[calc(5rem+env(safe-area-inset-bottom))]')}>
       <Megaphone className="size-5 shrink-0 text-primary lg:mt-0.5" aria-hidden />
       <div className="min-w-0 flex-1">
         <button type="button" onClick={() => setExpanded((was) => !was)} aria-expanded={expanded}

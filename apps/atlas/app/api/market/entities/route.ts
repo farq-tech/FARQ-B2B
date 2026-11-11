@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { isTargetingAllowed, sessionForRequest, setSession, verifySession } from '@/lib/atlas-session'
-import { isMapQuery, sanitizeLiveDirectoryEntity } from '@/lib/live-directory'
+import { hasPermanentlyClosedEntity, isMapQuery, sanitizeLiveDirectoryEntity } from '@/lib/live-directory'
 import { issueTileAccess } from '@/lib/map-tile-access'
 
 export const runtime = 'nodejs'
@@ -57,9 +57,27 @@ export async function POST(request: NextRequest) {
     })
     const payload = await upstream.json().catch(() => null) as { rows?: unknown; total?: unknown; with_whatsapp?: unknown; has_more?: unknown; next_offset?: unknown; map_query?: unknown } | null
     if (!upstream.ok || !payload) return NextResponse.json({ error: 'تعذر تحميل الجهات الآن.' }, { status: 502 })
-    const rows = Array.isArray(payload.rows) ? payload.rows.filter((row): row is Record<string, unknown> => Boolean(row && typeof row === 'object')).map(sanitizeLiveDirectoryEntity).filter((row) => row.id && row.status !== 'closed_permanent') : []
+    if (!Array.isArray(payload.rows) || typeof payload.total !== 'number' || !Number.isSafeInteger(payload.total) || payload.total < 0 || payload.rows.length > payload.total) {
+      return NextResponse.json({ error: 'استجابة دليل المنشآت غير مكتملة.' }, { status: 502 })
+    }
+    const nextOffsetValid = typeof payload.next_offset === 'number' && Number.isSafeInteger(payload.next_offset) && payload.next_offset > offset && payload.next_offset <= payload.total
+    if (typeof payload.has_more !== 'boolean' || (payload.has_more && !nextOffsetValid) || (!payload.has_more && payload.next_offset !== null)) {
+      return NextResponse.json({ error: 'ترقيم صفحات دليل المنشآت غير مكتمل.' }, { status: 502 })
+    }
+    if (!payload.rows.every((row) => Boolean(row && typeof row === 'object' && !Array.isArray(row)))) {
+      return NextResponse.json({ error: 'بيانات منشآت غير صالحة.' }, { status: 502 })
+    }
+    const normalized = payload.rows.map((row) => sanitizeLiveDirectoryEntity(row as Record<string, unknown>))
+    if (normalized.some((row) => !row.id)) return NextResponse.json({ error: 'معرّف منشأة مفقود.' }, { status: 502 })
+    if (hasPermanentlyClosedEntity(normalized)) {
+      return NextResponse.json({ error: 'استجابة دليل المنشآت لا تطابق سياسة حالات الإغلاق.' }, { status: 502, headers: { 'cache-control': 'no-store' } })
+    }
+    const rows = normalized
     const mapQuery = isMapQuery(payload.map_query) ? payload.map_query : null
-    const response = NextResponse.json({ total: typeof payload.total === 'number' ? payload.total : rows.length, withWhatsapp: typeof payload.with_whatsapp === 'number' ? payload.with_whatsapp : 0, hasMore: payload.has_more === true, nextOffset: typeof payload.next_offset === 'number' ? payload.next_offset : null, mapQuery, tileAccess: mapQuery ? issueTileAccess(mapQuery) : null, rows }, { headers: { 'cache-control': 'no-store' } })
+    const withWhatsapp = typeof payload.with_whatsapp === 'number' && Number.isSafeInteger(payload.with_whatsapp) && payload.with_whatsapp >= 0 ? payload.with_whatsapp : null
+    const hasMore = payload.has_more
+    const nextOffset = nextOffsetValid ? payload.next_offset as number : null
+    const response = NextResponse.json({ total: payload.total, withWhatsapp, hasMore, nextOffset, mapQuery, tileAccess: mapQuery ? issueTileAccess(mapQuery) : null, rows }, { headers: { 'cache-control': 'no-store' } })
     if (refreshed) setSession(response, session)
     return response
   } catch {

@@ -96,6 +96,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   reportBounds.current = onBounds
   const [ready, setReady] = useState(false)
   const [error, setError] = useState('')
+  const [attempt, setAttempt] = useState(0)
   toggle.current = onToggle
   pick.current = onPick
   openListing.current = onListing
@@ -103,14 +104,16 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   useEffect(() => {
     let disposed = false
     ;(async () => {
-      const response = await fetch('/api/mapbox-token', { cache: 'no-store' }).catch(() => null)
-      const token = response?.ok ? (await response.json()).token : null
-      if (!token) { setError('الخريطة'); return }
-      const mapboxgl = (await import('mapbox-gl')).default
-      if (disposed || !container.current) return
-      mapboxgl.accessToken = token
-      const instance = new mapboxgl.Map({ container: container.current, style: STYLE_URL, center: [46.68, 24.71], zoom: 9.5 })
-      map.current = instance
+      try {
+        const response = await fetch('/api/mapbox-token', { cache: 'no-store' }).catch(() => null)
+        const payload = response?.ok ? await response.json().catch(() => null) as { token?: string } | null : null
+        const token = typeof payload?.token === 'string' && payload.token ? payload.token : null
+        if (!token) throw new Error('Map token unavailable')
+        const mapboxgl = (await import('mapbox-gl')).default
+        if (disposed || !container.current) return
+        mapboxgl.accessToken = token
+        const instance = new mapboxgl.Map({ container: container.current, style: STYLE_URL, center: [46.68, 24.71], zoom: 9.5 })
+        map.current = instance
       // a map drawn while its box was hidden or smaller (the phone's list view, a sheet) keeps that size until told:
       // follow the box, so showing it fills the screen
       const watch = new ResizeObserver(() => instance.resize())
@@ -210,9 +213,12 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         instance.on('mouseleave', 'district-fill', () => { instance.getCanvas().style.cursor = '' })
         setReady(true)
       })
+      } catch {
+        if (!disposed) setError('الخريطة')
+      }
     })()
     return () => { disposed = true; map.current?.remove(); map.current = null }
-  }, [])
+  }, [attempt])
 
   useEffect(() => {
     const instance = map.current
@@ -284,7 +290,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     <div className="relative h-full w-full">
       <div ref={container} className="h-full w-full" />
       {/* a reload brings the map back, so the button offers just that */}
-      {error && <LoadError what={error} onRetry={() => window.location.reload()} className="absolute inset-x-4 top-4 mx-auto max-w-sm bg-card/95 backdrop-blur" />}
+      {error && <LoadError what={error} onRetry={() => { setError(''); setReady(false); setAttempt((value) => value + 1) }} className="absolute inset-x-4 top-4 mx-auto max-w-sm bg-card/95 backdrop-blur" />}
     </div>
   )
 }

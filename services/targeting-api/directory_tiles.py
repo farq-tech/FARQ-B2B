@@ -125,12 +125,12 @@ class DirectoryTiles:
         # Directory assets are refreshed independently from this service.  Optional
         # enrichment columns must degrade to empty values when an older asset is live.
         self.columns={row[0] for row in self.db.execute("describe select * from read_parquet(?)", [path]).fetchall()}
-        self.db.execute("""create table branches as select lower(trim(brand_name)) brand,
+        self.search_sql=status_policy.search_sql(self.db,path)
+        self.db.execute(f"""create table branches as select lower(trim(brand_name)) brand,
             count(distinct concat(city_en,':',round(latitude,4),':',round(longitude,4))) n
-            from read_parquet(?) where length(trim(brand_name))>2 and latitude is not null and longitude is not null
+            from read_parquet(?) where {self.search_sql} and length(trim(brand_name))>2 and latitude is not null and longitude is not null
             group by 1""",[path])
         self.branch_counts=dict(self.db.execute('select * from branches').fetchall())
-        self.search_sql=status_policy.search_sql(self.db,path)
     def column(self,name,fallback):
         # Unit-level SQL contract tests build a lightweight instance without a schema.
         # Treat that as the current full schema; real instances populate `columns` above.

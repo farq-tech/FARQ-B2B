@@ -88,7 +88,7 @@ export function ListingSurroundings({ listing, myPoint, density }: { listing: Li
             return (
               <li key={key} className="flex justify-between gap-2">
                 <span className="text-muted-foreground">{label}</span>
-                <span className="min-w-0 truncate text-end">{place ? `${place.name} · ${KM(place.km)}` : 'لا شيء في 6 كم'}</span>
+                <span className="min-w-0 truncate text-end">{place ? `${place.name} · ${KM(place.km)}` : `لا يظهر في دليل فرق ضمن ${numberFormat.format(6)} كم`}</span>
               </li>
             )
           })}
