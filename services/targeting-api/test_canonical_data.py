@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -8,6 +9,9 @@ from pathlib import Path
 import duckdb
 
 import canonical_data
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'data-cleaning'))
+import city_names  # noqa: E402
 
 
 OFFICIAL = {
@@ -66,6 +70,59 @@ class CanonicalDataTests(unittest.TestCase):
         clusters = read(paths['trade_clusters.parquet'], ['label_ar', 'city_en', 'district_ar'])
         self.assertEqual(clusters['x'], ('Al Madinah Al Munawwarah', 'العوالي'))
         self.assertEqual(clusters['y'], ('Makkah Al Mukarramah', 'أجياد'))
+
+    def test_national_address_city_spellings_resolve_to_canonical_cities(self):
+        self.assertEqual(canonical_data.canonical_city('Sabya'), ('Sabya', 'صبيا'))
+        self.assertEqual(canonical_data.canonical_city('Al Hafuf'), ('Al Ahsa', 'الأحساء'))
+        self.assertEqual(canonical_data.canonical_city('Al Qunfidhah'), ('Al Qunfudhah', 'القنفذة'))
+        self.assertEqual(canonical_data.canonical_city('Baljurashi'), ('Biljurashi', 'بلجرشي'))
+        for spelling in ('Ahad Rifaydah', 'Ahad Rufaidah', 'أحد رفيدة'):
+            self.assertEqual(canonical_data.canonical_city(spelling), ('Ahad Rifaydah', 'احد رفيده'))
+            self.assertEqual(city_names.ALIAS[city_names.key(spelling)], ('Ahad Rifaydah', 'احد رفيده'))
+        for spelling in ('Al-Saih', 'Al Saih', 'السيح'):
+            self.assertEqual(canonical_data.canonical_city(spelling), ('Al Kharj', 'الخرج'))
+            self.assertEqual(canonical_data.canonical_city_name(spelling), 'Al Kharj')
+            self.assertEqual(city_names.ALIAS[city_names.key(spelling)], ('Al Kharj', 'الخرج'))
+        self.assertEqual(canonical_data.canonical_city_name('Al Kharj'), 'Al Kharj')
+        self.assertEqual(canonical_data.canonical_city_name('Unknown City'), 'Unknown City')
+
+    def test_city_boundaries_and_reviewed_airbase_correction_use_al_kharj(self):
+        ring = [[47.3, 24.15], [47.31, 24.15], [47.31, 24.16], [47.3, 24.15]]
+        collection = {'type': 'FeatureCollection', 'features': [
+            {'type': 'Feature', 'properties': {'id': '10101061001', 'city_en': 'Al-Saih', 'ar': 'المصانع'},
+             'geometry': {'type': 'Polygon', 'coordinates': [ring]}},
+            {'type': 'Feature', 'properties': {'id': '10101061033', 'city_en': 'Riyadh', 'ar': 'قاعدة الامير سلطان الجوية'},
+             'geometry': {'type': 'Polygon', 'coordinates': [ring]}},
+            {'type': 'Feature', 'properties': {'id': '10101061032', 'city_en': 'Ad Dilam', 'ar': 'المدينة الصناعية بالخرج'},
+             'geometry': {'type': 'Polygon', 'coordinates': [ring]}},
+        ]}
+        corrections = canonical_data.load_corrections()
+
+        result, _ = canonical_data.canonical_districts(collection, corrections)
+
+        self.assertEqual({feature['properties']['city_en'] for feature in result['features']}, {'Al Kharj'})
+        self.assertEqual({feature['properties']['city_ar'] for feature in result['features']}, {'الخرج'})
+        airbase = next(feature for feature in result['features'] if feature['properties']['id'] == '10101061033')
+        self.assertEqual(airbase['properties']['en'], 'Prince Sultan Air Base')
+        self.assertEqual(airbase['properties']['moved_from_city_en'], 'Riyadh')
+        industrial_city = next(feature for feature in result['features'] if feature['properties']['id'] == '10101061032')
+        self.assertEqual(industrial_city['properties']['city_en'], 'Al Kharj')
+        self.assertEqual(industrial_city['properties']['en'], 'Al Kharj Industrial City')
+        self.assertEqual(industrial_city['properties']['moved_from_city_en'], 'Ad Dilam')
+
+    def test_missing_polygon_city_names_match_the_source_and_rebuild_aliases(self):
+        source_spellings = {
+            'Al Mudhaylif': ('Al Mudhaylif', 'المظيلف'),
+            'Sajir': ('Sajir', 'ساجر'),
+            "Muti'ah": ("Muti'ah", 'مطيعة'),
+            'Adham': ('Adham', 'أضم'),
+            'Bariq': ('Bariq', 'بارق'),
+        }
+        for spelling, expected in source_spellings.items():
+            with self.subTest(city=spelling):
+                self.assertEqual(canonical_data.canonical_city(spelling), expected)
+                self.assertEqual(canonical_data.canonical_city(expected[1]), expected)
+                self.assertEqual(city_names.ALIAS[city_names.key(spelling)], expected)
 
     def test_district_labels_follow_the_official_atlas_spelling(self):
         paths = canonical_data.prepare(str(self.data), str(self.out))
@@ -138,6 +195,21 @@ FIX = {('Riyadh', '463'): {'city_en': 'Riyadh', 'id': '463', 'ar': 'السليم
 
 
 class CanonicalDistrictTests(unittest.TestCase):
+    def test_district_geometry_sanitizer_repairs_invalid_rings_and_excludes_unusable_features(self):
+        invalid = {'type': 'Polygon', 'coordinates': [[[44.0, 26.0], [44.02, 26.02], [44.02, 26.0], [44.0, 26.02], [44.0, 26.0]]]}
+        atlas = {'type': 'FeatureCollection', 'features': [
+            {'type': 'Feature', 'properties': {'id': 1, 'ar': 'الروضة', 'city_en': 'Unaizah'}, 'geometry': invalid},
+            {'type': 'Feature', 'properties': {'id': 2, 'ar': 'المنطقة غير المتاحة', 'city_en': 'Unaizah'},
+             'geometry': {'type': 'Polygon', 'coordinates': [[[44.0, 26.0], [44.01, 26.0], [44.02, 26.0], [44.0, 26.0]]]}},
+            {'type': 'Feature', 'properties': {'id': 3, 'city_en': 'Unaizah'}, 'geometry': poly(44.1, 26.1)}
+        ]}
+
+        cleaned, repaired, excluded = canonical_data.sanitize_district_geometries(atlas)
+
+        self.assertEqual((repaired, excluded), (1, 2))
+        self.assertEqual([feature['properties']['id'] for feature in cleaned['features']], [1])
+        self.assertTrue(canonical_data.shapely.geometry.shape(cleaned['features'][0]['geometry']).is_valid)
+
     def test_corrected_name_joins_its_district_and_same_names_merge(self):
         collection, id_map = canonical_data.canonical_districts(ATLAS, FIX)
         riyadh = {f['properties']['ar']: f for f in collection['features'] if f['properties']['city_en'] == 'Riyadh'}
@@ -145,12 +217,24 @@ class CanonicalDistrictTests(unittest.TestCase):
         olaya, sulay = riyadh['العليا'], riyadh['السليمانية']
         self.assertEqual(olaya['properties']['id'], 492, 'the lowest member id names the merged district')
         self.assertEqual(olaya['properties']['member_ids'], [492, 493])
-        self.assertEqual(olaya['geometry']['type'], 'MultiPolygon')
-        self.assertEqual(len(olaya['geometry']['coordinates']), 2)
+        self.assertEqual(olaya['geometry']['type'], 'Polygon', 'touching pieces of one neighborhood are dissolved into one valid outline')
+        self.assertTrue(canonical_data.shapely.geometry.shape(olaya['geometry']).is_valid)
         self.assertEqual(sulay['properties']['member_ids'], [380, 463])
         self.assertEqual(sulay['properties']['en'], 'Al Sulaimaniyah')
         self.assertEqual(id_map['463'], 380)
         self.assertEqual(id_map['493'], 492)
+
+    def test_invalid_polygon_rings_are_repaired_before_they_reach_the_map(self):
+        atlas = {'type': 'FeatureCollection', 'features': [
+            {'type': 'Feature', 'properties': {'id': 12, 'ar': 'الروضة', 'city_en': 'Unaizah'},
+             'geometry': {'type': 'Polygon', 'coordinates': [[[44.0, 26.0], [44.02, 26.02], [44.02, 26.0], [44.0, 26.02], [44.0, 26.0]]]}}
+        ]}
+
+        collection, id_map = canonical_data.canonical_districts(atlas, {})
+
+        self.assertEqual(len(collection['features']), 1)
+        self.assertTrue(canonical_data.shapely.geometry.shape(collection['features'][0]['geometry']).is_valid)
+        self.assertEqual(id_map['12'], 12)
 
     def test_same_name_in_another_city_is_not_merged(self):
         collection, _ = canonical_data.canonical_districts(ATLAS, FIX)
@@ -173,6 +257,19 @@ class CanonicalDistrictTests(unittest.TestCase):
         self.assertAlmostEqual(merged['380']['coverage_pct'], 100 * 115 / 150, places=3)
         self.assertIsNone(merged['999']['population'], 'missing population stays missing, never zero')
 
+    def test_population_is_unavailable_if_any_merged_polygon_lacks_its_value(self):
+        _, id_map = canonical_data.canonical_districts(ATLAS, FIX)
+        rows = [
+            {'district_id': 492, 'district_ar': 'العليا', 'district_en': 'x', 'population': 100.0, 'coverage_pct': 90.0, 'valid_cells': 90, 'polygon_cells': 100},
+            {'district_id': 493, 'district_ar': 'العليا', 'district_en': 'x', 'population': None, 'coverage_pct': 100.0, 'valid_cells': 40, 'polygon_cells': 40},
+        ]
+
+        merged = canonical_data.merge_population_rows(rows, id_map, {'492': ('العليا', 'Al Olaya')})[0]
+
+        self.assertIsNone(merged['population'], 'a partial sum must not stand for the whole district')
+        self.assertEqual((merged['valid_cells'], merged['polygon_cells']), (130.0, 140.0))
+        self.assertAlmostEqual(merged['coverage_pct'], 100 * 130 / 140, places=3)
+
     def test_age_rows_merge_per_age_group(self):
         _, id_map = canonical_data.canonical_districts(ATLAS, FIX)
         rows = [
@@ -185,6 +282,18 @@ class CanonicalDistrictTests(unittest.TestCase):
         self.assertEqual((by_age['00']['male'], by_age['00']['female'], by_age['00']['total']), (15.0, 15.0, 30.0))
         self.assertAlmostEqual(by_age['00']['coverage_pct'], (18 * 80 + 12 * 100) / 30, places=3)
         self.assertEqual(by_age['ALL']['district_id'], 492)
+
+    def test_age_measurement_is_unavailable_if_a_merged_polygon_is_missing(self):
+        _, id_map = canonical_data.canonical_districts(ATLAS, FIX)
+        rows = [
+            {'district_id': 492, 'district_ar': 'العليا', 'district_en': 'x', 'age_code': '00', 'male': 10.0, 'female': 8.0, 'total': 18.0, 'coverage_pct': 80.0},
+            {'district_id': 493, 'district_ar': 'العليا', 'district_en': 'x', 'age_code': '00', 'male': 5.0, 'female': 7.0, 'total': None, 'coverage_pct': 100.0},
+        ]
+
+        merged = canonical_data.merge_population_rows(rows, id_map, {'492': ('العليا', 'Al Olaya')}, by_age=True)[0]
+
+        self.assertIsNone(merged['total'], 'age data from only part of the district is incomplete')
+        self.assertIsNone(merged['coverage_pct'], 'coverage cannot be weighted by an incomplete total')
 
     def test_same_name_polygons_that_do_not_touch_stay_separate_districts(self):
         # ids outside the reviewed corrections table, so only the touch rule is at work
@@ -268,6 +377,14 @@ class CanonicalDistrictTests(unittest.TestCase):
     def test_the_reviewed_corrections_table_loads(self):
         table = canonical_data.load_corrections()
         self.assertEqual(table[('Riyadh', '463')]['ar'], 'السليمانية')
+        for city, ident in [('Al Khobar', '48'), ('Al Khobar', '49'),
+                            ('Dammam', '587'), ('Dammam', '606'), ('Dammam', '622'),
+                            ('Dammam', '623'), ('Dammam', '624'), ('Dammam', '627'),
+                            ('Dammam', '629'), ('Dammam', '630'), ('Dammam', '631'),
+                            ('Dammam', '632'), ('Dammam', '626'), ('Dammam', '628')]:
+            self.assertEqual(table[(city, ident)]['to_city_en'], 'Dhahran', (city, ident))
+        self.assertEqual(table[('Riyadh', '546')]['to_city_en'], 'Diriyah')
+        self.assertEqual(table[('Ad Dilam', '10101061032')]['to_city_en'], 'Al Kharj')
 
 
 if __name__ == '__main__':

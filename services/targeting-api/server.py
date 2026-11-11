@@ -6,19 +6,22 @@ Farq Targeting — local server over the KSA golden POI set.
 AI query parsing uses ANTHROPIC_API_KEY (claude-haiku-4-5) when present; otherwise a built-in Arabic dictionary.
 Nothing is sent automatically: the UI opens WhatsApp click-to-chat / mailto links one contact at a time after your confirmation.
 """
-import os, json, re, sys, time, urllib.request, csv, threading, logging, traceback, collections
+import os, json, re, sys, time, urllib.request, csv, threading, logging, traceback, collections, math
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import duckdb, subprocess, base64
 from trial_search import Directory
 from directory_tiles import DirectoryTiles, has_usable_whatsapp, is_precise_point, valid_filters
 from market_analytics import MarketAnalytics
 import market_analytics
+import insights
 import status_policy
 import read_only_test
 import wa_inbox
+from city_catalog import city_rows_with_district_counts
 from metrics import ServiceMetrics, route_label
 import contextvars
 from health import is_ready
+from listing_phone_limit import ListingPhoneLimit, valid_listing_id
 _DRY = contextvars.ContextVar('dry_run', default=False)   # set for the whole of a dry run; provider_send refuses
 import urllib.parse
 FARQ_DIR = os.path.expanduser('~/farq-ontology-sync')
@@ -60,6 +63,7 @@ HOLDER_ENV = os.environ.get('HOLDER_RFQ_ID')
 HOLDER_ACTOR = os.environ.get('HOLDER_ACTOR_USER_ID')
 MODEL = 'claude-haiku-4-5-20251001'
 LOGGER = logging.getLogger('farq.targeting')
+PHONE_REVEALS = ListingPhoneLimit(os.path.join(AUX_DATA_DIR, 'listing_phone_reveals.sqlite3'))
 METRICS = ServiceMetrics()
 
 def city_polygon_ids(city):
@@ -88,12 +92,12 @@ def _golden_population(city):
     if not os.path.isfile(path): return None
     import insights
     ids=city_polygon_ids(city)
+    built_path=_latest_current_building_output(os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_population_buildings_*.parquet'))
     with LOCK:
         rows=con.execute("""select district_id,district_ar,district_en,population_estimate,
             population_coverage_pct,population_valid_cells,population_polygon_cells,
             population_year,population_source,population_license
             from read_parquet(?) where cast(district_id as varchar) in (select unnest(?::varchar[])) order by district_ar""",[path,ids]).fetchall()
-        built_path=insights.latest(os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_population_buildings_*.parquet'))
         built=con.execute("select district_id,population_estimate,calibration_source from read_parquet(?) where cast(district_id as varchar) in (select unnest(?::varchar[]))",[built_path,ids]).fetchall() if built_path else []
     rows=[dict(zip(('district_id','district_ar','district_en','population','coverage_pct','valid_cells','polygon_cells','year','source','license'),row)) for row in rows]
     # one row per canonical district: polygons merged in districts.geojson are summed here too
@@ -155,6 +159,9 @@ def _districts_geojson():
     if _DISTRICT_FEATURES is None:
         p = CANONICAL['districts.geojson']
         data = json.load(open(p, encoding='utf-8')) if os.path.isfile(p) else {'features': []}
+        data, repaired, excluded = canonical_data.sanitize_district_geometries(data)
+        if repaired or excluded:
+            LOGGER.warning('district_geometry_sanitized repaired=%s excluded=%s', repaired, excluded)
         for feature in data['features']:
             feature['properties']['area_km2'] = district_metrics.area_km2(feature.get('geometry'))
         _DISTRICT_FEATURES = data
@@ -175,6 +182,8 @@ def district_areas(city):
 
 
 _POP_BY_NAME = {}
+_POP_BY_ID = {}
+_POPULATION_ROWS_BY_ID = {}
 
 
 def population_by_name_cached(city):
@@ -185,21 +194,46 @@ def population_by_name_cached(city):
     return _POP_BY_NAME[city]
 
 
-def enrich_district_counts(result, city):
-    """Add the derived per-district figures the map used to compute in the browser, each from one backend formula:
+def population_by_id_cached(city):
+    """The same immutable golden population rows indexed by canonical district ID for map joins."""
+    if city not in _POP_BY_ID:
+        _POP_BY_ID[city] = {str(row.get('district_id')): row.get('population')
+                            for row in (golden_population(city) or []) if row.get('district_id') is not None}
+    return _POP_BY_ID[city]
+
+
+def district_population_rows_by_id(city):
+    """Golden residents and measured 910ths sex counts by canonical ID, for opportunity ranking."""
+    if city not in _POPULATION_ROWS_BY_ID:
+        population = golden_population(city) or []
+        import insights
+        audience = insights.district_audience(city, id_map=CANONICAL['district_id_map']) or {}
+        _POPULATION_ROWS_BY_ID[city] = district_metrics.population_audience_by_id(population, audience.get('districts', []))
+    return _POPULATION_ROWS_BY_ID[city]
+
+
+def enrich_district_counts(result, city, district_ids=None):
+    """Add per-district and scope figures using one backend formula:
     area_km2 (authoritative), population, residents_per (population ÷ businesses), per_km2 (businesses ÷ area),
     density (population ÷ area). A missing input yields null, never zero. `located` is the businesses that fell in a
     known district (Σ n), for «منها بحي معروف»."""
     if not city:
         return result
-    areas = district_areas(city)
-    pop = population_by_name_cached(city)
+    # Resolve source labels to Atlas identity only when the official city layer has exactly one match.
+    # The label remains in the response for display, but it is no longer the join key in clients.
+    features = _city_features(city)
+    feature_by_name = district_metrics.unique_district_features_by_name(features)
+    population_by_id = population_by_id_cached(city)
     located = 0
     for row in result.get('districts', []):
         name = row.get('district_ar')
         n = row.get('n')
-        area = areas.get(name)
-        people = (pop.get(name) or {}).get('population')
+        feature = feature_by_name.get(name)
+        feature_id = (feature.get('properties') or {}).get('id') if feature else None
+        district_id = str(feature_id) if feature_id is not None else None
+        row['district_id'] = district_id
+        area = (feature.get('properties') or {}).get('area_km2') if feature else None
+        people = population_by_id.get(district_id) if district_id is not None else None
         row['area_km2'] = area
         row['population'] = people
         row['residents_per'] = district_metrics.residents_per(people, n)
@@ -208,13 +242,26 @@ def enrich_district_counts(result, city):
         if isinstance(n, (int, float)):
             located += n
     result['located'] = located
+    if district_ids is None:
+        scope_ids = list(dict.fromkeys(str((feature.get('properties') or {}).get('id')) for feature in features
+                                       if (feature.get('properties') or {}).get('id') is not None))
+    else:
+        scope_ids = district_ids
+    counts_by_id = {row['district_id']: row.get('n') for row in result.get('districts', []) if row.get('district_id') is not None}
+    has_unresolved_counts = any(row.get('district_id') is None for row in result.get('districts', []))
+    result['scope_summary'] = district_metrics.scope_summary(
+        [population_by_id.get(ident) for ident in scope_ids],
+        ([None] * len(scope_ids) if has_unresolved_counts else [counts_by_id.get(ident, 0) for ident in scope_ids]),
+    )
     return result
 
 
+def attach_district_ids(city, rows):
+    """Attach a canonical ID to district aggregates only when their official name is unique in the city."""
+    return district_metrics.attach_district_ids(rows, _city_features(city))
+
+
 POPULATION_DIR = os.path.join(AUX_DATA_DIR, 'buildings_ingest', 'population')
-HOUSEHOLD_SIZE = 5.0   # people per dwelling for building-based counts; the same assumption as build_building_population
-
-
 def _city(body):
     city = body.get('city')
     if not isinstance(city, str) or not 1 <= len(city) <= 80: raise ValueError('city')
@@ -253,22 +300,31 @@ def site_card_response(body):
 
 
 def _city_features(city):
-    with open(CANONICAL['districts.geojson'], encoding='utf-8') as handle:
-        return [f for f in json.load(handle).get('features', []) if (f.get('properties') or {}).get('city_en') == city]
+    return [f for f in _districts_geojson()['features'] if (f.get('properties') or {}).get('city_en') == city]
+
+
+def _latest_current_building_output(pattern):
+    """Use building-derived tables only when their successful build matches the configured source and inputs."""
+    import insights, startup_jobs
+    if not startup_jobs.building_population_output_current(DATA_DIR, AUX_DATA_DIR):
+        return None
+    return insights.latest(pattern)
 
 
 def insight_response(path, body):
     import insights
     if path == '/growth':
         city = _city(body)
+        source = _latest_current_building_output(os.path.join(POPULATION_DIR, 'district_growth_*.parquet'))
         with LOCK:
-            rows = insights.growth(con, insights.latest(os.path.join(POPULATION_DIR, 'district_growth_*.parquet')), city_polygon_ids(city), CANONICAL['district_id_map'], CANONICAL['district_names'])
-        if rows is None: return {'ok': True, 'city': city, 'districts': [], 'available': False, 'basis': 'طبقة المباني لم تُعالج بعد على الخادم.'}
+            rows = insights.growth(con, source, city_polygon_ids(city), CANONICAL['district_id_map'], CANONICAL['district_names'])
+        if rows is None: return {'ok': True, 'city': city, 'districts': [], 'available': False, 'basis': 'طبقة المباني غير متاحة أو لا تطابق مصدر الإصدار الحالي.'}
         return {'ok': True, 'city': city, 'available': True, 'districts': rows,
                 'basis': 'مبانٍ تحت الإنشاء أو الترميم من حقل الغرض في طبقة المباني، ومبانٍ جديدة رُصدت منذ آخر مسح. مؤشر لاتجاه الطلب القادم، لا عدد وحدات مؤكد.'}
     if path == '/population-around':
         lon, lat = _number(body, 'lon', 34, 56), _number(body, 'lat', 16, 33)
         radius = _number(body, 'radius_m', 100, 5000, 500)
+        source = _latest_current_building_output(os.path.join(POPULATION_DIR, 'building_points_*.parquet'))
         with LOCK:
             result = insights.population_around(con, insights.latest(os.path.join(POPULATION_DIR, 'building_points_*.parquet')),
                                                 DATA if os.path.isfile(DATA) else None, TILES.search_sql, lon, lat, radius, HOUSEHOLD_SIZE)
@@ -282,10 +338,11 @@ def insight_response(path, body):
         points = [p for rings in canonical_data._polygons(geometry) for ring in rings for p in ring]
         if not 3 <= len(points) <= 20000 or not all(isinstance(p, list) and len(p) >= 2 and 34 <= p[0] <= 56 and 16 <= p[1] <= 33 for p in points):
             raise ValueError('geometry')
+        source = _latest_current_building_output(os.path.join(POPULATION_DIR, 'building_points_*.parquet'))
         with LOCK:
-            result = insights.population_within(con, insights.latest(os.path.join(POPULATION_DIR, 'building_points_*.parquet')),
+            result = insights.population_within(con, source,
                                                 DATA if os.path.isfile(DATA) else None, TILES.search_sql, geometry, HOUSEHOLD_SIZE)
-        result.update(ok=True, household_size=HOUSEHOLD_SIZE)
+        result.update(ok=True)
         # residents ÷ businesses for the drawn area, computed here so the map never divides it itself
         result['residents_per'] = district_metrics.residents_per(result.get('population'), result.get('businesses'))
         return result
@@ -294,25 +351,49 @@ def insight_response(path, body):
         count = int(_number(body, 'count', 2, 50, 5))
         weight = body.get('weight', 'population')
         if weight not in ('population', 'businesses'): raise ValueError('weight')
+        features = _city_features(city)
+        unweighted_districts = 0
+        unlocated_businesses = None
         if weight == 'population':
             weights = {name: row['population'] for name, row in population_by_name_cached(city).items() if row.get('population')}
         else:
             # a distributor balances on its own customers, read at the activity picked: a subcategory or specialty
             # (market-activities) as well as a typed request or the older main activity
             activity = {key: body[key] for key in ('q', 'main_id', 'sub_ids', 'specialty_ids') if body.get(key)}
-            weights = {row['district_ar']: row['n'] for row in MARKET_ANALYTICS.district_counts({'city': city, **activity})['districts']}
-        groups = insights.territories(_city_features(city), weights, count)
+            counts = MARKET_ANALYTICS.district_counts({'city': city, **activity})
+            attach_district_ids(city, counts['districts'])
+            weights = {row['district_id']: row['n'] for row in counts['districts'] if row.get('district_id') is not None}
+            feature_ids = set()
+            for feature in features:
+                district_id = (feature.get('properties') or {}).get('id')
+                if district_id is not None:
+                    district_id = str(district_id)
+                    feature_ids.add(district_id)
+                    weights.setdefault(district_id, 0)
+            located = sum(row['n'] for row in counts['districts'] if row.get('district_id') is not None)
+            total = counts.get('total')   # businesses the count could not place in a district stay visible as a number, or «غير متاح»
+            unlocated_businesses = max(0, total - located) if isinstance(total, (int, float)) and not isinstance(total, bool) else None
+        groups = insights.territories(features, weights, count, by_id=True)
         return {'ok': True, 'city': city, 'weight': weight, 'territories': groups,
+                'unweighted_districts': unweighted_districts, 'unlocated_businesses': unlocated_businesses,
                 'basis': 'الأحياء مرتبة على مسار يمر بمراكزها حتى تبقى كل منطقة متجاورة، ثم قُسمت عند كل حصة متساوية من ' + ('السكان.' if weight == 'population' else 'المنشآت.')}
+    if path == '/territory-centres':
+        city = _city(body)
+        features = _city_features(city)
+        centres = insights.territory_centres(features)
+        return {'ok': True, 'city': city, 'centres': centres, 'total_districts': len(features),
+                'unweighted_districts': len(features) - len(centres),
+                'basis': 'مراكز مضلعات الأحياء مرتبة على مسار هيلبرت متجاور لقياس زمن الطريق بين المراكز.'}
     if path == '/district-income':
         city = _city(body)
-        table = insights.district_income(city)
+        table = insights.district_income(city, id_map=CANONICAL['district_id_map'])
         if table is None: return {'ok': True, 'city': city, 'available': False, 'districts': []}
         return {'ok': True, 'city': city, 'available': True, **table}
     if path == '/registered-deals':
         city = _city(body)
         table = insights.registered_deals(city)
         if table is None: return {'ok': True, 'city': city, 'available': False, 'districts': []}
+        district_metrics.attach_district_ids(table.get('districts', []), _city_features(city))
         return {'ok': True, 'city': city, 'available': True, **table}
     if path == '/real-estate':
         city = _city(body)
@@ -341,21 +422,39 @@ def insight_response(path, body):
                                     and 34 <= box[0] < box[2] <= 56 and 16 <= box[1] < box[3] <= 33):
             raise ValueError('bbox')
         ids = body.get('district_ids')
-        if ids is not None and not (isinstance(ids, list) and len(ids) <= 50 and all(isinstance(v, str) and len(v) <= 40 for v in ids)): raise ValueError('district_ids')
+        if ids is not None and not (isinstance(ids, list) and len(ids) <= 1000 and all(isinstance(v, str) and len(v) <= 40 for v in ids)): raise ValueError('district_ids')
         kind = body.get('kind')
         if kind not in (None, 'rent', 'sale'): raise ValueError('kind')
         deal = body.get('deal')
         if deal not in (None, 'sale', 'rent_year', 'rent_month', 'rent_unstated'): raise ValueError('deal')
         types = body.get('types')
         if types is not None and not (isinstance(types, list) and all(t in insights.LISTING_TYPES for t in types)): raise ValueError('types')
+        offset = body.get('offset', 0)
+        if isinstance(offset, bool) or not isinstance(offset, int) or not 0 <= offset <= 1_000_000: raise ValueError('offset')
         filters = {'bbox': box, 'district_ids': ids, 'kind': kind, 'deal': deal, 'types': types,
-                   'min_price': body.get('min_price') and _number(body, 'min_price', 1, 1e9), 'max_price': body.get('max_price') and _number(body, 'max_price', 1, 1e9),
-                   'min_area': body.get('min_area') and _number(body, 'min_area', 1, 1e6), 'max_area': body.get('max_area') and _number(body, 'max_area', 1, 1e6),
+                   'min_price': _number(body, 'min_price', 0, 1e9) if body.get('min_price') is not None else None,
+                   'max_price': _number(body, 'max_price', 0, 1e9) if body.get('max_price') is not None else None,
+                   'min_area': _number(body, 'min_area', 0, 1e6) if body.get('min_area') is not None else None,
+                   'max_area': _number(body, 'max_area', 0, 1e6) if body.get('max_area') is not None else None,
+                   'min_beds': _number(body, 'min_beds', 0, 50) if body.get('min_beds') is not None else None,
+                   'min_livings': _number(body, 'min_livings', 0, 50) if body.get('min_livings') is not None else None,
+                   'min_wc': _number(body, 'min_wc', 0, 50) if body.get('min_wc') is not None else None,
+                   'min_street_width': _number(body, 'min_street_width', 0, 200) if body.get('min_street_width') is not None else None,
+                   'min_vs_district_pct': _number(body, 'min_vs_district_pct', -100, 100) if body.get('min_vs_district_pct') is not None else None,
+                   'max_vs_district_pct': _number(body, 'max_vs_district_pct', -100, 100) if body.get('max_vs_district_pct') is not None else None,
+                   'tenants': body.get('tenants'), 'features': body.get('features'),
+                   'sort': body.get('sort', 'best'),
                    # 0 is a real answer here («new only»), so it is read when present, not when truthy
                    'max_age': _number(body, 'max_age', 0, 99) if body.get('max_age') is not None else None,
                    'limit': int(_number(body, 'limit', 1, insights.LISTINGS_MAX, insights.LISTINGS_MAX)),
                    # «العقار» asks for near-identical ads folded into one card (insights.similar_groups)
                    'group_similar': body.get('group_similar') is True}
+        if filters['tenants'] not in (None, 'families', 'singles'): raise ValueError('tenants')
+        if filters['features'] is not None and (not isinstance(filters['features'], list) or len(filters['features']) > 20
+                                                or not all(value in insights.LISTING_FEATURES for value in filters['features'])):
+            raise ValueError('features')
+        if filters['sort'] not in insights.LISTING_SORTS: raise ValueError('sort')
+        filters['offset'] = offset
         near = body.get('near')
         if near is not None:
             # units along an activity street: within `meters` of the corridor's own line
@@ -363,28 +462,31 @@ def insight_response(path, body):
             filters['near'] = {'runs': insights.near_lines(near.get('geometry')),
                                'meters': _number(near, 'meters', 10, insights.NEAR_MAX_M, insights.NEAR_DEFAULT_M)}
         table = insights.real_estate_listings(city, filters)
-        if table is None: return {'ok': True, 'city': city, 'available': False, 'total': 0, 'listings': []}
+        if table is None: return {'ok': True, 'city': city, 'available': False, 'total': 0, 'offset': offset, 'listings': []}
         return {'ok': True, 'city': city, 'available': True, **table}
     if path == '/real-estate-phone':
         listing_id = body.get('id')
-        if not isinstance(listing_id, str) or not re.fullmatch(r'\d{1,12}', listing_id): raise ValueError('id')
+        if not valid_listing_id(listing_id): raise ValueError('id')
         phone = insights.listing_phone(listing_id)
         LOGGER.info('listing_phone found=%s', bool(phone))
         return {'ok': True, 'available': bool(phone), 'phone': phone}
     if path == '/housing-level':
         city = _city(body)
+        source = _latest_current_building_output(os.path.join(POPULATION_DIR, 'district_population_buildings_*.parquet'))
         with LOCK:
-            rows = insights.housing_level(con, insights.latest(os.path.join(POPULATION_DIR, 'district_population_buildings_*.parquet')), city_polygon_ids(city), CANONICAL['district_id_map'], CANONICAL['district_names'])
+            rows = insights.housing_level(con, source, city_polygon_ids(city), CANONICAL['district_id_map'], CANONICAL['district_names'])
         if rows is None: return {'ok': True, 'city': city, 'districts': [], 'available': False}
         return {'ok': True, 'city': city, 'available': True, 'min_units': insights.MIN_HOUSING_UNITS, 'districts': rows}
     if path == '/district-audience':
         city = _city(body)
-        table = insights.district_audience(city)
+        table = insights.district_audience(city, id_map=CANONICAL['district_id_map'])
         if table is None: return {'ok': True, 'city': city, 'available': False, 'districts': []}
-        # the measured share × the district population, so the map reads the segment size and never multiplies it itself
-        pop = population_by_name_cached(city)
+        # The measured share × the golden population row for the same canonical ID; the map reads sizes verbatim and
+        # never matches, joins or multiplies the figure by a display name.
+        pop = {str(row.get('district_id')): row.get('population') for row in (golden_population(city) or [])}
         for row in table.get('districts', []):
-            people = (pop.get(row.get('district_ar')) or {}).get('population')
+            district_id = row.get('district_id')
+            people = pop.get(district_id) if district_id is not None else None
             row.update(district_metrics.audience_sizes(people, row.get('male_pct'), row.get('saudi_pct')))
         return {'ok': True, 'city': city, 'available': True, **table}
     if path == '/district-profile':
@@ -395,16 +497,17 @@ def insight_response(path, body):
         summary = MARKET_ANALYTICS.market_summary({'city': city, 'districts': [district]})['summary']
         # the golden rows of this city only: a district name can recur in other cities
         ages = sorted(({'age_group': r['age_group'], 'age_code': r['age_code'], 'male': None if r['male'] is None else round(r['male']),
-                        'female': None if r['female'] is None else round(r['female']), 'total': round(r['total'] or 0)}
+                        'female': None if r['female'] is None else round(r['female']), 'total': None if r['total'] is None else round(r['total'])}
                        for r in (golden_demographics(city) or []) if r['district_ar'] == district and r['age_code'] != 'ALL'), key=lambda r: r['age_code'])
+        growth_source = _latest_current_building_output(os.path.join(POPULATION_DIR, 'district_growth_*.parquet'))
         with LOCK:
-            growth_rows = insights.growth(con, insights.latest(os.path.join(POPULATION_DIR, 'district_growth_*.parquet')), city_polygon_ids(city), CANONICAL['district_id_map'], CANONICAL['district_names']) or []
+            growth_rows = insights.growth(con, growth_source, city_polygon_ids(city), CANONICAL['district_id_map'], CANONICAL['district_names']) or []
         income = insights.district_income(city) or {}
         measured = district_reference.city_rows(city).get(district) or {}
         return {
             'ok': True, 'city': city, 'district': district,
-            'population': round(people['population']) if people.get('population') else None,
-            'male': round(people['male']) if people.get('male') else None, 'female': round(people['female']) if people.get('female') else None,
+            'population': district_metrics.rounded_count(people.get('population')),
+            'male': district_metrics.rounded_count(people.get('male')), 'female': district_metrics.rounded_count(people.get('female')),
             'ages': ages,
             'saudi_pct': measured.get('saudi_pct'),   # published by 910ths only; None elsewhere
             'businesses': summary.get('total'), 'whatsapp': summary.get('n_whatsapp'), 'wholesale': summary.get('n_wholesale'),
@@ -1218,14 +1321,14 @@ class H(BaseHTTPRequestHandler):
         if route.path=="/districts":
             # official district outlines (MOMRAH atlas, 6 cities) for the map's district picker (owner 2026-10-16)
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
-            city=urllib.parse.parse_qs(route.query).get("city",[""])[0]
+            city=canonical_data.canonical_city_name(urllib.parse.parse_qs(route.query).get("city",[""])[0])
             if not city or len(city)>80: self._json({"error":"INPUT"},400); return
             self._json({'type':'FeatureCollection','features':[f for f in _districts_geojson()['features'] if f['properties'].get('city_en')==city]}); return
         if route.path=="/population-districts":
             # Population estimates are served from the existing data volume and
             # joined to the same official district IDs used by /districts.
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
-            city=urllib.parse.parse_qs(route.query).get("city",[""])[0]
+            city=canonical_data.canonical_city_name(urllib.parse.parse_qs(route.query).get("city",[""])[0])
             if not city or len(city)>80: self._json({"error":"INPUT"},400); return
             try:
                 rows=golden_population(city)
@@ -1239,7 +1342,7 @@ class H(BaseHTTPRequestHandler):
             # Modeled WorldPop age/sex aggregates; never serve the source grids.
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
             query=urllib.parse.parse_qs(route.query,keep_blank_values=True)
-            city=query.get("city",[""])[0]
+            city=canonical_data.canonical_city_name(query.get("city",[""])[0])
             districts=query.get("district",[])
             if not city or len(city)>80 or len(districts)>50 or any(not item or len(item)>120 for item in districts):
                 self._json({"error":"INPUT"},400); return
@@ -1255,7 +1358,7 @@ class H(BaseHTTPRequestHandler):
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
             try:
                 if route.path=="/facets":
-                    city=urllib.parse.parse_qs(route.query).get("city",["*"])[0]
+                    city=canonical_data.canonical_city_name(urllib.parse.parse_qs(route.query).get("city",["*"])[0])
                     if len(city)>80: raise ValueError()
                     self._json(TILES.facets(city)); return
                 match=re.fullmatch(r"/tiles/([a-f0-9]{32})/(\d{1,2})/(\d{1,7})/(\d{1,7})\.pbf",route.path)
@@ -1392,6 +1495,21 @@ class H(BaseHTTPRequestHandler):
             back = field('back') if field('back') in access_requests.FILTERS else 'all'
             self.send_response(303); self.send_header('Location', f'/access-requests?status={back}&{done}=1'); self.end_headers(); return
         body = json.loads(raw or b'{}')
+        if isinstance(body, dict) and isinstance(body.get('city'), str):
+            body['city'] = canonical_data.canonical_city_name(body['city'])
+        if self.path == '/real-estate-phone':
+            listing_id = body.get('id')
+            if not valid_listing_id(listing_id):
+                self._json({'error': 'INPUT'}, 400); return
+            try:
+                allowance = PHONE_REVEALS.consume(body.get('viewer'))
+            except ValueError:
+                self._json({'error': 'INPUT'}, 400); return
+            except Exception as error:
+                LOGGER.error('listing_phone_limit_failed error_type=%s', type(error).__name__)
+                self._json({'error': 'UNAVAILABLE'}, 503); return
+            if not allowance['allowed']:
+                self._json({'error': 'PHONE_REVEAL_LIMIT', 'retry_after_seconds': allowance['retry_after_seconds']}, 429); return
         if self.path in ('/map-query','/map-profile','/map-focus'):
             try:
                 if self.path=='/map-query':
@@ -1458,7 +1576,7 @@ class H(BaseHTTPRequestHandler):
             status, answer = advisor_proxy.reply(system, messages)
             LOGGER.info('advisor status=%s', status)
             self._json(answer, status)
-        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/registered-deals', '/real-estate-listings', '/real-estate-phone', '/price-estimate', '/district-profile'):
+        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/territory-centres', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/registered-deals', '/real-estate-listings', '/real-estate-phone', '/price-estimate', '/district-profile'):
             # Commercial insights over the district layers (insights.py); aggregates only, no business records.
             try:
                 self._json(insight_response(self.path, body))
@@ -1496,7 +1614,23 @@ class H(BaseHTTPRequestHandler):
                 self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/district-points':
             # Business records with coordinates for route planning; Atlas serves it only to signed-in users.
-            try: self._json(MARKET_ANALYTICS.district_points(body))
+            try:
+                query_body = body
+                if 'district_ids' in body:
+                    city = _city(body)
+                    district_ids = body.get('district_ids')
+                    if (not isinstance(district_ids, list) or not 1 <= len(district_ids) <= market_analytics.MAX_DISTRICTS
+                            or not all(isinstance(value, (str, int)) and not isinstance(value, bool) for value in district_ids)):
+                        raise ValueError('district_ids')
+                    district_ids = list(dict.fromkeys(str(value) for value in district_ids))
+                    names = district_metrics.unique_district_names_by_ids(district_ids, _city_features(city))
+                    if names is None:
+                        self._json({'error': 'لا يمكن فصل أحياء المنطقة بالاسم الرسمي الحالي.'}, 409); return
+                    query_body = {**body, 'districts': names}
+                result = MARKET_ANALYTICS.district_points(query_body)
+                if 'district_ids' in body:
+                    attach_district_ids(_city(body), result.get('points', []))
+                self._json(result)
             except ValueError: self._json({'error': 'INPUT'}, 400)
             except Exception as error:
                 log_map_api_failure('district-points', error)
@@ -1510,7 +1644,10 @@ class H(BaseHTTPRequestHandler):
                 self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/brand-profile':
             # one chain across every activity in the city: branches per district and the activities they fall under
-            try: self._json(MARKET_ANALYTICS.brand_profile(body))
+            try:
+                result = MARKET_ANALYTICS.brand_profile(body)
+                attach_district_ids(result['city'], result.get('by_district', []))
+                self._json(result)
             except ValueError: self._json({'error': 'INPUT'}, 400)
             except Exception as error:
                 log_map_api_failure('brand-profile', error)
@@ -1529,7 +1666,18 @@ class H(BaseHTTPRequestHandler):
             try:
                 if self.path == '/market-summary': self._json(MARKET_ANALYTICS.market_summary(body))
                 elif self.path == '/market-activities': self._json(MARKET_ANALYTICS.activities(body))
-                elif self.path == '/district-counts': self._json(enrich_district_counts(MARKET_ANALYTICS.district_counts(body), body.get('city')))
+                elif self.path == '/district-counts':
+                    result = MARKET_ANALYTICS.district_counts(body)
+                    district_ids = body.get('district_ids')
+                    if district_ids is not None:
+                        if (not isinstance(district_ids, list) or not 1 <= len(district_ids) <= 1000
+                                or not all(isinstance(value, (str, int)) and not isinstance(value, bool) for value in district_ids)):
+                            raise ValueError('district_ids')
+                        district_ids = list(dict.fromkeys(str(value) for value in district_ids))
+                        valid_ids = {str((feature.get('properties') or {}).get('id')) for feature in _city_features(result['city'])}
+                        if not district_ids or any(ident not in valid_ids for ident in district_ids):
+                            raise ValueError('district_ids')
+                    self._json(enrich_district_counts(result, result['city'], district_ids))
                 elif self.path == '/district-insights': self._json(MARKET_ANALYTICS.district_insights(body))
                 else: self._json(MARKET_ANALYTICS.who_buys(body))
             except ValueError: self._json({'error': 'INPUT'}, 400)

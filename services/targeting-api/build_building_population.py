@@ -56,7 +56,7 @@ import district_reference
 
 DATA_DIR = Path(os.environ.get("FARQ_DATA_DIR", "/app/data"))
 POP_DIR = DATA_DIR / "buildings_ingest" / "population"
-SOURCE = "farq_buildings_dasymetric_v3_1"
+SOURCE = "farq_buildings_dasymetric_v3_2"
 USE_WEIGHT = {"residential": 1.0, "mixed_use": 1.0, "administrative": 1.0}   # uses that can hold homes; see dwelling_units
 # Dwelling-unit model. These constants scale every building alike, so they set the buildings-only total but
 # cancel out of the district shares once a city total is calibrated; only the villa/apartment split and the
@@ -270,6 +270,16 @@ def load_worldpop(path: Path | None) -> dict:
     return {str(row[0]): {"city_en": row[1], "population": row[2]} for row in rows}   # ids as text, like the atlas join
 
 
+def measured_population(value) -> bool:
+    """A published zero is a valid district total; absent and malformed totals are not."""
+    if type(value) not in (int, float) or value < 0:
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 def reference_estimates(districts: Path, ids: list, district_city: dict, per_district: dict, reference: Path | None) -> tuple[dict, dict]:
     """({polygon id: population} for districts listed in the 910ths reference, {city: people per dwelling} over them).
     A reference row names a canonical district, which may be several polygons; its total is spread over them by dwellings.
@@ -288,7 +298,7 @@ def reference_estimates(districts: Path, ids: list, district_city: dict, per_dis
     for canonical, members in groups.items():
         city = city_of[canonical]
         row = district_reference.city_rows(city, reference).get(names.get(canonical))
-        if not row or not row.get("population"):
+        if not row or not measured_population(row.get("population")):
             continue
         if row.get("shared_with"):
             key = (city, tuple(row["shared_with"]))
@@ -338,7 +348,7 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
     sample = [row[0] for row in db.execute(f"select try_cast({elevation_col} as double) from read_parquet(?) where {columns['building_use']} in ({uses}) and try_cast({elevation_col} as double) > 0 using sample 200000 rows", [str(buildings)]).fetchall()] if elevation_col else []
     mode, elevation_stats = decide_elevation_mode([float(v) for v in sample if v is not None], elevation_mode)
 
-    per_district: dict = defaultdict(lambda: {"buildings": 0, "floors_known": 0, "area_m2": 0.0, "weight": 0.0, "by_use": defaultdict(int), "by_class": defaultdict(int)})
+    per_district: dict = defaultdict(lambda: {"buildings": 0, "floors_known": 0, "area_m2": 0.0, "weight": 0.0, "villa_units": 0.0, "classified_home_units": 0.0, "by_use": defaultdict(int), "by_class": defaultdict(int)})
     per_city: dict = defaultdict(lambda: {"candidate_buildings": 0, "assigned": 0, "outside_boundaries": 0, "ambiguous_boundary": 0, "invalid_geometry": 0, "by_use": defaultdict(int)})
     points: list[dict] = []   # one row per occupied home building, for population-around-a-point queries
     cursor = db.execute(select, [str(buildings)])
@@ -388,6 +398,10 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
             bucket["area_m2"] += area
             units, kind = dwelling_units(use, purpose, area, floors, shops.get(i, 0))
             bucket["weight"] += units
+            if kind in {"villa", "apartments", "mixed_use"}:
+                bucket["classified_home_units"] += units
+                if kind == "villa":
+                    bucket["villa_units"] += units
             if units > 0:
                 points.append({"longitude": round(centroids[i].x, 6), "latitude": round(centroids[i].y, 6), "district_id": district_id, "dwellings": round(units, 2)})
             bucket["by_use"][use] += 1
@@ -442,6 +456,8 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
             "mixed_use_buildings": bucket["by_use"]["mixed_use"] if bucket else 0,
             "floors_known_pct": round(100 * bucket["floors_known"] / bucket["buildings"], 1) if bucket and bucket["buildings"] else None,
             "villas": bucket["by_class"]["villa"] if bucket else 0,
+            "villa_units": round(bucket["villa_units"], 1) if bucket else 0.0,
+            "classified_home_units": round(bucket["classified_home_units"], 1) if bucket else 0.0,
             "shops_or_unoccupied_excluded": (bucket["by_class"]["shop"] + bucket["by_class"]["not_yet_occupied"]) if bucket else 0,
             "dwelling_units": round(bucket["weight"], 1) if bucket else 0.0,
             "population_buildings_only": round(bucket["weight"] * HOUSEHOLD_SIZE, 1) if bucket else None,
@@ -463,7 +479,7 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
     try:
         db.execute("create table out as select * from read_csv(?, header=true, nullstr='', columns={" + ", ".join(
             f"'{f}': '{t}'" for f, t in [("district_id", "VARCHAR"), ("district_ar", "VARCHAR"), ("district_en", "VARCHAR"), ("city_ar", "VARCHAR"), ("city_en", "VARCHAR"),
-                                          ("residential_buildings", "BIGINT"), ("mixed_use_buildings", "BIGINT"), ("floors_known_pct", "DOUBLE"), ("villas", "BIGINT"), ("shops_or_unoccupied_excluded", "BIGINT"),
+                                          ("residential_buildings", "BIGINT"), ("mixed_use_buildings", "BIGINT"), ("floors_known_pct", "DOUBLE"), ("villas", "BIGINT"), ("villa_units", "DOUBLE"), ("classified_home_units", "DOUBLE"), ("shops_or_unoccupied_excluded", "BIGINT"),
                                           ("dwelling_units", "DOUBLE"), ("population_buildings_only", "DOUBLE"),
                                           ("city_weight_share", "DOUBLE"), ("population_estimate", "DOUBLE"), ("calibration_total", "DOUBLE"), ("calibration_source", "VARCHAR"),
                                           ("calibration_year", "VARCHAR"), ("worldpop_estimate", "DOUBLE"), ("worldpop_diff_pct", "DOUBLE"), ("estimates_diverge", "BOOLEAN"),

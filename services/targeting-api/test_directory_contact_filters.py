@@ -5,6 +5,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 import duckdb
 
@@ -12,6 +13,7 @@ SERVICE_DIR = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(SERVICE_DIR))
 from directory_tiles import DirectoryTiles, filter_rows, valid_filters  # noqa: E402
 import status_policy  # noqa: E402
+from trial_search import dedupe_key  # noqa: E402
 
 
 class DirectoryContactFilterTests(unittest.TestCase):
@@ -37,6 +39,15 @@ class DirectoryContactFilterTests(unittest.TestCase):
 
     def test_whatsapp_filter_excludes_source_markers_without_a_deliverable_mobile(self):
         self.assertEqual([row["poi_key"] for row in filter_rows(self.rows, {"contact": "whatsapp"})], ["wa", "local-wa"])
+
+    def test_same_name_and_district_keep_distinct_stable_entities(self):
+        branches = [
+            {"poi_key": "branch-a", "name": "صيدلية الربيع", "district": "الربيع"},
+            {"poi_key": "branch-b", "name": "صيدلية الربيع", "district": "الربيع"},
+        ]
+        self.assertEqual(len({dedupe_key(row["poi_key"]) for row in branches}), 2)
+        with self.assertRaisesRegex(ValueError, "stable poi_key"):
+            dedupe_key("")
 
     def test_backend_mobile_normalization_matches_the_pricing_ui(self):
         cases = {
@@ -124,6 +135,33 @@ class DirectoryContactFilterTests(unittest.TestCase):
         self.assertEqual([row["poi_key"] for row in page["_map_rows"]], ["malaz-a", "malaz-b"])
         self.assertTrue(page["has_more"])
         self.assertEqual(page["next_offset"], 1)
+
+    def test_empty_search_page_has_explicit_zero_and_terminal_pagination(self):
+        """A valid no-match result must satisfy the same page contract as a non-empty search."""
+        from trial_search import Directory
+
+        page = Directory.page({"rows": [], "total": 0}, limit=200, offset=0)
+
+        self.assertEqual(page["rows"], [])
+        self.assertEqual(page["total"], 0)
+        self.assertFalse(page["has_more"])
+        self.assertIsNone(page["next_offset"])
+
+    def test_unrecognized_activity_returns_the_complete_empty_page_contract(self):
+        from trial_search import Directory
+
+        directory = Directory.__new__(Directory)
+        directory.categories = []
+        directory.lock = threading.Lock()
+        directory.cache = collections.OrderedDict()
+        unknown = {"key": "custom", "label": "نشاط غير مفهوم", "seller": [], "product": [], "exclude": []}
+        with patch("taxonomy_search.directory_search", return_value=None), patch("trial_search.interpret", return_value=unknown), patch("trial_search.extend_intent", side_effect=lambda _q, intent, _objective, _categories: intent):
+            result = directory.search("qwerty-unknown", "Riyadh", "purchase", 200, 0, {})
+
+        self.assertEqual(result["rows"], [])
+        self.assertEqual(result["total"], 0)
+        self.assertFalse(result["has_more"])
+        self.assertIsNone(result["next_offset"])
 
     def test_browse_applies_normalized_district_and_street_filters(self):
         with tempfile.TemporaryDirectory() as temp_dir:
