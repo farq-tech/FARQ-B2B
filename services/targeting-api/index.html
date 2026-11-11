@@ -42,6 +42,7 @@
   <button class="primary" id="go">ابحث</button>
   <label class="st"><input type="checkbox" id="onlySend"> فقط من يمكن مراسلته</label>
   <span class="st" id="status">…</span>
+  <a class="st" id="accessRequests" href="/access-requests" style="color:inherit">طلبات الحسابات</a>
 </header>
 <main>
   <aside>
@@ -78,6 +79,8 @@ let cluster=L.markerClusterGroup({chunkedLoading:true,disableClusteringAtZoom:16
 let rows=[], sel=new Set(), markers={}, lastQuery='';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',4000)}
+// «اطلب حساباً» requests waiting for a decision (access_requests.py); the link stays plain when the count cannot be read
+fetch('/access-requests/count').then(r=>r.ok?r.json():null).then(c=>{if(c&&c.new>0)$('#accessRequests').textContent=`طلبات الحسابات (${c.new.toLocaleString('en')} جديدة)`}).catch(()=>{});
 fetch('/status').then(r=>r.json()).then(s=>{$('#status').textContent=`${s.pois.toLocaleString('en')} نقطة · واتساب ${s.whatsapp.toLocaleString('en')} · إيميل ${s.email.toLocaleString('en')} · الذكاء: ${s.ai?'مفعّل':'قاموس داخلي'}`});
 function badge(r){ if(r.has_whatsapp) return '<span class="b ok">واتساب</span>'; if(r.phone_kind==='landline') return '<span class="b ln">هاتف ثابت — لا واتساب</span>'; return '<span class="b no">لا يمكن الإرسال</span>'; }
 function sendable(r,ch){ return ch==='email' ? !!r.email : ch==='farq' ? (!!r.has_whatsapp || !!r.email) : !!r.has_whatsapp; }

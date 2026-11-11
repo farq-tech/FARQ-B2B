@@ -1,0 +1,428 @@
+sub_id,main_id,category,secondary_category,category_level_3
+food.restaurant,food,Restaurants,,Restaurant
+food.fast_food,food,Restaurants,Fast Food,Fast Food Restaurant
+food.buffet_popular,food,Restaurants,,Buffet / Popular Eatery
+food.cafe,food,Restaurants,Cafes & Desserts,Cafe / Restaurant
+food.juice_icecream,food,Restaurants,Cafes & Desserts,Juice & Ice Cream
+food.hookah,food,Restaurants,,Hookah Lounge
+food.bakery,food,Restaurants,Cafes & Desserts,Bakery
+food.sweets,food,Restaurants,Cafes & Desserts,Confectionery / Sweets
+food.catering,food,Restaurants,,Catering
+food.cloud_kitchen,food,Restaurants,,Central / Cloud Kitchen
+food.food_truck,food,Restaurants,Fast Food,Food Truck
+food.supermarket,food,Shopping & Distribution,General Wholesale & Retail,Grocery Store / Supermarket
+food.grocery,food,Shopping & Distribution,General Wholesale & Retail,Grocery Store / Supermarket
+food.butcher,food,Shopping & Distribution,General Wholesale & Retail,Meat / Semi-Finished Products
+food.fish_market,food,Shopping & Distribution,General Wholesale & Retail,Fish & Seafood Shop
+food.fruits_veg,food,Shopping & Distribution,General Wholesale & Retail,Fruits & Vegetables
+food.dates,food,Shopping & Distribution,General Wholesale & Retail,Dates Shop
+food.nuts_spices,food,Shopping & Distribution,General Wholesale & Retail,"Nuts, Spices & Herbal"
+food.honey,food,Shopping & Distribution,General Wholesale & Retail,Honey
+food.health_food,food,Shopping & Distribution,General Wholesale & Retail,Health Food & Supplements
+food.ready_meals_retail,food,Shopping & Distribution,General Wholesale & Retail,Home-Made & Ready Meals
+food.roastery,food,Shopping & Distribution,General Wholesale & Retail,Coffee Roastery
+food.coffee_tea_supplier,food,Shopping & Distribution,General Wholesale & Retail,Coffee & Tea Supplier
+food.food_wholesale,food,Shopping & Distribution,General Wholesale & Retail,Food Wholesaler / Distributor
+food.beverage_distributor,food,Shopping & Distribution,General Wholesale & Retail,Beverage Distributor
+food.meat_poultry_wholesale,food,Shopping & Distribution,General Wholesale & Retail,Meat & Poultry Wholesale
+food.produce_wholesale,food,Shopping & Distribution,General Wholesale & Retail,Produce Wholesale
+food.food_factory,food,Services & Industry,Support & Outsourcing Services,Food Factory (General)
+food.meat_processing,food,Services & Industry,Support & Outsourcing Services,Meat & Poultry Processing
+food.fish_processing,food,Services & Industry,Support & Outsourcing Services,Fish Processing
+food.fruit_veg_processing,food,Services & Industry,Support & Outsourcing Services,"Fruit, Vegetable & Dates Processing"
+food.oils_fats,food,Services & Industry,Support & Outsourcing Services,Edible Oils & Fats
+food.dairy,food,Services & Industry,Support & Outsourcing Services,Dairy Products
+food.grain_mills,food,Services & Industry,Support & Outsourcing Services,Grain Mills & Flour
+food.confectionery_mfg,food,Services & Industry,Support & Outsourcing Services,Confectionery & Chocolate Mfg
+food.pasta_snacks_mfg,food,Services & Industry,Support & Outsourcing Services,Pasta & Snacks Mfg
+food.water_factory,food,Services & Industry,Support & Outsourcing Services,Water Bottling Plant
+food.beverage_mfg,food,Services & Industry,Support & Outsourcing Services,Beverage Mfg
+food.frozen,food,Shopping & Distribution,General Wholesale & Retail,Frozen Foods
+food.packaging_disposables,food,Shopping & Distribution,General Wholesale & Retail,Food Packaging & Disposables
+food.restaurant_equipment,food,Shopping & Distribution,General Wholesale & Retail,Restaurant & Commercial Kitchen Equipment
+food.tobacco_wholesale,food,Shopping & Distribution,General Wholesale & Retail,Tobacco Wholesale
+agri.farm,agri,Shopping & Distribution,General Wholesale & Retail,Farm (Crops)
+agri.dates_farm,agri,Shopping & Distribution,General Wholesale & Retail,Date Palm Farm
+agri.greenhouse,agri,Shopping & Distribution,General Wholesale & Retail,Greenhouse Farming
+agri.nursery,agri,Shopping & Distribution,General Wholesale & Retail,Plant Nursery
+agri.supplies,agri,Shopping & Distribution,General Wholesale & Retail,Agricultural Supplies
+agri.feed,agri,Shopping & Distribution,General Wholesale & Retail,Animal Feed
+agri.livestock,agri,Shopping & Distribution,General Wholesale & Retail,Livestock & Sheep
+agri.cattle_dairy_farm,agri,Shopping & Distribution,General Wholesale & Retail,Cattle & Dairy Farm
+agri.camels_horses,agri,Shopping & Distribution,General Wholesale & Retail,Camels & Horses
+agri.poultry,agri,Shopping & Distribution,General Wholesale & Retail,Poultry Farm
+agri.birds_pets_trading,agri,Shopping & Distribution,General Wholesale & Retail,Birds & Animals Trading
+agri.fisheries,agri,Shopping & Distribution,General Wholesale & Retail,Fisheries & Aquaculture
+agri.equipment,agri,Shopping & Distribution,General Wholesale & Retail,Agricultural Machinery
+agri.forestry_charcoal,agri,Shopping & Distribution,General Wholesale & Retail,"Charcoal, Firewood & Forestry"
+agri.services,agri,Shopping & Distribution,General Wholesale & Retail,Agricultural Support Services
+agri.vet_supplies,agri,Shopping & Distribution,General Wholesale & Retail,Veterinary Supplies
+build.general_materials,build,Shopping & Distribution,General Wholesale & Retail,Building Materials (General)
+build.cement_blocks,build,Shopping & Distribution,General Wholesale & Retail,Cement & Blocks
+build.ready_mix,build,Shopping & Distribution,General Wholesale & Retail,Ready-Mix Concrete
+build.steel_rebar,build,Shopping & Distribution,General Wholesale & Retail,Steel & Rebar
+build.aggregates,build,Shopping & Distribution,General Wholesale & Retail,Aggregates & Quarries
+build.timber,build,Shopping & Distribution,General Wholesale & Retail,Timber & Wood
+build.plumbing_supply,build,Shopping & Distribution,General Wholesale & Retail,Plumbing & Sanitaryware
+build.pipes_fittings,build,Shopping & Distribution,General Wholesale & Retail,Pipes & Fittings
+build.pumps_tanks,build,Shopping & Distribution,General Wholesale & Retail,Pumps & Tanks
+build.electrical_supply,build,Shopping & Distribution,General Wholesale & Retail,Electrical Products
+build.cables_wires,build,Shopping & Distribution,General Wholesale & Retail,Cables & Wires
+build.lighting_supply,build,Shopping & Distribution,General Wholesale & Retail,Lighting Supplies
+build.hvac_supply,build,Shopping & Distribution,General Wholesale & Retail,HVAC Equipment Supplier
+build.insulation,build,Shopping & Distribution,General Wholesale & Retail,Insulation & Waterproofing Materials
+build.paint,build,Shopping & Distribution,General Wholesale & Retail,Paints & Coatings
+build.tiles_ceramic,build,Shopping & Distribution,General Wholesale & Retail,Tiles & Porcelain
+build.marble_stone,build,Shopping & Distribution,General Wholesale & Retail,"Marble, Granite & Stone"
+build.gypsum,build,Shopping & Distribution,General Wholesale & Retail,Gypsum & False Ceilings
+build.doors_windows,build,Shopping & Distribution,General Wholesale & Retail,Doors & Windows
+build.aluminum_glass,build,Shopping & Distribution,General Wholesale & Retail,Aluminum & Glass
+build.kitchens_cabinets,build,Shopping & Distribution,General Wholesale & Retail,Kitchens & Cabinets
+build.flooring_parquet,build,Shopping & Distribution,General Wholesale & Retail,Flooring & Parquet
+build.wallpaper_decor,build,Shopping & Distribution,General Wholesale & Retail,Decorative Elements / Coatings
+build.hardware_tools,build,Shopping & Distribution,General Wholesale & Retail,Hardware & Tools
+build.fasteners,build,Shopping & Distribution,General Wholesale & Retail,Fasteners
+build.roofing_cladding,build,Shopping & Distribution,General Wholesale & Retail,"Roofing, Cladding & Panels"
+build.interlock_pavers,build,Shopping & Distribution,General Wholesale & Retail,Interlock & Pavers
+build.scaffolding,build,Shopping & Distribution,General Wholesale & Retail,Scaffolding & Formwork
+build.safety_fire_supply,build,Shopping & Distribution,General Wholesale & Retail,Fire & Safety Equipment Supplier
+build.elevators,build,Shopping & Distribution,General Wholesale & Retail,Elevators & Escalators
+build.landscaping_supply,build,Shopping & Distribution,General Wholesale & Retail,Landscaping & Irrigation Supplies
+build.pools_supply,build,Shopping & Distribution,General Wholesale & Retail,Pool Supplies
+build.prefab,build,Shopping & Distribution,General Wholesale & Retail,Prefab Buildings & Portacabins
+build.construction_chemicals,build,Shopping & Distribution,General Wholesale & Retail,Construction Chemicals & Adhesives
+build.metal_fabrication,build,Shopping & Distribution,General Wholesale & Retail,Metal Fabrication Workshop
+build.carpentry,build,Shopping & Distribution,General Wholesale & Retail,Carpentry Workshop
+build.marble_workshop,build,Shopping & Distribution,General Wholesale & Retail,Marble Workshop
+build.glass_workshop,build,Shopping & Distribution,General Wholesale & Retail,Glass Workshop
+contract.general,contract,Services & Industry,Support & Outsourcing Services,General Contractor
+contract.residential_builder,contract,Services & Industry,Support & Outsourcing Services,Residential Builder
+contract.roads,contract,Services & Industry,Support & Outsourcing Services,Roads & Bridges Contractor
+contract.utilities_projects,contract,Services & Industry,Support & Outsourcing Services,Utility Networks Contractor
+contract.civil_infra,contract,Services & Industry,Support & Outsourcing Services,Civil & Infrastructure Contractor
+contract.plumbing,contract,Services & Industry,Support & Outsourcing Services,Plumbing Contractor
+contract.electrical,contract,Services & Industry,Support & Outsourcing Services,Electrical Contractor
+contract.hvac,contract,Services & Industry,Support & Outsourcing Services,Climate Equipment Maintenance
+contract.fire_safety,contract,Services & Industry,Support & Outsourcing Services,Fire Protection Contractor
+contract.finishing,contract,Services & Industry,Support & Outsourcing Services,Finishing & Fit-Out Contractor
+contract.painting,contract,Services & Industry,Support & Outsourcing Services,Painting Contractor
+contract.gypsum,contract,Services & Industry,Support & Outsourcing Services,Gypsum & Ceiling Contractor
+contract.tiling,contract,Services & Industry,Support & Outsourcing Services,Tiling Contractor
+contract.aluminum_glass,contract,Services & Industry,Support & Outsourcing Services,Aluminum & Glass Contractor
+contract.steel_structures,contract,Services & Industry,Support & Outsourcing Services,Steel Structures Contractor
+contract.waterproofing,contract,Services & Industry,Support & Outsourcing Services,Waterproofing Contractor
+contract.landscaping,contract,Services & Industry,Support & Outsourcing Services,Landscaping Contractor
+contract.pools,contract,Services & Industry,Support & Outsourcing Services,Pool Contractor
+contract.demolition_excavation,contract,Services & Industry,Support & Outsourcing Services,Demolition & Excavation
+contract.well_drilling,contract,Services & Industry,Support & Outsourcing Services,Well Drilling
+contract.smart_home,contract,Services & Industry,Support & Outsourcing Services,Smart Home & Bms
+contract.maintenance,contract,Services & Industry,Support & Outsourcing Services,Maintenance Contractor
+contract.facility_mgmt,contract,Services & Industry,Support & Outsourcing Services,Facility Management
+contract.handyman,contract,Services & Industry,Support & Outsourcing Services,Handyman / Technician
+contract.interior_design,contract,Services & Industry,Support & Outsourcing Services,Interior Design Studio
+contract.engineering_consult,contract,Services & Industry,Support & Outsourcing Services,Engineering Firm
+contract.surveying,contract,Services & Industry,Support & Outsourcing Services,Surveying & Geotechnical
+contract.project_mgmt,contract,Services & Industry,Support & Outsourcing Services,Construction Project Management
+ind.plastic,ind,Services & Industry,Support & Outsourcing Services,Plastics Manufacturing
+ind.rubber,ind,Services & Industry,Support & Outsourcing Services,Rubber Products
+ind.metal,ind,Services & Industry,Support & Outsourcing Services,Metal & Steel Manufacturing
+ind.aluminum_mfg,ind,Services & Industry,Support & Outsourcing Services,Aluminum Mfg
+ind.structural_metal,ind,Services & Industry,Support & Outsourcing Services,Structural Metal Products
+ind.tanks_mfg,ind,Services & Industry,Support & Outsourcing Services,Tanks & Reservoirs Mfg
+ind.metal_coating,ind,Services & Industry,Support & Outsourcing Services,Metal Coating & Treatment
+ind.chemicals,ind,Services & Industry,Support & Outsourcing Services,Chemicals & Detergents Mfg
+ind.paint_mfg,ind,Services & Industry,Support & Outsourcing Services,Paints Mfg
+ind.fertilizer_mfg,ind,Services & Industry,Support & Outsourcing Services,Fertilizers & Pesticides Mfg
+ind.petrochemicals,ind,Services & Industry,Support & Outsourcing Services,Petrochemicals
+ind.packaging,ind,Services & Industry,Support & Outsourcing Services,Packaging & Carton
+ind.paper_tissue,ind,Services & Industry,Support & Outsourcing Services,Paper & Tissue
+ind.textile_mfg,ind,Services & Industry,Support & Outsourcing Services,Textile Mill
+ind.garment_mfg,ind,Services & Industry,Support & Outsourcing Services,Garment Factory
+ind.textile_articles_mfg,ind,Services & Industry,Support & Outsourcing Services,Made-Up Textiles Mfg
+ind.leather_footwear_mfg,ind,Services & Industry,Support & Outsourcing Services,Leather & Footwear Mfg
+ind.furniture_mfg,ind,Services & Industry,Support & Outsourcing Services,Furniture Manufacturing
+ind.wood_products,ind,Services & Industry,Support & Outsourcing Services,Wood Products & Sawmill
+ind.concrete_products,ind,Services & Industry,Support & Outsourcing Services,Concrete Products Factory
+ind.cement_mfg,ind,Services & Industry,Support & Outsourcing Services,"Cement, Lime & Plaster Mfg"
+ind.ceramics_mfg,ind,Services & Industry,Support & Outsourcing Services,Ceramics & Sanitaryware Mfg
+ind.glass_mfg,ind,Services & Industry,Support & Outsourcing Services,Glass Mfg
+ind.insulation_mfg,ind,Services & Industry,Support & Outsourcing Services,Insulation & Non-Metallic Mfg
+ind.electrical_mfg,ind,Services & Industry,Support & Outsourcing Services,Electrical Panels & Equipment Mfg
+ind.cables_mfg,ind,Services & Industry,Support & Outsourcing Services,Cables Mfg
+ind.lighting_mfg,ind,Services & Industry,Support & Outsourcing Services,Lighting Mfg
+ind.batteries_mfg,ind,Services & Industry,Support & Outsourcing Services,Batteries Mfg
+ind.appliances_mfg,ind,Services & Industry,Support & Outsourcing Services,Appliances & Ac Mfg
+ind.electronics_mfg,ind,Services & Industry,Support & Outsourcing Services,Electronics Mfg
+ind.machinery_mfg,ind,Services & Industry,Support & Outsourcing Services,Machinery Mfg
+ind.pumps_valves_mfg,ind,Services & Industry,Support & Outsourcing Services,Pumps & Valves Mfg
+ind.vehicle_parts_mfg,ind,Services & Industry,Support & Outsourcing Services,Vehicle & Parts Mfg
+ind.boats_mfg,ind,Services & Industry,Support & Outsourcing Services,Boat Building
+ind.medical_devices_mfg,ind,Services & Industry,Support & Outsourcing Services,Medical Devices Mfg
+ind.jewelry_mfg,ind,Services & Industry,Support & Outsourcing Services,Jewelry Workshop
+ind.toys_sports_mfg,ind,Services & Industry,Support & Outsourcing Services,Toys & Sports Goods Mfg
+ind.printing_industrial,ind,Services & Industry,Support & Outsourcing Services,Industrial Printing
+ind.tobacco_mfg,ind,Services & Industry,Support & Outsourcing Services,Tobacco & Molasses Mfg
+ind.industrial_supplies,ind,Services & Industry,Support & Outsourcing Services,Industrial Supplies
+ind.industrial_installation,ind,Services & Industry,Support & Outsourcing Services,Industrial Machinery Installation & Repair
+ind.recycling,ind,Services & Industry,Support & Outsourcing Services,Recycling & Scrap
+ind.general_factory,ind,Services & Industry,Support & Outsourcing Services,Factory (Unspecified)
+equip.heavy_sales,equip,Shopping & Distribution,General Wholesale & Retail,Heavy Equipment Sales
+equip.rental,equip,Shopping & Distribution,General Wholesale & Retail,Equipment Rental
+equip.generators,equip,Shopping & Distribution,General Wholesale & Retail,Generators & Power Equipment
+equip.cranes_lifting,equip,Shopping & Distribution,General Wholesale & Retail,Cranes & Lifting Equipment
+equip.compressors,equip,Shopping & Distribution,General Wholesale & Retail,Compressors & Pneumatics
+equip.welding,equip,Shopping & Distribution,General Wholesale & Retail,Welding Equipment
+equip.workshop_equipment,equip,Shopping & Distribution,General Wholesale & Retail,Workshop Equipment
+equip.spare_parts,equip,Shopping & Distribution,General Wholesale & Retail,Equipment Spare Parts
+equip.repair,equip,Shopping & Distribution,General Wholesale & Retail,Heavy Equipment Repair
+equip.cleaning_machines,equip,Shopping & Distribution,General Wholesale & Retail,Cleaning Machines
+equip.laundry_equipment,equip,Shopping & Distribution,General Wholesale & Retail,Laundry Equipment
+equip.weighing_measuring,equip,Shopping & Distribution,General Wholesale & Retail,Weighing & Measuring Instruments
+equip.safety_ppe,equip,Shopping & Distribution,General Wholesale & Retail,Ppe & Workwear
+elec.mobile_shop,elec,Shopping & Distribution,General Wholesale & Retail,Mobile Phones
+elec.computers,elec,Shopping & Distribution,General Wholesale & Retail,PC Store
+elec.electronics_store,elec,Shopping & Distribution,General Wholesale & Retail,Electronics Store
+elec.appliances_store,elec,Shopping & Distribution,General Wholesale & Retail,Home Appliances Store
+elec.appliances_wholesale,elec,Shopping & Distribution,General Wholesale & Retail,Appliances Wholesale
+elec.cctv_security,elec,Shopping & Distribution,General Wholesale & Retail,CCTV & Security Systems
+elec.it_networking_supply,elec,Shopping & Distribution,General Wholesale & Retail,It & Networking Supplier
+elec.software,elec,Shopping & Distribution,General Wholesale & Retail,Software & IT Services
+elec.hosting_data,elec,Shopping & Distribution,General Wholesale & Retail,Hosting & Data Centers
+elec.telecom,elec,Shopping & Distribution,General Wholesale & Retail,Telecom Operators & ISPs
+elec.telecom_contractor,elec,Shopping & Distribution,General Wholesale & Retail,Telecom Infrastructure Contractor
+elec.printers_copiers,elec,Shopping & Distribution,General Wholesale & Retail,Printers & Copiers
+elec.repair,elec,Shopping & Distribution,General Wholesale & Retail,Electronics Repair
+elec.appliance_repair,elec,Shopping & Distribution,General Wholesale & Retail,Appliance Repair
+elec.audio_visual,elec,Shopping & Distribution,General Wholesale & Retail,Audio & Visual Systems
+elec.gaming,elec,Shopping & Distribution,General Wholesale & Retail,Gaming
+elec.components,elec,Shopping & Distribution,General Wholesale & Retail,Electronic Components
+elec.pos_systems,elec,Shopping & Distribution,General Wholesale & Retail,Pos Systems
+elec.satellite_tv,elec,Shopping & Distribution,General Wholesale & Retail,Satellite & Tv Equipment
+auto.dealership,auto,Shopping & Distribution,General Wholesale & Retail,Car Showroom and Sales
+auto.used_cars,auto,Shopping & Distribution,General Wholesale & Retail,Car Showroom (Used)
+auto.spare_parts,auto,Shopping & Distribution,General Wholesale & Retail,Auto Spare Parts
+auto.tires,auto,Shopping & Distribution,General Wholesale & Retail,Tire & Wheel
+auto.workshop,auto,Transportation,Auto Mechanic & Repair,Auto Repair Shop
+auto.body_paint,auto,Transportation,Auto Mechanic & Repair,Body & Paint Shop
+auto.oil_change,auto,Transportation,Auto Mechanic & Repair,Oil Change Center
+auto.car_wash,auto,Life & Convenience,Cleaning Service,Car Wash
+auto.rental,auto,Transportation,,Car Rental
+auto.accessories_tint,auto,Shopping & Distribution,General Wholesale & Retail,Car Accessories
+auto.batteries,auto,Shopping & Distribution,General Wholesale & Retail,Car Batteries
+auto.trucks_buses,auto,Shopping & Distribution,General Wholesale & Retail,Trucks & Buses Sales
+auto.trucks_repair,auto,Transportation,Auto Mechanic & Repair,Truck Repair
+auto.motorcycles,auto,Shopping & Distribution,General Wholesale & Retail,Motorcycles
+auto.lubricants_distributor,auto,Shopping & Distribution,General Wholesale & Retail,Lubricants Distributor
+auto.towing,auto,Transportation,,Towing
+auto.inspection,auto,Transportation,,Vehicle Inspection
+auto.boats_marine,auto,Shopping & Distribution,General Wholesale & Retail,Boats & Marine
+auto.trailers_bodies,auto,Services & Industry,Support & Outsourcing Services,Trailers & Bodies
+home.furniture,home,Shopping & Distribution,General Wholesale & Retail,Furniture Store
+home.furniture_wholesale,home,Shopping & Distribution,General Wholesale & Retail,Furniture Wholesale
+home.office_furniture,home,Shopping & Distribution,General Wholesale & Retail,Office Furniture
+home.mattresses,home,Shopping & Distribution,General Wholesale & Retail,Mattresses
+home.curtains_upholstery,home,Shopping & Distribution,General Wholesale & Retail,Curtains & Upholstery
+home.carpets,home,Shopping & Distribution,General Wholesale & Retail,Carpets & Rugs
+home.kitchenware,home,Shopping & Distribution,General Wholesale & Retail,Kitchenware & Housewares
+home.decor,home,Shopping & Distribution,General Wholesale & Retail,Home Decor
+home.decor_lighting,home,Shopping & Distribution,General Wholesale & Retail,Decorative Lighting
+home.bedding_linen,home,Shopping & Distribution,General Wholesale & Retail,Bedding & Linen
+home.outdoor_furniture,home,Shopping & Distribution,General Wholesale & Retail,Outdoor Furniture
+home.home_goods_general,home,Shopping & Distribution,General Wholesale & Retail,Home Goods (General)
+home.used_furniture,home,Shopping & Distribution,General Wholesale & Retail,Used Furniture
+home.cleaning_supplies,home,Shopping & Distribution,General Wholesale & Retail,Cleaning Supplies
+home.tents_majlis,home,Shopping & Distribution,General Wholesale & Retail,Tents & Arabic Majlis
+fashion.clothing,fashion,Shopping & Distribution,General Wholesale & Retail,Clothing Store
+fashion.abaya,fashion,Shopping & Distribution,General Wholesale & Retail,Abayas
+fashion.mens_thobe,fashion,Shopping & Distribution,General Wholesale & Retail,Men's Thobes
+fashion.kids,fashion,Shopping & Distribution,General Wholesale & Retail,Kids' Clothing
+fashion.shoes,fashion,Shopping & Distribution,General Wholesale & Retail,Footwear
+fashion.bags_accessories,fashion,Shopping & Distribution,General Wholesale & Retail,Bags & Accessories
+fashion.perfume,fashion,Shopping & Distribution,General Wholesale & Retail,Perfumes
+fashion.jewelry_gold,fashion,Shopping & Distribution,General Wholesale & Retail,Gold & Jewelry
+fashion.watches,fashion,Shopping & Distribution,General Wholesale & Retail,Watches
+fashion.fabrics,fashion,Shopping & Distribution,General Wholesale & Retail,Fabrics
+fashion.tailoring,fashion,Shopping & Distribution,General Wholesale & Retail,Dressmaking
+fashion.uniforms,fashion,Shopping & Distribution,General Wholesale & Retail,Uniforms & Workwear
+fashion.apparel_wholesale,fashion,Shopping & Distribution,General Wholesale & Retail,Apparel Wholesale
+fashion.sportswear,fashion,Shopping & Distribution,General Wholesale & Retail,Sportswear
+beauty.salon_women,beauty,Life & Convenience,Beauty,Ladies Hair Salon
+beauty.barber,beauty,Life & Convenience,Beauty,Barbershop
+beauty.spa_massage,beauty,Health & Medical,Beauty,Spa & Massage
+beauty.cosmetics_store,beauty,Shopping & Distribution,General Wholesale & Retail,Cosmetics Store
+beauty.cosmetics_distributor,beauty,Shopping & Distribution,General Wholesale & Retail,Cosmetics Distributor / Mfg
+beauty.aesthetic_clinic,beauty,Health & Medical,Beauty,Aesthetic Clinic
+beauty.salon_supplies,beauty,Shopping & Distribution,General Wholesale & Retail,Salon Supplies
+health.hospital,health,Health & Medical,Hospitals & Clinics,Hospital
+health.clinic,health,Health & Medical,Hospitals & Clinics,Medical Clinic
+health.dental,health,Health & Medical,Hospitals & Clinics,Dental Clinic
+health.pharmacy,health,Health & Medical,Pharmacy,Pharmacy
+health.lab,health,Health & Medical,Hospitals & Clinics,Medical Laboratory
+health.radiology,health,Health & Medical,Hospitals & Clinics,Radiology Center
+health.optics,health,Shopping & Distribution,General Wholesale & Retail,Optics
+health.medical_supply,health,Shopping & Distribution,General Wholesale & Retail,Medical Equipment Supplier
+health.pharma_distributor,health,Shopping & Distribution,General Wholesale & Retail,Pharmaceutical Distributor
+health.pharma_mfg,health,Services & Industry,Support & Outsourcing Services,Pharmaceutical Factory
+health.physio,health,Health & Medical,Hospitals & Clinics,Physiotherapy
+health.vet,health,Health & Medical,Hospitals & Clinics,Veterinary Clinic
+health.home_care,health,Health & Medical,,Home Care & Nursing
+health.dental_supply,health,Shopping & Distribution,General Wholesale & Retail,Dental Supplies & Labs
+health.residential_care,health,Health & Medical,,Residential Care
+health.ambulance,health,Health & Medical,,Ambulance
+health.medical_devices_maintenance,health,Services & Industry,Support & Outsourcing Services,Medical Equipment Maintenance
+edu.school,edu,Education,Educational Institution,School
+edu.nursery,edu,Education,Educational Institution,Day-Care Nursery
+edu.kindergarten,edu,Education,Educational Institution,Kindergarten / Nursery
+edu.university,edu,Education,Educational Institution,University & College
+edu.vocational,edu,Education,Educational Institution,Technical & Vocational Institute
+edu.training_center,edu,Education,Educational Institution,Training Center
+edu.language_center,edu,Education,Educational Institution,Language Institute
+edu.driving_school,edu,Education,,Driving School
+edu.tutoring,edu,Education,,Tutoring
+edu.arts_music_school,edu,Education,,Arts & Music Education
+edu.sports_education,edu,Education,,Sports Academies
+edu.educational_supplies,edu,Education,,Educational & Lab Supplies
+edu.quran_center,edu,Education,Educational Institution,Quran Memorization Center
+edu.education_services,edu,Education,,Education Support Services
+hosp.hotel,hosp,Accommodation,Accommodation,Hotel
+hosp.furnished_apartments,hosp,Accommodation,Furnished Apartment,Furnished Apartment
+hosp.istiraha,hosp,Accommodation,Accommodation,Istiraha & Chalet
+hosp.camps,hosp,Accommodation,Accommodation,Camps & Camping Sites
+hosp.wedding_hall,hosp,Culture & Art,,Wedding & Event Hall
+hosp.event_planning,hosp,Services & Industry,Support & Outsourcing Services,Event & Exhibition Management
+hosp.event_rental,hosp,Services & Industry,Support & Outsourcing Services,Event Equipment Rental
+hosp.wedding_services,hosp,Services & Industry,Support & Outsourcing Services,Wedding Services
+hosp.travel_agency,hosp,Services & Industry,Support & Outsourcing Services,Travel Agency
+hosp.hajj_umrah,hosp,Services & Industry,Support & Outsourcing Services,Hajj & Umrah Services
+hosp.tourism_activities,hosp,Sports & Recreation,,Tour Operators & Experiences
+hosp.hotel_supplies,hosp,Shopping & Distribution,General Wholesale & Retail,Hotel Supplies
+log.freight_customs,log,Transportation,,Freight Forwarding & Customs
+log.courier,log,Transportation,,Courier & Delivery
+log.movers,log,Transportation,,Movers
+log.trucking,log,Transportation,,Trucking
+log.warehousing,log,Transportation,,Warehousing
+log.cold_storage,log,Transportation,,Cold Storage
+log.3pl,log,Transportation,,3Pl / Logistics
+log.passenger_transport,log,Transportation,,Passenger Transport
+log.sea_transport,log,Transportation,,Sea Transport & Ports
+log.air_cargo,log,Transportation,,Air Cargo
+log.cargo_handling,log,Transportation,,Cargo Handling
+log.packaging_services,log,Transportation,,Packaging Services
+biz.law,biz,Services & Industry,Support & Outsourcing Services,Legal Services
+biz.accounting,biz,Services & Industry,Support & Outsourcing Services,Accounting & Audit
+biz.consulting,biz,Services & Industry,Support & Outsourcing Services,Management Consulting
+biz.head_office,biz,Services & Industry,Support & Outsourcing Services,Head Office / Holding
+biz.marketing_agency,biz,Services & Industry,Support & Outsourcing Services,Marketing Agency
+biz.market_research,biz,Services & Industry,Support & Outsourcing Services,Market Research
+biz.advertising_signage,biz,Services & Industry,Support & Outsourcing Services,Signage & Outdoor Advertising
+biz.printing,biz,Services & Industry,Support & Outsourcing Services,Printing Press
+biz.copy_center,biz,Services & Industry,Support & Outsourcing Services,Copy & Print Center
+biz.design_studio,biz,Services & Industry,Support & Outsourcing Services,Design Studio
+biz.photography,biz,Services & Industry,Support & Outsourcing Services,Photography Studio
+biz.translation,biz,Services & Industry,Support & Outsourcing Services,Translation
+biz.recruitment_manpower,biz,Services & Industry,Support & Outsourcing Services,Recruitment & Manpower
+biz.security_services,biz,Services & Industry,Support & Outsourcing Services,Security Guard Services
+biz.cleaning_services,biz,Life & Convenience,Cleaning Service,Cleaning Services
+biz.pest_control,biz,Life & Convenience,Cleaning Service,Pest Control & Disinfection
+biz.coworking,biz,Services & Industry,Support & Outsourcing Services,Coworking & Business Center
+biz.pro_services,biz,Services & Industry,Support & Outsourcing Services,Pro & Government Services
+biz.call_center,biz,Services & Industry,Support & Outsourcing Services,Call Center
+biz.stationery_office,biz,Services & Industry,Support & Outsourcing Services,Stationery & Office Supplies
+biz.general_trading,biz,Services & Industry,Support & Outsourcing Services,General Trading / Import-Export
+biz.commercial_agent,biz,Services & Industry,Support & Outsourcing Services,Commercial Agent / Broker
+biz.ecommerce,biz,Services & Industry,Support & Outsourcing Services,E-Commerce
+biz.testing_labs,biz,Services & Industry,Support & Outsourcing Services,Testing & Inspection Labs
+biz.research,biz,Services & Industry,Support & Outsourcing Services,R&D
+biz.chamber_association,biz,Services & Industry,Support & Outsourcing Services,Chambers & Professional Associations
+biz.debt_collection,biz,Services & Industry,Support & Outsourcing Services,Debt Collection
+re.office,re,Services & Industry,Real Estate,Real Estate Agency / Brokerage
+re.developer,re,Services & Industry,Real Estate,Real Estate Developer
+re.property_mgmt,re,Services & Industry,Real Estate,Property Management
+re.valuation,re,Services & Industry,Real Estate,Real Estate Valuation
+re.commercial_leasing,re,Services & Industry,Real Estate,Commercial Property Leasing
+fin.bank,fin,Finance & Insurance,Financial Service,Bank
+fin.exchange,fin,Finance & Insurance,Financial Service,Currency Exchange & Remittance
+fin.insurance,fin,Finance & Insurance,Financial Service,Insurance
+fin.financing,fin,Finance & Insurance,Financial Service,Financing & Leasing
+fin.atm,fin,Finance & Insurance,Financial Service,ATM
+fin.investment,fin,Finance & Insurance,Financial Service,Investment & Asset Management
+fin.fintech_payments,fin,Finance & Insurance,Financial Service,Payments & Fintech
+retail.mall,retail,Shopping & Distribution,General Wholesale & Retail,Shopping Mall
+retail.department_store,retail,Shopping & Distribution,General Wholesale & Retail,Department Store
+retail.general_store,retail,Shopping & Distribution,General Wholesale & Retail,General Store
+retail.discount_store,retail,Shopping & Distribution,General Wholesale & Retail,Discount Store
+retail.toys,retail,Shopping & Distribution,General Wholesale & Retail,Toys
+retail.gifts,retail,Shopping & Distribution,General Wholesale & Retail,Gifts
+retail.flowers,retail,Shopping & Distribution,General Wholesale & Retail,Flower Shop
+retail.pet_shop,retail,Shopping & Distribution,General Wholesale & Retail,Pet Shop
+retail.bookstore,retail,Shopping & Distribution,General Wholesale & Retail,Bookstore
+retail.baby,retail,Shopping & Distribution,General Wholesale & Retail,Baby Products
+retail.tobacco_vape,retail,Shopping & Distribution,General Wholesale & Retail,Smoking Accessories / Tobacco
+retail.party_supplies,retail,Shopping & Distribution,General Wholesale & Retail,Party Supplies
+retail.general_wholesale,retail,Shopping & Distribution,General Wholesale & Retail,General Wholesale
+retail.kiosk,retail,Shopping & Distribution,General Wholesale & Retail,Kiosk & Stall
+retail.secondhand,retail,Shopping & Distribution,General Wholesale & Retail,Second-Hand Goods
+retail.antiques,retail,Shopping & Distribution,General Wholesale & Retail,Antiques
+retail.musical_instruments,retail,Shopping & Distribution,General Wholesale & Retail,Musical Instruments
+retail.souvenirs_crafts,retail,Shopping & Distribution,General Wholesale & Retail,Souvenirs & Handicrafts
+energy.fuel_station,energy,Services & Industry,Support & Outsourcing Services,Fuel Station
+energy.fuel_wholesale,energy,Services & Industry,Support & Outsourcing Services,Fuel Wholesale
+energy.lpg,energy,Services & Industry,Support & Outsourcing Services,LPG Distribution
+energy.solar,energy,Services & Industry,Support & Outsourcing Services,Solar Energy
+energy.electricity,energy,Services & Industry,Support & Outsourcing Services,Electricity Generation & Distribution
+energy.water_treatment,energy,Services & Industry,Support & Outsourcing Services,Water Treatment & Desalination
+energy.water_delivery,energy,Services & Industry,Support & Outsourcing Services,Water Tanker Delivery
+energy.sewage,energy,Services & Industry,Support & Outsourcing Services,Sewerage & Septic Services
+energy.waste,energy,Services & Industry,Support & Outsourcing Services,Waste Collection & Skips
+energy.waste_treatment,energy,Services & Industry,Support & Outsourcing Services,Waste Treatment
+energy.oil_gas_extraction,energy,Services & Industry,Support & Outsourcing Services,Oil & Gas Extraction
+energy.oil_gas_services,energy,Services & Industry,Support & Outsourcing Services,Oilfield Services
+energy.refining,energy,Services & Industry,Support & Outsourcing Services,Refining & Petroleum Products
+energy.mining,energy,Services & Industry,Support & Outsourcing Services,Mining
+energy.mining_services,energy,Services & Industry,Support & Outsourcing Services,Mining Support Services
+energy.ev_charging,energy,Services & Industry,Support & Outsourcing Services,Ev Charging
+energy.environmental_services,energy,Services & Industry,Support & Outsourcing Services,Environmental Services
+sports.gym,sports,Sports & Recreation,Gym,Gym
+sports.club,sports,Sports & Recreation,,Sports Club
+sports.fields,sports,Sports & Recreation,,Sports Fields
+sports.sporting_goods,sports,Shopping & Distribution,General Wholesale & Retail,Sporting Goods
+sports.entertainment_center,sports,Sports & Recreation,,Entertainment Center
+sports.theme_park,sports,Sports & Recreation,,Theme Park
+sports.cinema,sports,Culture & Art,,Cinema
+sports.pool,sports,Sports & Recreation,,Public Pool
+sports.camping_outdoor,sports,Shopping & Distribution,General Wholesale & Retail,Camping & Outdoor Gear
+sports.esports_gaming_center,sports,Sports & Recreation,,Gaming Center
+sports.sports_equipment_rental,sports,Sports & Recreation,,Sports & Recreation Rental
+media.tv_radio,media,Culture & Art,,Tv & Radio
+media.press,media,Culture & Art,,Press
+media.publishing,media,Culture & Art,,Publishing
+media.production,media,Culture & Art,,Media Production
+media.arts_crafts,media,Culture & Art,,Arts & Crafts
+media.art_gallery,media,Culture & Art,,Art Gallery
+media.events_entertainment,media,Culture & Art,,Live Entertainment
+media.news_agency,media,Culture & Art,,News & Content Agency
+personal.laundry,personal,Life & Convenience,Cleaning Service,Laundry / Dry Cleaning
+personal.shoe_repair,personal,Life & Convenience,,Shoe & Leather Repair
+personal.watch_jewelry_repair,personal,Life & Convenience,,Watch & Jewelry Repair
+personal.funeral,personal,Life & Convenience,,Funeral Services
+personal.pet_services,personal,Life & Convenience,,Pet Grooming & Boarding
+personal.domestic_help,personal,Life & Convenience,,Domestic Labor Offices
+personal.tailoring_alterations,personal,Life & Convenience,,Alterations & Ironing
+personal.other,personal,Life & Convenience,,Other Personal Services
+noncom.mosque,noncom,Life & Convenience,Religion,Mosque
+noncom.government,noncom,Services & Industry,Support & Outsourcing Services,Government Office
+noncom.embassy,noncom,Services & Industry,Support & Outsourcing Services,Embassy
+noncom.park,noncom,Sports & Recreation,,Public Park
+noncom.landmark,noncom,Culture & Art,,Landmark & Heritage Site
+noncom.museum,noncom,Culture & Art,Museum,Museum
+noncom.library,noncom,Culture & Art,,Public Library
+noncom.charity,noncom,Life & Convenience,,Charity
+noncom.residential,noncom,Life & Convenience,,Residential
+noncom.transport_hub,noncom,Life & Convenience,,Airport / Station / Port
+noncom.parking,noncom,Life & Convenience,,Parking
+noncom.post_office,noncom,Life & Convenience,,Post Office
+noncom.police_military,noncom,Life & Convenience,,Police & Military
+noncom.cemetery,noncom,Life & Convenience,,Cemetery
+noncom.utility,noncom,Life & Convenience,,Utility Facility
+noncom.social_services,noncom,Life & Convenience,,Social Services
+noncom.street_poi,noncom,Life & Convenience,,Street Poi

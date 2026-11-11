@@ -19,20 +19,20 @@
     "pct": 0.0
    },
    "floor": {
-    "n": 19347,
+    "n": 19337,
     "pct": 2.27
    },
    "building": {
-    "n": 34179,
-    "pct": 4.01
+    "n": 40075,
+    "pct": 4.7
    },
    "conflict": {
-    "n": 1655,
-    "pct": 0.19
+    "n": 1673,
+    "pct": 0.2
    },
    "none": {
-    "n": 797638,
-    "pct": 93.53
+    "n": 791734,
+    "pct": 92.84
    }
   },
   "Jeddah": {
@@ -41,20 +41,20 @@
     "pct": 0.0
    },
    "floor": {
-    "n": 1473,
+    "n": 1465,
     "pct": 0.39
    },
    "building": {
-    "n": 56920,
-    "pct": 15.06
+    "n": 59842,
+    "pct": 15.83
    },
    "conflict": {
-    "n": 1024,
-    "pct": 0.27
+    "n": 1154,
+    "pct": 0.31
    },
    "none": {
-    "n": 318525,
-    "pct": 84.28
+    "n": 315481,
+    "pct": 83.47
    }
   },
   "Makkah Al Mukarramah": {
@@ -63,20 +63,20 @@
     "pct": 0.0
    },
    "floor": {
-    "n": 794,
+    "n": 793,
     "pct": 0.49
    },
    "building": {
-    "n": 22924,
-    "pct": 14.2
+    "n": 23645,
+    "pct": 14.65
    },
    "conflict": {
-    "n": 484,
-    "pct": 0.3
+    "n": 502,
+    "pct": 0.31
    },
    "none": {
-    "n": 137210,
-    "pct": 85.01
+    "n": 136472,
+    "pct": 84.55
    }
   },
   "Al Madinah Al Munawwarah": {
@@ -85,20 +85,20 @@
     "pct": 0.0
    },
    "floor": {
-    "n": 3457,
-    "pct": 2.48
+    "n": 3448,
+    "pct": 2.47
    },
    "building": {
-    "n": 14149,
-    "pct": 10.15
+    "n": 18461,
+    "pct": 13.24
    },
    "conflict": {
-    "n": 1103,
-    "pct": 0.79
+    "n": 1145,
+    "pct": 0.82
    },
    "none": {
-    "n": 120716,
-    "pct": 86.58
+    "n": 116371,
+    "pct": 83.46
    }
   },
   "Dammam": {
@@ -111,16 +111,16 @@
     "pct": 0.0
    },
    "building": {
-    "n": 0,
-    "pct": 0.0
+    "n": 14719,
+    "pct": 9.31
    },
    "conflict": {
     "n": 0,
     "pct": 0.0
    },
    "none": {
-    "n": 158084,
-    "pct": 100.0
+    "n": 143365,
+    "pct": 90.69
    }
   },
   "Al Khobar": {
@@ -133,16 +133,16 @@
     "pct": 0.0
    },
    "building": {
-    "n": 0,
-    "pct": 0.0
+    "n": 5278,
+    "pct": 7.58
    },
    "conflict": {
     "n": 0,
     "pct": 0.0
    },
    "none": {
-    "n": 69585,
-    "pct": 100.0
+    "n": 64307,
+    "pct": 92.42
    }
   },
   "other": {
@@ -155,7 +155,7 @@
     "pct": 0.0
    },
    "building": {
-    "n": 111,
+    "n": 112,
     "pct": 0.02
    },
    "conflict": {
@@ -163,7 +163,7 @@
     "pct": 0.0
    },
    "none": {
-    "n": 490744,
+    "n": 490743,
     "pct": 99.98
    }
   },
@@ -173,20 +173,20 @@
     "pct": 0.0
    },
    "floor": {
-    "n": 25071,
+    "n": 25043,
     "pct": 1.11
    },
    "building": {
-    "n": 128283,
-    "pct": 5.7
+    "n": 162132,
+    "pct": 7.21
    },
    "conflict": {
-    "n": 4267,
-    "pct": 0.19
+    "n": 4475,
+    "pct": 0.2
    },
    "none": {
-    "n": 2092502,
-    "pct": 93.0
+    "n": 2058473,
+    "pct": 91.48
    }
   }
  },
@@ -327,6 +327,40 @@
     "pct": 0.25
    }
   },
+  "urbi_card_building": {
+   "Riyadh": {
+    "n": 6867,
+    "pct": 0.81
+   },
+   "Jeddah": {
+    "n": 4117,
+    "pct": 1.09
+   },
+   "Makkah Al Mukarramah": {
+    "n": 803,
+    "pct": 0.5
+   },
+   "Al Madinah Al Munawwarah": {
+    "n": 5247,
+    "pct": 3.76
+   },
+   "Dammam": {
+    "n": 14719,
+    "pct": 9.31
+   },
+   "Al Khobar": {
+    "n": 5278,
+    "pct": 7.58
+   },
+   "other": {
+    "n": 1,
+    "pct": 0.0
+   },
+   "all": {
+    "n": 37032,
+    "pct": 1.65
+   }
+  },
   "golden_set_makani": {
    "Riyadh": {
     "n": 26772,
@@ -433,13 +467,23 @@
  "source_only_evidence_by_city": {
   "western_cleaning_attrs": {
    "Riyadh": 0,
-   "Jeddah": 59417,
-   "Makkah Al Mukarramah": 24202,
-   "Al Madinah Al Munawwarah": 18709,
+   "Jeddah": 58344,
+   "Makkah Al Mukarramah": 24137,
+   "Al Madinah Al Munawwarah": 17807,
    "Dammam": 0,
    "Al Khobar": 0,
    "other": 58,
-   "all": 102386
+   "all": 100346
+  },
+  "urbi_card_building": {
+   "Riyadh": 5904,
+   "Jeddah": 3044,
+   "Makkah Al Mukarramah": 738,
+   "Al Madinah Al Munawwarah": 4345,
+   "Dammam": 14719,
+   "Al Khobar": 5278,
+   "other": 1,
+   "all": 34029
   },
   "trx_2024_12": {
    "Riyadh": 2522,
@@ -452,14 +496,14 @@
    "all": 2543
   },
   "cleaned_data_attrs": {
-   "Riyadh": 2487,
+   "Riyadh": 2433,
    "Jeddah": 0,
    "Makkah Al Mukarramah": 0,
    "Al Madinah Al Munawwarah": 0,
    "Dammam": 0,
    "Al Khobar": 0,
    "other": 0,
-   "all": 2487
+   "all": 2433
   },
   "field_survey": {
    "Riyadh": 55,
@@ -473,25 +517,25 @@
   }
  },
  "businesses_with_two_or_more_sources": {
-  "Riyadh": 50172,
-  "Jeddah": 0,
-  "Makkah Al Mukarramah": 0,
-  "Al Madinah Al Munawwarah": 0,
+  "Riyadh": 50226,
+  "Jeddah": 1073,
+  "Makkah Al Mukarramah": 65,
+  "Al Madinah Al Munawwarah": 902,
   "Dammam": 0,
   "Al Khobar": 0,
   "other": 33,
-  "all": 50205
+  "all": 52299
  },
  "conflicts_by_kind_and_city": {
   "urbi_building": {
-   "Riyadh": 644,
-   "Jeddah": 1024,
-   "Makkah Al Mukarramah": 484,
-   "Al Madinah Al Munawwarah": 1103,
+   "Riyadh": 662,
+   "Jeddah": 1154,
+   "Makkah Al Mukarramah": 502,
+   "Al Madinah Al Munawwarah": 1145,
    "Dammam": 0,
    "Al Khobar": 0,
    "other": 1,
-   "all": 3256
+   "all": 3464
   },
   "floor": {
    "Riyadh": 114,
@@ -525,7 +569,217 @@
    "other": 31,
    "all": 94245
   },
-  "urbi_building_ids_stored_as_float": 133577,
-  "building_footprint_containment": "not measured here: the building layer is on the service volume (build_business_building_links.py)"
+  "urbi_building_ids_stored_as_float": 133577
+ },
+ "building_layer": {
+  "inputs_sha256": {
+   "buildings": "d074a747dd91f435488a3647b541feb3eb18b856d8be62f187a58feaf0f1fa53",
+   "card_links": "94f158171164324ef2eb384572c8854958721fdf221db836d187f4c26d603b14"
+  },
+  "layer_rows": 1800958,
+  "layer_unique_house_ids": 1798979,
+  "layer_ambiguous_house_ids_left_out": 905,
+  "layer_fields_filled": {
+   "number": 885306,
+   "post_index": 217909,
+   "number_and_post_index": 185494,
+   "apartments": 22,
+   "entrances": 4,
+   "elevation": 1800958
+  },
+  "points_by_footprint": {
+   "none": {
+    "Riyadh": 188395,
+    "Jeddah": 70971,
+    "Makkah Al Mukarramah": 39760,
+    "Al Madinah Al Munawwarah": 25157,
+    "Dammam": 36897,
+    "Al Khobar": 6795,
+    "other": 490856,
+    "all": 858831
+   },
+   "one": {
+    "Riyadh": 664415,
+    "Jeddah": 306971,
+    "Makkah Al Mukarramah": 121592,
+    "Al Madinah Al Munawwarah": 114218,
+    "Dammam": 121187,
+    "Al Khobar": 62788,
+    "other": 0,
+    "all": 1391171
+   },
+   "several": {
+    "Riyadh": 9,
+    "Jeddah": 0,
+    "Makkah Al Mukarramah": 60,
+    "Al Madinah Al Munawwarah": 50,
+    "Dammam": 0,
+    "Al Khobar": 2,
+    "other": 0,
+    "all": 121
+   }
+  },
+  "urbi_ids_found_in_layer_by_source": {
+   "western_cleaning_attrs": {
+    "not_in_layer": 1644,
+    "in_layer": 104327,
+    "ambiguous_in_layer": 69
+   },
+   "urbi_card_building": {
+    "in_layer": 35240,
+    "not_in_layer": 1022,
+    "ambiguous_in_layer": 770
+   },
+   "cleaned_data_attrs": {
+    "in_layer": 29558,
+    "not_in_layer": 352,
+    "ambiguous_in_layer": 122
+   }
+  },
+  "explicit_urbi_vs_footprint_at_point_by_source": {
+   "urbi_card_building": {
+    "same": 31630,
+    "different": 3311,
+    "no_footprint_at_point": 12
+   },
+   "western_cleaning_attrs": {
+    "same": 83928,
+    "no_footprint_at_point": 9977,
+    "different": 4264
+   },
+   "cleaned_data_attrs": {
+    "same": 20668,
+    "no_footprint_at_point": 4957,
+    "different": 1900
+   }
+  },
+  "layer_number_postal_vs_stated": {
+   "layer_has_no_number": {
+    "Riyadh": 21,
+    "Jeddah": 0,
+    "Makkah Al Mukarramah": 0,
+    "Al Madinah Al Munawwarah": 0,
+    "Dammam": 0,
+    "Al Khobar": 0,
+    "other": 0,
+    "all": 21
+   }
+  },
+  "net_gain_for_businesses_without_evidence": {
+   "no_footprint": {
+    "Riyadh": 176232,
+    "Jeddah": 65737,
+    "Makkah Al Mukarramah": 35462,
+    "Al Madinah Al Munawwarah": 22384,
+    "Dammam": 36297,
+    "Al Khobar": 6584,
+    "other": 490743,
+    "all": 833439
+   },
+   "containment_one_building": {
+    "Riyadh": 615494,
+    "Jeddah": 249744,
+    "Makkah Al Mukarramah": 100958,
+    "Al Madinah Al Munawwarah": 93948,
+    "Dammam": 107068,
+    "Al Khobar": 57721,
+    "other": 0,
+    "all": 1224933
+   },
+   "new_from_card_crosswalk": {
+    "Riyadh": 5904,
+    "Jeddah": 3044,
+    "Makkah Al Mukarramah": 738,
+    "Al Madinah Al Munawwarah": 4345,
+    "Dammam": 14719,
+    "Al Khobar": 5278,
+    "other": 1,
+    "all": 34029
+   },
+   "containment_several_buildings": {
+    "Riyadh": 8,
+    "Jeddah": 0,
+    "Makkah Al Mukarramah": 52,
+    "Al Madinah Al Munawwarah": 39,
+    "Dammam": 0,
+    "Al Khobar": 2,
+    "other": 0,
+    "all": 101
+   }
+  },
+  "urbi_workbook_ids_recovered": {
+   "rows_with_float_id": 133577,
+   "float_shared_by_several_layer_ids": 80095,
+   "recovered_exactly_one": 128995,
+   "recovered_with_floor": 71849,
+   "not_recovered": 4582,
+   "note": "recovered ids name the branch building; the branch has no key to the release, so a business link stays a candidate"
+  },
+  "osm_candidates": {
+   "matched": {
+    "Riyadh": 1106,
+    "Jeddah": 1156,
+    "Makkah Al Mukarramah": 300,
+    "Al Madinah Al Munawwarah": 379,
+    "Dammam": 236,
+    "Al Khobar": 132,
+    "other": 1333,
+    "all": 4642
+   },
+   "floor": {
+    "Riyadh": 23,
+    "Jeddah": 6,
+    "Makkah Al Mukarramah": 3,
+    "Al Madinah Al Munawwarah": 0,
+    "Dammam": 0,
+    "Al Khobar": 0,
+    "other": 4,
+    "all": 36
+   },
+   "number_postal": {
+    "Riyadh": 24,
+    "Jeddah": 12,
+    "Makkah Al Mukarramah": 3,
+    "Al Madinah Al Munawwarah": 6,
+    "Dammam": 2,
+    "Al Khobar": 5,
+    "other": 8,
+    "all": 60
+   },
+   "number_postal_other_kind_only": {
+    "Riyadh": 7,
+    "Jeddah": 5,
+    "Makkah Al Mukarramah": 1,
+    "Al Madinah Al Munawwarah": 2,
+    "Dammam": 1,
+    "Al Khobar": 1,
+    "other": 0,
+    "all": 17
+   },
+   "number_postal_new": {
+    "Riyadh": 17,
+    "Jeddah": 7,
+    "Makkah Al Mukarramah": 2,
+    "Al Madinah Al Munawwarah": 4,
+    "Dammam": 1,
+    "Al Khobar": 4,
+    "other": 8,
+    "all": 43
+   }
+  },
+  "osm_whole_extract_nodes_with": {
+   "addr_unit": 62,
+   "addr_floor": 91,
+   "level": 4147,
+   "housenumber_and_postcode": 97413
+  },
+  "review_sample": {
+   "strata": {
+    "card_crosswalk_only": 300,
+    "containment_only": 300
+   },
+   "seed": 20261029,
+   "reviewed": 0
+  }
  }
 }

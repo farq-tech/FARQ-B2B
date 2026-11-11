@@ -12,6 +12,9 @@ import os
 import duckdb
 import mapbox_vector_tile
 from trial_search import norm, contains
+# the service box has 32 cores and 32GB; 2 threads/512MB left map aggregates queueing past Atlas's 12 s limit and
+# out of memory under a few visitors (2026-11-03). Overridable for a smaller box.
+DUCKDB_SETTINGS=f"SET threads={int(os.environ.get('FARQ_DUCKDB_THREADS','8'))}; SET memory_limit='{os.environ.get('FARQ_DUCKDB_MEMORY','4GB')}'"
 
 LABELS={'Corporate':'شركات وأعمال','Shopping':'تسوق وتجارة','Restaurants':'مطاعم','Hotels and Accommodations':'فنادق وإقامة','Home Goods':'تجهيزات المنزل','Grocery':'مواد غذائية','Education':'تعليم','Beauty and Spa':'تجميل وعناية','Automotive Services':'خدمات السيارات','Transportation':'نقل','Health':'صحة','Medical':'طب','Mosques':'مساجد','decor_carpentry_furniture':'أثاث ونجارة','غير مصنف':'غير مصنف'}
 def main_category(value): return (value or '').split('|')[0].strip() or 'غير مصنف'
@@ -121,7 +124,7 @@ class DirectoryTiles:
         self.path=path;self.lock=threading.RLock();self.contexts=collections.OrderedDict();self.tiles=collections.OrderedDict();self.facets_cache={};self.area_options_cache={};self.fingerprints={}
         identity_path=os.path.join(os.path.dirname(path),'identity','source_to_farq_atlas_id.parquet')
         self.identity_path=identity_path if os.path.isfile(identity_path) else None
-        self.db=duckdb.connect();self.db.execute("SET threads=2; SET memory_limit='512MB'")
+        self.db=duckdb.connect();self.db.execute(DUCKDB_SETTINGS)
         # Directory assets are refreshed independently from this service.  Optional
         # enrichment columns must degrade to empty values when an older asset is live.
         self.columns={row[0] for row in self.db.execute("describe select * from read_parquet(?)", [path]).fetchall()}
@@ -291,12 +294,21 @@ class DirectoryTiles:
             wholesale=self.column('is_wholesale', 'false')
             roles=self.column('role_badges', "''")
             specialties=self.column('specialty_concepts_ar', "''")
+            # v13 enrichment baked into the live release: the operating-status vote and its freshness, the canonical
+            # weekly hours, and the WhatsApp state. Each column only when the release carries it, else NULL, so older
+            # releases keep working (shown as «غير متاح», never fabricated). Mirrors trial_search/taxonomy_search.
+            enrich=','.join(self.column(c,'null')+' '+c for c in ('status_voted','status_voted_confidence','last_seen_at','is_stale','hours_week','whatsapp_state'))
+            # listing content already carried by the release (website, socials, menu/order/reservation links, review count,
+            # full address, national address/postal code, English description, extra phones). Each column only when the
+            # release carries it, else NULL so older releases keep working. Mirrors trial_search/taxonomy_search; JSON keys
+            # match sanitizeLiveDirectoryEntity. Shown as Farq (no provider named); never a ranking or filter input.
+            content=','.join(self.column(c,'null')+' '+c for c in ('website','instagram','facebook','snapchat','tiktok','x_link','linkedin','menu_link','order_link','reservation_link','reviews_count','full_address_ar','full_address_en','national_address','postal_code','description_en','extra_phones'))
             # Aggregate contact counts must cover the same full cohort as `total`,
             # not merely the current paginated list.  A WhatsApp source marker still
             # needs a valid Saudi mobile, and never implies permission to contact.
             whatsapp = "coalesce(has_whatsapp,false) and regexp_matches(regexp_replace(coalesce(phone_norm,''),'[^0-9]','','g'), '^(9665[0-9]{8}|009665[0-9]{8}|05[0-9]{8}|5[0-9]{8})$')"
             total,located,whatsapp_total,email_total=self.db.execute("select count(*),count(*) filter(where coalesce("+location_precision+",'point')='point' and longitude between -180 and 180 and latitude between -85.05112878 and 85.05112878), count(*) filter(where "+whatsapp+"), count(*) filter(where length(trim(coalesce(email,'')))>0) "+base,params).fetchone()
-            cursor=self.db.execute("select poi_key,name_ar,name_en,category,category_ar,secondary_category,category_l3,city_en,region_en,region_ar,district_ar,district_en,"+street+" street_ar,coalesce("+district_ok+",true) district_reliable,latitude,longitude,coalesce("+location_precision+",'point') location_precision,phone_norm as phone,phone_kind,has_whatsapp,"+wholesale+" is_wholesale,"+roles+" role_badges,"+specialties+" specialty_concepts_ar,email,sources,source_count,legal_name,company_status,lifecycle_state,coalesce(b.n,0) registered_location_count "+base+' order by completeness_pct desc,poi_key limit ? offset ?',params+[limit,offset])
+            cursor=self.db.execute("select poi_key,name_ar,name_en,category,category_ar,secondary_category,category_l3,city_en,region_en,region_ar,district_ar,district_en,"+street+" street_ar,coalesce("+district_ok+",true) district_reliable,latitude,longitude,coalesce("+location_precision+",'point') location_precision,phone_norm as phone,phone_kind,has_whatsapp,"+wholesale+" is_wholesale,"+roles+" role_badges,"+specialties+" specialty_concepts_ar,email,sources,source_count,legal_name,company_status,lifecycle_state,coalesce(b.n,0) registered_location_count,"+enrich+","+content+" "+base+' order by completeness_pct desc,poi_key limit ? offset ?',params+[limit,offset])
             names=[d[0] for d in cursor.description];rows=[dict(zip(names,row)) for row in cursor.fetchall()]
             areas = self.area_options(city, f)
         for row in rows:

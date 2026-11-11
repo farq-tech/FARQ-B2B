@@ -37,6 +37,18 @@ class GoldenPopulationTests(unittest.TestCase):
         self.assertEqual((out["النرجس"]["population"], out["الملقا"]["population"]), (4000.0, 30000.0), "the building model's split when every part has one")
         self.assertEqual(out["النرجس"]["source"], "910ths.sa")
 
+    def test_population_is_whole_people(self):
+        out = {r["district_ar"]: r for r in golden.population(self.rows(), "Riyadh", {"2": 58770.9, "3": 7.6}, self.path)}
+        self.assertEqual((out["النرجس"]["population"], out["الملقا"]["population"]), (58771, 8))
+        self.assertTrue(all(isinstance(out[name]["population"], int) for name in ("الربيع", "النرجس", "الملقا") if out[name]["source"] != golden.WORLDPOP))
+
+    def test_a_zero_from_every_source_is_no_figure(self):
+        rows = self.rows()
+        rows[2]["population"] = 0.0
+        out = {r["district_ar"]: r for r in golden.population(rows, "Riyadh", {"2": 0.4, "3": 0.0}, self.path)}
+        self.assertEqual(out["النرجس"]["population"], 50000.0, "a building model that rounds to 0 does not replace WorldPop")
+        self.assertIsNone(out["الملقا"]["population"], "0 everywhere reads «غير متاح», not «0»")
+
     def test_building_total_counts_only_when_every_polygon_is_calibrated(self):
         built = golden.building_totals([("10", 100.0, "910ths.sa"), ("11", 50.0, "worldpop_city_total"), ("12", 70.0, "910ths.sa")], {"11": "10"})
         self.assertEqual(built, {"12": 70.0})
@@ -59,6 +71,17 @@ class GoldenPopulationTests(unittest.TestCase):
         self.assertAlmostEqual(sum(r["total"] for r in narjis if r["age_code"] != "ALL"), 82800, places=3, msg="ages follow the golden total, not WorldPop's")
         self.assertEqual(next(r for r in narjis if r["age_code"] == "ALL")["total"], 82800.0)
         self.assertTrue(all(r["male"] is None and r["female"] is None for r in narjis), "no measured split: unavailable, not the regional one")
+
+    def test_settled_share_is_the_grid_cells_held_whatever_source_the_total_came_from(self):
+        # وادي لبن as served: a measured 11,900 people, the grid settled on 2,309 of its 5,519 cells
+        rows = [{"district_ar": "وادي لبن", "population": 11900, "source": "910ths.sa", "coverage_pct": 100.0, "valid_cells": 2309.0, "polygon_cells": 5519.0},
+                {"district_ar": "النرجس", "population": 40000, "source": "910ths.sa", "coverage_pct": 100.0, "valid_cells": 4100.0, "polygon_cells": 4100.0},
+                {"district_ar": "بلا خلايا", "population": 5000, "source": "farq_buildings_v3", "coverage_pct": 100.0}]
+        out = {r["district_ar"]: r for r in golden.with_settled_share(rows)}
+        self.assertEqual(out["وادي لبن"]["settled_pct"], 42)
+        self.assertEqual(out["النرجس"]["settled_pct"], 100)
+        self.assertIsNone(out["بلا خلايا"]["settled_pct"], "no cell counts: no share, never 0")
+        self.assertEqual(out["وادي لبن"]["population"], 11900, "the golden figure is left as it is")
 
 
 if __name__ == "__main__":

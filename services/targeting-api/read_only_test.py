@@ -15,6 +15,15 @@ READ_ONLY_PATHS = frozenset({
     "/send-test-template",
     "/send-farq",
     "/log",
+    "/access-requests",
+    "/access-requests/review",
+    "/inbox/read",
+    "/inbox/attach",
+    "/inbox/dismiss",
+    "/access-requests/redact",
+    "/access-requests/deletion",
+    "/access-requests/deletion-confirm",
+    "/access-requests/redact-person",
 })
 
 

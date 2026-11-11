@@ -4,6 +4,9 @@ import { NextRequest, NextResponse } from 'next/server'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+/** The service's data version as it may pass on: an ISO time, nothing else (a header is never echoed unchecked). */
+const dataVersion = (raw: string | null) => (raw && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(raw) ? raw : null)
+
 const READ_ONLY: Record<string, readonly string[]> = {
   cities: ['GET'],
   districts: ['GET'],
@@ -17,17 +20,20 @@ const READ_ONLY: Record<string, readonly string[]> = {
   'market-summary': ['POST'],
   'street-density': ['POST'],
   'street-density/catalog': ['POST'],
+  'street-opportunities': ['POST'],
   clusters: ['POST'],
   'market-gaps': ['POST'],
   growth: ['POST'],
   'population-around': ['POST'],
   'population-within': ['POST'],
   territories: ['POST'],
+  'weekly-plan': ['POST'],
   'district-income': ['POST'],
   'district-audience': ['POST'],
   'housing-level': ['POST'],
   'real-estate': ['POST'],
   'real-estate-listings': ['POST'],
+  'price-estimate': ['POST'],
   'district-profile': ['POST'],
 }
 
@@ -87,7 +93,9 @@ export async function proxy(request: NextRequest, context: { params: Promise<{ r
     }
     return new NextResponse(text, {
       status: 200,
-      headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json', 'cache-control': 'no-store' },
+      // the snapshot's build time (services/targeting-api/snapshot_version.py) goes on, so kept answers know their data
+      headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json', 'cache-control': 'no-store',
+        ...(dataVersion(upstream.headers.get('x-data-version')) ? { 'x-data-version': dataVersion(upstream.headers.get('x-data-version'))! } : {}) },
     })
   } catch {
     return NextResponse.json({ error: 'تعذر الاتصال بخدمة بيانات السوق.' }, { status: 502 })

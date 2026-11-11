@@ -1,11 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { MessageCircle, X } from 'lucide-react'
+import { MapPinned, MessageCircle, X } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
+import { numberFormat } from '@/lib/insights-api'
 import { businessById, districtById } from '@/lib/mock-data'
 import type { Business, LiveBusinessSnapshot } from '@/lib/types'
+
+// «موزع · الشاطئ»: the facts the directory has, with a separator, so two words never run together as one phrase
+const joinFacts = (...facts: (string | null | undefined)[]) => facts.filter(Boolean).join(' · ')
 
 interface BusinessListEditorProps {
   title: string
@@ -15,9 +19,13 @@ interface BusinessListEditorProps {
   onChange: (ids: string[]) => void
   renderMeta?: (b: Business) => ReactNode
   liveBusinesses?: LiveBusinessSnapshot[]
+  /** The map view the request came from, where more businesses are picked. */
+  mapView?: string
+  /** A draft takes more businesses from the map (`mapView` opens it in «add to this request» mode). */
+  addMore?: boolean
 }
 
-export function BusinessListEditor({ title, cityId, businessIds, editable, onChange, renderMeta, liveBusinesses = [] }: BusinessListEditorProps) {
+export function BusinessListEditor({ title, cityId, businessIds, editable, onChange, renderMeta, liveBusinesses = [], mapView = '/map', addMore = false }: BusinessListEditorProps) {
   const businesses = businessIds.map((id) => businessById.get(id)).filter((b): b is Business => Boolean(b))
   const liveById = useMemo(() => new Map(liveBusinesses.map((business) => [business.id, business])), [liveBusinesses])
   const visibleLiveBusinesses = businessIds.flatMap((id) => liveById.get(id) ? [liveById.get(id)!] : [])
@@ -29,12 +37,17 @@ export function BusinessListEditor({ title, cityId, businessIds, editable, onCha
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4" aria-labelledby="biz-list-title">
       <div className="flex items-center justify-between gap-2">
         <h2 id="biz-list-title" className="font-semibold">
-          {title} <span className="text-sm font-normal text-muted-foreground tabular-nums">({totalCount})</span>
+          {title} <span className="text-sm font-normal text-muted-foreground tabular-nums">({numberFormat.format(totalCount)})</span>
         </h2>
+        {addMore && totalCount > 0 && (
+          <Link href={mapView} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-1 text-sm font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+            <MapPinned className="size-4" aria-hidden />أضف من الخريطة
+          </Link>
+        )}
       </div>
 
       {totalCount === 0 ? (
-        <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">لا توجد منشآت. <Link href="/map" className="font-semibold text-primary underline">اخترها من الخريطة</Link>.</p>
+        <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">لا توجد منشآت. <Link href={mapView} className="font-semibold text-primary underline">اخترها من الخريطة</Link>.</p>
       ) : (
         <ul className="flex flex-col divide-y">
           {businesses.map((b) => (
@@ -42,8 +55,7 @@ export function BusinessListEditor({ title, cityId, businessIds, editable, onCha
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{b.name}</p>
                 <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                  <span>{b.role}</span>
-                  <span>{districtById.get(b.districtId)?.name}</span>
+                  <span>{joinFacts(b.role, districtById.get(b.districtId)?.name)}</span>
                   {b.whatsapp ? (
                     <span className="inline-flex items-center gap-1">
                       <MessageCircle className="size-3 text-primary" aria-hidden />
@@ -65,7 +77,7 @@ export function BusinessListEditor({ title, cityId, businessIds, editable, onCha
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{b.name}</p>
                 <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                  <span>{b.category}</span><span>{b.district}</span>
+                  <span>{joinFacts(b.category, b.district)}</span>
                   {b.whatsapp ? <span className="inline-flex items-center gap-1"><MessageCircle className="size-3 text-primary" aria-hidden />إشارة واتساب</span> : null}
                 </p>
                 {b.reason ? <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{b.reason}</p> : null}

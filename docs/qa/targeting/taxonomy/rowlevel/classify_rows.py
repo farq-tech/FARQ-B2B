@@ -63,9 +63,9 @@ def tag_match(v):
         k=norm(part)
         if k in TAGN: return TAGN[k],part.strip()
     return None
-# HudHud subcategory ids (surveyor-assigned) found as codes such as «|191|» or «|639|537|» in secondary_category
+# SPD subcategory ids (surveyor-assigned) found as codes such as «|191|» or «|639|537|» in secondary_category
 HHSUB={}
-for _r in csv.DictReader(open(T+'hudhud_sub_map.csv',encoding='utf-8')):
+for _r in csv.DictReader(open(T+'spd_sub_map.csv',encoding='utf-8')):
     if _r['confidence'] in ('high','medium') and not _r['sub_id'].startswith('unc.'): HHSUB[_r['hudhud_sub_id'].split('.')[0]]=(_r['sub_id'],_r['confidence'],_r['hudhud_sub_en'])
 def hudhud_code_match(v):
     if not v or not re.fullmatch(r'\|?[0-9.|]+\|?', v.strip()): return None
@@ -83,7 +83,7 @@ def label_match(*vals):
             if k and k in LBL: return LBL[k],part.strip()
     return None
 db=duckdb.connect()
-# surveyor top category per HudHud TRX (after cleaning), from the local entity lake
+# surveyor top category per SPD TRX (after cleaning), from the local entity lake
 TRXCAT=dict(db.execute("""select 'hh:'||source_native_id, regexp_extract(category, '''name_en'': ''([^'']*)''',1) from read_parquet('/Users/m4pro/ksa-entity-lake/staging/trx.parquet')
    where regexp_extract(category, '''name_en'': ''([^'']*)''',1)<>''""").fetchall())
 cur=db.execute(f"""select poi_key, trim(split_part(category,'|',1)) act, category_ar, secondary_category, google_category, name_ar, name_en
@@ -99,7 +99,7 @@ while True:
             hh=hudhud_code_match(sec)
             lm=label_match(sec,goo,car if not a else None,act if not a else None) or (tag_match(car) if not a else None)
             nm=(name_match(nar) if nar else None) or (name_match(nen) if nen else None)  # name_en is sometimes another entity's name
-            if hh: r=(hh[0],'hudhud_sub',hh[1],'HudHud sub: '+hh[2])   # a surveyor-assigned subcategory beats labels and name words
+            if hh: r=(hh[0],'hudhud_sub',hh[1],'SPD sub: '+hh[2])   # a surveyor-assigned subcategory beats labels and name words
             elif lm and nm and nm[0][0]>=7 and nm[1]!=lm[0]: r=(nm[1],'name','medium',nm[2])  # a specific trade word in the name beats a noisy secondary label
             elif lm: r=(lm[0],'secondary',"medium",lm[1])
             else:
@@ -110,7 +110,7 @@ while True:
                 else: r=('unc.unknown','none','low','')
         sc=TRXCAT.get(key)
         if sc in CONSISTENT and r[1] in ('name','secondary','none') and not any(r[0].startswith(p) for p in CONSISTENT[sc]):
-            r=(CONTEXT.get((sc,r[0]), DEFAULT[sc]),'surveyor_category','high','HudHud TRX: '+sc+(' (was '+r[0]+')' if r[1]!='none' else ''))
+            r=(CONTEXT.get((sc,r[0]), DEFAULT[sc]),'surveyor_category','high','SPD TRX: '+sc+(' (was '+r[0]+')' if r[1]!='none' else ''))
         if r[1] in ('none','name','activity') and r[2]!='high' and VAC.search(' '+norm(nar or nen or '')+' '): r=('unc.unknown','vacant','high','vacant or closed unit')
         stats[(r[1],r[2])]+=1; w.writerow([key,*r])
 f.close()

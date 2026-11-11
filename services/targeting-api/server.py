@@ -15,6 +15,7 @@ from market_analytics import MarketAnalytics
 import market_analytics
 import status_policy
 import read_only_test
+import wa_inbox
 from metrics import ServiceMetrics, route_label
 import contextvars
 from health import is_ready
@@ -39,9 +40,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get('FARQ_TARGETING_DATA_DIR', os.path.join(HERE, 'data'))
 RUNTIME_DIR = os.environ.get('FARQ_TARGETING_RUNTIME_DIR', os.path.join(HERE, 'data'))
 AUX_DATA_DIR = os.environ.get('FARQ_TARGETING_AUX_DATA_DIR', DATA_DIR)
+# when the mounted snapshot was built, sent with every answer (X-Data-Version) so a client's kept answers know the
+# data under them changed (snapshot_version.py); fixed while this process serves the snapshot
+from snapshot_version import snapshot_version
+SNAPSHOT_VERSION = snapshot_version(DATA_DIR)
 # The mounted snapshot is served through a canonical copy (one spelling per city and district, see
 # canonical_data.py) written to scratch space; the mounted volume itself is never modified.
-import canonical_data, district_reference, golden, input_upload, tempfile
+import canonical_data, district_reference, golden, input_upload, price_estimate, tempfile, district_metrics, access_requests
 CANONICAL = canonical_data.prepare(DATA_DIR, os.environ.get('FARQ_TARGETING_CANONICAL_DIR') or os.path.join(tempfile.gettempdir(), 'farq-targeting-canonical'))
 DATA = CANONICAL['targets.parquet']
 CLUSTERS = CANONICAL['trade_clusters.parquet']
@@ -65,9 +70,20 @@ def city_polygon_ids(city):
     return sorted(ids|{k for k,v in CANONICAL['district_id_map'].items() if str(v) in ids})
 
 
+_GOLDEN_POP = {}   # city -> golden.population rows (or None); immutable within a release
+
+
 def golden_population(city):
     """The golden population rows of a city, one per canonical district (golden.population), or None when the
-    WorldPop layer the rows are built on is missing."""
+    WorldPop layer the rows are built on is missing. Memoised per city (immutable within a release) so the first
+    cold read of the population parquets is not repeated on every population-districts / brands / gaps request."""
+    if city in _GOLDEN_POP:
+        return _GOLDEN_POP[city]
+    _GOLDEN_POP[city] = rows = _golden_population(city)
+    return rows
+
+
+def _golden_population(city):
     path=os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_population_2025.parquet')
     if not os.path.isfile(path): return None
     import insights
@@ -82,12 +98,26 @@ def golden_population(city):
     rows=[dict(zip(('district_id','district_ar','district_en','population','coverage_pct','valid_cells','polygon_cells','year','source','license'),row)) for row in rows]
     # one row per canonical district: polygons merged in districts.geojson are summed here too
     merged=canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names'])
-    return golden.population(merged,city,golden.building_totals(built,CANONICAL['district_id_map']))
+    return golden.with_settled_share(golden.population(merged,city,golden.building_totals(built,CANONICAL['district_id_map'])))
+
+
+_GOLDEN_DEMO = {}   # city -> whole-city golden demographics rows (or None); the districts= filtered path is not cached
 
 
 def golden_demographics(city, districts=(), population=None):
     """Golden by-age rows of a city (or of the given canonical district ids): ages add up to the golden total and
-    male/female are given only where 910ths measured them. None when the WorldPop age layer is missing."""
+    male/female are given only where 910ths measured them. None when the WorldPop age layer is missing. The
+    whole-city call (no districts) is memoised per city — population is derived from the now-memoised
+    golden_population either way, so it does not change the result — while the districts= path stays uncached."""
+    if not districts and city in _GOLDEN_DEMO:
+        return _GOLDEN_DEMO[city]
+    rows = _golden_demographics(city, districts, population)
+    if not districts:
+        _GOLDEN_DEMO[city] = rows
+    return rows
+
+
+def _golden_demographics(city, districts=(), population=None):
     path=os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_demographics_2025.parquet')
     if not os.path.isfile(path): return None
     # a canonical district stands for every polygon merged into it; rows are chosen by the city's polygon ids
@@ -107,13 +137,78 @@ def golden_demographics(city, districts=(), population=None):
 
 
 def district_population_by_name(city):
-    """Canonical district name -> {population, male, female, source}: the golden table, keyed for name-based joins."""
+    """Canonical district name -> {population, male, female, source, coverage_pct}: the golden table, keyed for name-based joins."""
     population=golden_population(city) or []
-    out={row['district_ar']:{'population':row['population'],'male':None,'female':None,'source':row.get('source')}
+    out={row['district_ar']:{'population':row['population'],'male':None,'female':None,'source':row.get('source'),'coverage_pct':row.get('coverage_pct'),'settled_pct':row.get('settled_pct')}
          for row in population if row.get('district_ar')}
     for row in golden_demographics(city,population=population) or []:
         if row['age_code']=='ALL' and row['district_ar'] in out: out[row['district_ar']].update(male=row['male'],female=row['female'])
     return out
+
+
+_DISTRICT_FEATURES = None   # loaded once; each feature carries an authoritative area_km2 in its properties
+_DISTRICT_AREAS = {}        # city_en -> {district_ar (as districtName folds it): area_km2}
+
+
+def _districts_geojson():
+    global _DISTRICT_FEATURES
+    if _DISTRICT_FEATURES is None:
+        p = CANONICAL['districts.geojson']
+        data = json.load(open(p, encoding='utf-8')) if os.path.isfile(p) else {'features': []}
+        for feature in data['features']:
+            feature['properties']['area_km2'] = district_metrics.area_km2(feature.get('geometry'))
+        _DISTRICT_FEATURES = data
+    return _DISTRICT_FEATURES
+
+
+def district_areas(city):
+    """city_en -> {district name -> area_km2}, summed over polygons merged under one name, cached per city."""
+    if city not in _DISTRICT_AREAS:
+        areas = {}
+        for feature in _districts_geojson()['features']:
+            if feature['properties'].get('city_en') != city:
+                continue
+            name = feature['properties'].get('ar') or feature['properties'].get('district_ar') or str(feature['properties'].get('id'))
+            areas[name] = areas.get(name, 0.0) + (feature['properties'].get('area_km2') or 0.0)
+        _DISTRICT_AREAS[city] = areas
+    return _DISTRICT_AREAS[city]
+
+
+_POP_BY_NAME = {}
+
+
+def population_by_name_cached(city):
+    """district_population_by_name(city), memoised per city (immutable within a release) so the map's repeated
+    district-counts calls do not re-read the population parquet each time."""
+    if city not in _POP_BY_NAME:
+        _POP_BY_NAME[city] = district_population_by_name(city)
+    return _POP_BY_NAME[city]
+
+
+def enrich_district_counts(result, city):
+    """Add the derived per-district figures the map used to compute in the browser, each from one backend formula:
+    area_km2 (authoritative), population, residents_per (population ÷ businesses), per_km2 (businesses ÷ area),
+    density (population ÷ area). A missing input yields null, never zero. `located` is the businesses that fell in a
+    known district (Σ n), for «منها بحي معروف»."""
+    if not city:
+        return result
+    areas = district_areas(city)
+    pop = population_by_name_cached(city)
+    located = 0
+    for row in result.get('districts', []):
+        name = row.get('district_ar')
+        n = row.get('n')
+        area = areas.get(name)
+        people = (pop.get(name) or {}).get('population')
+        row['area_km2'] = area
+        row['population'] = people
+        row['residents_per'] = district_metrics.residents_per(people, n)
+        row['per_km2'] = district_metrics.per_km2(n, area)
+        row['density'] = district_metrics.density(people, area)
+        if isinstance(n, (int, float)):
+            located += n
+    result['located'] = located
+    return result
 
 
 POPULATION_DIR = os.path.join(AUX_DATA_DIR, 'buildings_ingest', 'population')
@@ -130,6 +225,31 @@ def _number(body, key, low, high, default=None):
     value = body.get(key, default)
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= value <= high: raise ValueError(key)
     return value
+
+
+def site_card_response(body):
+    """The store owners' site card (site_card.py): people and their measured segments inside a range, and the chosen
+    activity's competitors in it. The range is validated like /population-within."""
+    import insights, site_card
+    city = _city(body)
+    geometry = body.get('geometry')
+    if not isinstance(geometry, dict) or geometry.get('type') not in ('Polygon', 'MultiPolygon'): raise ValueError('geometry')
+    points = [p for rings in canonical_data._polygons(geometry) for ring in rings for p in ring]
+    if not 3 <= len(points) <= 20000 or not all(isinstance(p, list) and len(p) >= 2 and 34 <= p[0] <= 56 and 16 <= p[1] <= 33 for p in points):
+        raise ValueError('geometry')
+    centre = body.get('centre')
+    if centre is not None and not (isinstance(centre, list) and len(centre) == 2 and 34 <= centre[0] <= 56 and 16 <= centre[1] <= 33):
+        raise ValueError('centre')
+    with LOCK:
+        by_district = site_card.people_by_district(con, insights.latest(os.path.join(POPULATION_DIR, 'building_points_*.parquet')), geometry, HOUSEHOLD_SIZE)
+    audience = (insights.district_audience(city) or {}).get('districts')
+    children = site_card.child_shares(golden_demographics(city))
+    people = site_card.segments(by_district, CANONICAL['district_id_map'], CANONICAL['district_names'], audience, children)
+    competitors = MARKET_ANALYTICS.competitors_within(body, geometry, centre)
+    residents = district_metrics.residents_per(people.get('population'), (competitors or {}).get('n'))
+    return {'ok': True, 'city': city, 'people': people, 'competitors': competitors,
+            'residents_per_competitor': residents,
+            'reasons': site_card.reasons(competitors, residents, people.get('population'))}
 
 
 def _city_features(city):
@@ -152,7 +272,7 @@ def insight_response(path, body):
         with LOCK:
             result = insights.population_around(con, insights.latest(os.path.join(POPULATION_DIR, 'building_points_*.parquet')),
                                                 DATA if os.path.isfile(DATA) else None, TILES.search_sql, lon, lat, radius, HOUSEHOLD_SIZE)
-        basis = ('السكان = سكان كل حي (من 910ths حيث يتوفر، وإلا من كثافة الوحدات السكنية) موزعين على مبانيه السكنية، ثم جُمعت المباني داخل الدائرة.'
+        basis = ('السكان = سكان كل حي (رقم مقاس حيث يتوفر، وإلا تقدير من كثافة الوحدات السكنية) موزعين على مبانيه السكنية، ثم جُمعت المباني داخل الدائرة.'
                  if result.get('people_per_district') else 'السكان = الوحدات السكنية في المباني ضمن الدائرة × 5 أفراد للوحدة.')
         result.update(ok=True, household_size=HOUSEHOLD_SIZE, basis=basis + ' المنشآت من الدليل المفتوح. تقدير للمقارنة بين المواقع لا تعداد.')
         return result
@@ -166,6 +286,8 @@ def insight_response(path, body):
             result = insights.population_within(con, insights.latest(os.path.join(POPULATION_DIR, 'building_points_*.parquet')),
                                                 DATA if os.path.isfile(DATA) else None, TILES.search_sql, geometry, HOUSEHOLD_SIZE)
         result.update(ok=True, household_size=HOUSEHOLD_SIZE)
+        # residents ÷ businesses for the drawn area, computed here so the map never divides it itself
+        result['residents_per'] = district_metrics.residents_per(result.get('population'), result.get('businesses'))
         return result
     if path == '/territories':
         city = _city(body)
@@ -173,7 +295,7 @@ def insight_response(path, body):
         weight = body.get('weight', 'population')
         if weight not in ('population', 'businesses'): raise ValueError('weight')
         if weight == 'population':
-            weights = {name: row['population'] for name, row in district_population_by_name(city).items() if row.get('population')}
+            weights = {name: row['population'] for name, row in population_by_name_cached(city).items() if row.get('population')}
         else:
             activity = {key: body[key] for key in ('q', 'main_id') if body.get(key)}   # a distributor balances on its own customers
             weights = {row['district_ar']: row['n'] for row in MARKET_ANALYTICS.district_counts({'city': city, **activity})['districts']}
@@ -195,6 +317,21 @@ def insight_response(path, body):
         table = insights.real_estate(city)
         if table is None: return {'ok': True, 'city': city, 'available': False, 'districts': []}
         return {'ok': True, 'city': city, 'available': True, **table}
+    if path == '/price-estimate':
+        city = _city(body)
+        district_id = body.get('district_id')
+        if not isinstance(district_id, str) or not 1 <= len(district_id) <= 40: raise ValueError('district_id')
+        if body.get('deal') not in price_estimate.DEALS: raise ValueError('deal')
+        if body.get('type') not in price_estimate.TYPES: raise ValueError('type')
+        for key, allowed in (('age', price_estimate.AGE_BANDS), ('streets', price_estimate.STREETS), ('street_width', price_estimate.WIDTHS), ('furnished', ('no', 'yes'))):
+            if body.get(key) is not None and body.get(key) not in allowed: raise ValueError(key)
+        query = {key: body.get(key) for key in ('district_id', 'deal', 'type', 'age', 'streets', 'street_width', 'furnished')}
+        query['area_sqm'] = _number(body, 'area_sqm', 10, 100000)
+        try:
+            result = price_estimate.estimate(city, query)
+        except (OSError, ValueError):
+            return {'ok': True, 'city': city, 'available': False, 'reason': 'no_listings'}
+        return {'ok': True, 'city': city, **result}
     if path == '/real-estate-listings':
         city = _city(body)
         box = body.get('bbox')
@@ -212,10 +349,26 @@ def insight_response(path, body):
         filters = {'bbox': box, 'district_ids': ids, 'kind': kind, 'deal': deal, 'types': types,
                    'min_price': body.get('min_price') and _number(body, 'min_price', 1, 1e9), 'max_price': body.get('max_price') and _number(body, 'max_price', 1, 1e9),
                    'min_area': body.get('min_area') and _number(body, 'min_area', 1, 1e6), 'max_area': body.get('max_area') and _number(body, 'max_area', 1, 1e6),
-                   'limit': int(_number(body, 'limit', 1, insights.LISTINGS_MAX, insights.LISTINGS_MAX))}
+                   # 0 is a real answer here («new only»), so it is read when present, not when truthy
+                   'max_age': _number(body, 'max_age', 0, 99) if body.get('max_age') is not None else None,
+                   'limit': int(_number(body, 'limit', 1, insights.LISTINGS_MAX, insights.LISTINGS_MAX)),
+                   # «العقار» asks for near-identical ads folded into one card (insights.similar_groups)
+                   'group_similar': body.get('group_similar') is True}
+        near = body.get('near')
+        if near is not None:
+            # units along an activity street: within `meters` of the corridor's own line
+            if not isinstance(near, dict): raise ValueError('near')
+            filters['near'] = {'runs': insights.near_lines(near.get('geometry')),
+                               'meters': _number(near, 'meters', 10, insights.NEAR_MAX_M, insights.NEAR_DEFAULT_M)}
         table = insights.real_estate_listings(city, filters)
         if table is None: return {'ok': True, 'city': city, 'available': False, 'total': 0, 'listings': []}
         return {'ok': True, 'city': city, 'available': True, **table}
+    if path == '/real-estate-phone':
+        listing_id = body.get('id')
+        if not isinstance(listing_id, str) or not re.fullmatch(r'\d{1,12}', listing_id): raise ValueError('id')
+        phone = insights.listing_phone(listing_id)
+        LOGGER.info('listing_phone found=%s', bool(phone))
+        return {'ok': True, 'available': bool(phone), 'phone': phone}
     if path == '/housing-level':
         city = _city(body)
         with LOCK:
@@ -226,12 +379,17 @@ def insight_response(path, body):
         city = _city(body)
         table = insights.district_audience(city)
         if table is None: return {'ok': True, 'city': city, 'available': False, 'districts': []}
+        # the measured share × the district population, so the map reads the segment size and never multiplies it itself
+        pop = population_by_name_cached(city)
+        for row in table.get('districts', []):
+            people = (pop.get(row.get('district_ar')) or {}).get('population')
+            row.update(district_metrics.audience_sizes(people, row.get('male_pct'), row.get('saudi_pct')))
         return {'ok': True, 'city': city, 'available': True, **table}
     if path == '/district-profile':
         city = _city(body)
         district = body.get('district')
         if not isinstance(district, str) or not 1 <= len(district) <= 100: raise ValueError('district')
-        people = district_population_by_name(city).get(district) or {}
+        people = population_by_name_cached(city).get(district) or {}
         summary = MARKET_ANALYTICS.market_summary({'city': city, 'districts': [district]})['summary']
         # the golden rows of this city only: a district name can recur in other cities
         ages = sorted(({'age_group': r['age_group'], 'age_code': r['age_code'], 'male': None if r['male'] is None else round(r['male']),
@@ -252,7 +410,7 @@ def insight_response(path, body):
             'growth': next((row for row in growth_rows if row['district_ar'] == district), None),
             'income': next((row for row in income.get('districts', []) if row.get('district_ar') == district), None),
             'income_source': income.get('source'),
-            'sources': {'population': people.get('source') or golden.WORLDPOP, 'businesses': 'دليل فرق المفتوح', 'growth': 'طبقة مباني فرق'},
+            'sources': {'population': 'طبقة سكان فرق', 'businesses': 'دليل فرق المفتوح', 'growth': 'طبقة مباني فرق'},
         }
     raise ValueError(path)
 
@@ -284,6 +442,38 @@ def _record_chain_history():
         if market_analytics.record_chain_history(MARKET_ANALYTICS, CHAIN_HISTORY): LOGGER.info('chain_history snapshot recorded')
     except Exception as error:   # history is an extra; the service runs without it
         LOGGER.error('chain_history_failed error_type=%s', type(error).__name__)
+
+
+# Cities whose analytic caches + OS page cache are warmed at startup, so the first real user does not pay the cold
+# scan of targets.parquet (537MB) that was timing out behind Atlas's 12s proxy. Largest cities first; add new ones here.
+WARM_CITIES = ('Riyadh', 'Jeddah', 'Dammam')
+
+
+def _warm_city(city):
+    """Fill the per-city memos (population / areas / golden) and the market aggregates with the same arguments the
+    handlers use, then one cheap full scan to pull targets.parquet into the OS page cache."""
+    population_by_name_cached(city)
+    district_areas(city)
+    golden_population(city)
+    MARKET_ANALYTICS.market_summary({'city': city})
+    MARKET_ANALYTICS.district_counts({'city': city})
+    MARKET_ANALYTICS.brands({'city': city}, population=population_by_name_cached(city),
+                            history=market_analytics.read_chain_history(CHAIN_HISTORY))
+    with LOCK:
+        con.execute("select count(*) from read_parquet(?)", [DATA]).fetchone()
+
+
+def _warm_caches():
+    """Daemon-thread body: warm each WARM_CITIES in turn. Never raises — a per-city failure is logged and the next
+    city still runs — so warming can never crash the server, and it never touches startup/readiness."""
+    LOGGER.info('warm_caches start cities=%s', ','.join(WARM_CITIES))
+    for city in WARM_CITIES:
+        try:
+            _warm_city(city)
+            LOGGER.info('warm_caches city_done city=%s', city)
+        except Exception as error:
+            LOGGER.error('warm_caches city_failed city=%s error_type=%s', city, type(error).__name__)
+    LOGGER.info('warm_caches done')
 
 # ---------- Arabic normalisation ----------
 AR = str.maketrans({'أ':'ا','إ':'ا','آ':'ا','ة':'ه','ى':'ي','ؤ':'و','ئ':'ي'})
@@ -398,15 +588,22 @@ Return ONLY JSON: {{"L": [ids], "M": [ids]}} — ids not listed are N.
 {rows}"""
 RANK_MAX = 300
 _CITIES = []
+_CITIES_LOCK = threading.Lock()
 def cities():
     """Cities with at least 1,500 places, largest first (computed once), each with the number of districts it has in
     the golden atlas: tools that work per district (population, gaps, growth, territories, reports) offer only
-    cities with districts, instead of letting a user pick one and find nothing."""
-    if not _CITIES:
-        with open(CANONICAL['districts.geojson'], encoding='utf-8') as handle:
-            districts = collections.Counter((f.get('properties') or {}).get('city_en') for f in json.load(handle).get('features', []))
-        with LOCK:
-            _CITIES.extend({'en': a, 'ar': b, 'n': c, 'districts': districts.get(a, 0)} for a, b, c in con.execute("select city_en, mode(city_ar), count(*) n from t where city_en is not null group by 1 having n >= 1500 order by n desc").fetchall())
+    cities with districts, instead of letting a user pick one and find nothing.
+    Built once under its own lock: two first requests at the same moment used to both see the list empty and both
+    extend it, so every city came back twice (148 rows for 74 cities) and anything summing them counted double."""
+    if _CITIES:
+        return _CITIES
+    with _CITIES_LOCK:
+        if not _CITIES:
+            with open(CANONICAL['districts.geojson'], encoding='utf-8') as handle:
+                districts = collections.Counter((f.get('properties') or {}).get('city_en') for f in json.load(handle).get('features', []))
+            with LOCK:
+                rows = con.execute("select city_en, mode(city_ar), count(*) n from t where city_en is not null group by 1 having n >= 1500 order by n desc").fetchall()
+            _CITIES.extend({'en': a, 'ar': b, 'n': c, 'districts': districts.get(a, 0)} for a, b, c in rows)
     return _CITIES
 
 def ai_rank(q, rows):
@@ -718,6 +915,78 @@ def _send_farq(body):
 
 WA_TOKEN = os.environ.get('CONSTRUCTION_WHATSAPP_ACCESS_TOKEN'); WA_PHONE_ID = os.environ.get('CONSTRUCTION_WHATSAPP_PHONE_NUMBER_ID'); WA_WABA = os.environ.get('WHATSAPP_CLOUD_BUSINESS_ACCOUNT_ID')
 WA_GRAPH = 'https://graph.facebook.com/v23.0'
+# Incoming replies for the Atlas inbox (wa_inbox.py): the webhook checks every body against the app secret and answers
+# Meta's subscription check with the verify token. Unset either one and that half of the webhook stays closed.
+WA_APP_SECRET = os.environ.get('WHATSAPP_APP_SECRET'); WA_VERIFY_TOKEN = os.environ.get('WHATSAPP_WEBHOOK_VERIFY_TOKEN')
+INBOX = wa_inbox.InboxStore(os.path.join(RUNTIME_DIR, 'wa_inbox.sqlite3'))
+WEBHOOK_PATH = '/whatsapp/webhook'
+# Where incoming replies come from. `construction_db` (default): the construction API owns this number's Meta webhook
+# and stores every reply; they are read from its database, read only (wa_construction_source.py). `webhook`: Meta posts
+# to /whatsapp/webhook here instead (only if this service owns the callback). The webhook routes answer 404 otherwise.
+INBOX_SOURCE = (os.environ.get('FARQ_INBOX_SOURCE') or 'construction_db').strip().lower()
+def webhook_enabled(): return INBOX_SOURCE == 'webhook' and not read_only_test.enabled()
+
+def _poll_construction_inbox():
+    """Background reader of replies from the construction inbox; counts only in the log, never text or numbers."""
+    import wa_construction_source
+    source = wa_construction_source.postgres_source(DB_URL)
+    every = max(30, int(os.environ.get('FARQ_INBOX_POLL_SECONDS') or 60))
+    # a quiet success used to log nothing, so «it works» could not be told from «it never ran»: the first success says
+    # so, then one heartbeat an hour with the polls and rows of that hour
+    beat = {'first': True, 'at': time.time(), 'polls': 0, 'read': 0, 'new': 0}
+    while True:
+        try:
+            result = source.poll(INBOX)
+            INBOX.record_poll('construction_db', True, counts=result)
+            beat['polls'] += 1; beat['read'] += result.get('read', 0); beat['new'] += result.get('new', 0)
+            if beat['first']:
+                beat['first'] = False
+                LOGGER.info('inbox_construction_poll first_ok %s', json.dumps(result))
+            elif result['new'] or result['statuses']: LOGGER.info('inbox_construction_poll %s', json.dumps(result))
+            if time.time() - beat['at'] >= 3600:
+                LOGGER.info('inbox_construction_poll heartbeat polls=%s read=%s new=%s', beat['polls'], beat['read'], beat['new'])
+                beat.update(at=time.time(), polls=0, read=0, new=0)
+        except Exception as error:
+            kind = type(error).__name__
+            try: failures = INBOX.record_poll('construction_db', False, kind)
+            except Exception: failures = -1
+            LOGGER.warning('inbox_construction_poll failed: %s', kind)
+            # one alert line on the first failure and every 10th in a row, so a broken source is seen without flooding
+            if failures in (1, -1) or failures % 10 == 0:
+                LOGGER.error('ALERT inbox_source_unhealthy source=construction_db error=%s failures_in_row=%s', kind, failures)
+        time.sleep(every)
+
+INBOX_SOURCE_STATE = {'running': False}
+def _watch_inbox_source():
+    """Raises `ALERT inbox_source_stale` when the source has had no success for 10 minutes, also when its poll hangs
+    and so records no failure; again every 30 minutes while stale; and says when it recovers. Counts only."""
+    watch = wa_inbox.StalenessWatch(started_at=int(time.time()))
+    while True:
+        time.sleep(60)
+        try:
+            last_ok, failures = INBOX.health_epochs('construction_db')
+            event = watch.check(last_ok, int(time.time()))
+            if event and event['event'] == 'stale':
+                LOGGER.error('ALERT inbox_source_stale source=construction_db age_seconds=%s never_succeeded=%s failures_in_row=%s',
+                             event['age_seconds'], event['never_succeeded'], failures)
+            elif event:
+                LOGGER.info('inbox_source_recovered source=construction_db')
+        except Exception as error:
+            LOGGER.warning('inbox_source_watch failed: %s', type(error).__name__)
+
+def inbox_metric_lines():
+    """The reply source's gauges for /metrics (wa_inbox.prometheus_lines); none when no source reads the database."""
+    if INBOX_SOURCE != 'construction_db': return []
+    last_ok, failures = INBOX.health_epochs('construction_db')
+    return wa_inbox.prometheus_lines('construction_db', last_ok, failures, int(time.time()), INBOX_SOURCE_STATE['running'])
+
+def start_inbox_source():
+    if INBOX_SOURCE == 'construction_db' and DB_URL and not read_only_test.enabled():
+        INBOX_SOURCE_STATE['running'] = True
+        threading.Thread(target=_poll_construction_inbox, daemon=True, name='inbox-construction').start()
+        threading.Thread(target=_watch_inbox_source, daemon=True, name='inbox-watch').start()
+        return 'construction_db'
+    return 'webhook' if webhook_enabled() else 'off'
 def graph(path, body=None, method=None):
     if not read_only_test.provider_calls_allowed():
         return {'error': {'message': 'READ_ONLY_TEST_ENV'}}
@@ -789,9 +1058,31 @@ def _send_template(body):
     log_decision('send_template', None, row['poi_key'], 'accept', why)
     r = provider_send(payload)
     ok = bool(r.get('messages'))
+    message_id = (r.get('messages') or [{}])[0].get('id')
+    if ok and body.get('atlas_campaign') is True and message_id:
+        # the Atlas account and request this message belongs to, so its reply reaches that account's inbox
+        try: INBOX.record_outbound(message_id, body.get('account_id'), body.get('request_id'), row['poi_key'], to, sender_id=body.get('sender_id'), request_title=body.get('request_title'), follow_up_of=body.get('follow_up_of'))
+        except Exception as error: LOGGER.warning('wa_inbox outbound not recorded: %s', type(error).__name__)
     with open(os.path.join(HERE, 'data', 'wa_template_log.jsonl'), 'a', encoding='utf-8') as f:
         f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'to': status_policy.mask(to), 'poi_key': row['poi_key'], 'template': name, 'ok': ok, 'error_code': (r.get('error') or {}).get('code')}, ensure_ascii=False) + '\n')
     return {'ok': ok, 'message_id': (r.get('messages') or [{}])[0].get('id'), 'error': (r.get('error') or {}).get('message') if not ok else None, 'code': (r.get('error') or {}).get('code')}
+
+def directory_names(poi_keys):
+    """Business names for the owner's review of unlinked replies: name only, never a contact."""
+    keys = sorted({k for k in poi_keys if isinstance(k, str) and KEY_RE.match(k)})[:500]
+    if not keys: return {}
+    with LOCK:
+        rows = con.execute("select poi_key, name_ar, name_en from t where poi_key in (select unnest(?::varchar[]))", [keys]).fetchall()
+    return {k: (ar or en or None) for k, ar, en in rows}
+
+def unlinked_replies():
+    rows = INBOX.unlinked()
+    names = directory_names([c['poiKey'] for r in rows for c in r['candidates']])
+    for r in rows:
+        for c in r['candidates']: c['name'] = names.get(c['poiKey'])
+    # the reply source's health, so the owner sees a broken source here instead of an empty list
+    health = {**(INBOX.health(INBOX_SOURCE) if INBOX_SOURCE == 'construction_db' else {'source': INBOX_SOURCE}), 'running': INBOX_SOURCE_STATE['running'] or webhook_enabled()}
+    return {'ok': True, 'messages': rows, 'health': health}
 
 def test_mobile(value):
     """Normalize a Saudi mobile supplied only for an owner test message."""
@@ -884,11 +1175,19 @@ class H(BaseHTTPRequestHandler):
         except http.cookies.CookieError: return False
         sid = jar['ft_session'].value if 'ft_session' in jar else ''
         return bool(sid) and session_ok(sid)
+    def _console_session(self):
+        """A browser signed in to this console with its password (not the service token Atlas holds)."""
+        try: jar = http.cookies.SimpleCookie(self.headers.get('Cookie') or '')
+        except http.cookies.CookieError: return False
+        sid = jar['ft_session'].value if 'ft_session' in jar else ''
+        return bool(sid) and session_ok(sid)
     def _client_ip(self):
         return (self.headers.get('X-Forwarded-For') or self.client_address[0]).split(',')[0].strip()
     def _json(self, obj, code=200):
         b = json.dumps(obj, ensure_ascii=False, default=str).encode()
-        self.send_response(code); self.send_header('Content-Type', 'application/json; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+        self.send_response(code); self.send_header('Content-Type', 'application/json; charset=utf-8'); self.send_header('Content-Length', str(len(b)))
+        if SNAPSHOT_VERSION: self.send_header('X-Data-Version', SNAPSHOT_VERSION)
+        self.end_headers(); self.wfile.write(b)
     def log_message(self, *a): pass
     def do_GET(self):
         route=urllib.parse.urlparse(self.path)
@@ -899,20 +1198,27 @@ class H(BaseHTTPRequestHandler):
             self._json({'ok': ready, 'service': 'farq-targeting'}, 200 if ready else 503)
             return
         if route.path=='/logout': self.do_POST(); return   # same handling as POST /logout
+        if route.path == WEBHOOK_PATH:
+            # Meta's subscription check: public by design, answered only with our verify token (wa_inbox.handle_verify)
+            if not webhook_enabled(): self.send_response(404); self.end_headers(); return
+            status, text = wa_inbox.handle_verify(urllib.parse.parse_qs(route.query), WA_VERIFY_TOKEN)
+            b = text.encode(); self.send_response(status); self.send_header('Content-Type', 'text/plain; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b); return
         if route.path == '/metrics':
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
             body = METRICS.render_prometheus()
+            try:
+                extra = inbox_metric_lines()
+                if extra: body += ('\n'.join(extra) + '\n').encode()
+            except Exception: pass   # the HTTP metrics stay readable whatever the inbox store does
+            try: body += ('\n'.join(access_requests.metric_lines(RUNTIME_DIR)) + '\n').encode()
+            except Exception: pass   # nor does the account-request store break them
             self.send_response(200); self.send_header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8'); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body); return
         if route.path=="/districts":
             # official district outlines (MOMRAH atlas, 6 cities) for the map's district picker (owner 2026-10-16)
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
             city=urllib.parse.parse_qs(route.query).get("city",[""])[0]
             if not city or len(city)>80: self._json({"error":"INPUT"},400); return
-            global _DISTRICTS
-            try: _DISTRICTS
-            except NameError:
-                p=CANONICAL['districts.geojson']; _DISTRICTS=json.load(open(p,encoding='utf-8')) if os.path.isfile(p) else {'features':[]}
-            self._json({'type':'FeatureCollection','features':[f for f in _DISTRICTS['features'] if f['properties'].get('city_en')==city]}); return
+            self._json({'type':'FeatureCollection','features':[f for f in _districts_geojson()['features'] if f['properties'].get('city_en')==city]}); return
         if route.path=="/population-districts":
             # Population estimates are served from the existing data volume and
             # joined to the same official district IDs used by /districts.
@@ -970,10 +1276,45 @@ class H(BaseHTTPRequestHandler):
             self._json({'ai': bool(API_KEY), 'model': MODEL if API_KEY else None, 'pois': n[0], 'whatsapp': n[1], 'email': n[2]})
         elif self.path == '/templates':
             self._json(list_templates())
+        elif route.path == '/inbox/unlinked':
+            try: self._json(unlinked_replies())
+            except Exception as error:
+                log_map_api_failure('inbox-unlinked', error)
+                self._json({'ok': False, 'error': 'UNAVAILABLE'}, 503)
+        elif route.path == '/inbox':
+            # one Atlas account's WhatsApp replies; the Atlas server names the account from its own session
+            query = urllib.parse.parse_qs(route.query)
+            account = wa_inbox.accounts_of(query.get('account', []))
+            if not account: self._json({'error': 'INPUT'}, 400); return
+            try: since = int(query.get('since', ['0'])[0] or 0)
+            except ValueError: self._json({'error': 'INPUT'}, 400); return
+            # replies, delivery states, and per request: reached, replied, median reply time; replied elsewhere (wa_inbox)
+            try: self._json({'ok': True, **INBOX.feed(account, since), **INBOX.reply_stats(account)})
+            except Exception as error:
+                log_map_api_failure('inbox', error)
+                self._json({'ok': False, 'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/cities':
             self._json(cities())
         elif self.path.startswith('/template-status'):
             st = template_status('farq_outreach_ar'); st['holder'] = load_holder(); self._json(st)
+        elif route.path == '/access-requests':
+            # the owner's list of «اطلب حساباً» requests (access_requests.py): the console login only, never the service token
+            if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
+            query = urllib.parse.parse_qs(route.query)
+            notices = {'redacted': 'حُذفت بيانات التواصل.', 'person': 'حُذفت كل بيانات هذا الشخص، وحُذف طلب الحذف.',
+                       'confirmed': 'حُفظت علامة التأكد.', 'saved': 'حُفظ القرار.'}
+            saved = next((text for key, text in notices.items() if query.get(key) == ['1']), '')
+            access_requests.apply_retention(RUNTIME_DIR)   # details past the retention period are emptied before anyone sees them
+            try: names = {row['en']: row['ar'] for row in cities() if row.get('ar')}
+            except Exception: names = {}
+            b = access_requests.render_html(access_requests.with_reviews(RUNTIME_DIR), saved=saved, status=query.get('status', ['all'])[0],
+                                            query=query.get('q', [''])[0], city_names=names, flag=query.get('flag', [''])[0],
+                                            page=query.get('page', ['1'])[0]).encode()
+            self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Cache-Control', 'no-store'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+        elif route.path == '/access-requests/count':
+            # the console's badge: how many requests wait for a decision (a number only, no contact)
+            if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
+            self._json({'new': access_requests.unread_count(RUNTIME_DIR)})
         elif self.path == '/log':
             rows = []
             if os.path.exists(LOG):
@@ -992,6 +1333,19 @@ class H(BaseHTTPRequestHandler):
                 import startup_jobs
                 for job in startup_jobs.start(DATA_DIR, AUX_DATA_DIR): LOGGER.info('startup job running in background after upload: %s', job)
             return
+        if urllib.parse.urlparse(self.path).path == WEBHOOK_PATH:
+            # WhatsApp webhook: public by design, every body must carry Meta's signature (wa_inbox.handle_post)
+            if not webhook_enabled(): self.send_response(404); self.end_headers(); return
+            try: n = int(self.headers.get('Content-Length', 0))
+            except ValueError: n = -1
+            if n < 0 or n > wa_inbox.MAX_WEBHOOK_BYTES: self._json({'ok': False, 'error': 'TOO_LARGE'}, 413); return
+            raw = self.rfile.read(n)
+            try: status, result = wa_inbox.handle_post(raw, self.headers.get('X-Hub-Signature-256'), WA_APP_SECRET, INBOX, WA_PHONE_ID)
+            except Exception as error:
+                log_map_api_failure('whatsapp-webhook', error)
+                status, result = 500, {'ok': False, 'error': 'UNAVAILABLE'}
+            LOGGER.info('whatsapp_webhook status=%s new=%s duplicate=%s unlinked=%s statuses=%s', status, result.get('new'), result.get('duplicate'), result.get('unlinked'), result.get('statuses'))
+            self._json(result, status); return
         n = int(self.headers.get('Content-Length', 0)); raw = self.rfile.read(n)
         if self.path == '/login':
             if not login_allowed(self._client_ip()): self._json({'error': 'TOO_MANY_ATTEMPTS'}, 429); return
@@ -1016,6 +1370,25 @@ class H(BaseHTTPRequestHandler):
                 'message': 'بيئة الاختبار للقراءة فقط: لا يتم إرسال رسائل أو حفظ تغييرات أو الاتصال بميتا.',
             }, 403)
             return
+        if self.path in ('/access-requests/review', '/access-requests/redact', '/access-requests/deletion-confirm', '/access-requests/redact-person'):
+            # the owner's decision on a request, or removing its personal details on the person's request, from the
+            # list's own forms (console login only; the cookie is SameSite=Strict)
+            if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
+            form = urllib.parse.parse_qs(raw.decode(errors='replace'), keep_blank_values=True)
+            field = lambda name: form.get(name, [''])[0]
+            action = self.path.rsplit('/', 1)[-1]
+            if action == 'review':
+                status, answer = access_requests.review(RUNTIME_DIR, field('id'), field('status'), field('note')); done = 'saved'
+            elif action == 'redact':
+                status, answer = access_requests.redact(RUNTIME_DIR, field('id')); done = 'redacted'
+            elif action == 'deletion-confirm':
+                status, answer = access_requests.confirm_deletion(RUNTIME_DIR, field('id'), field('confirmed') == '1'); done = 'confirmed'
+            else:
+                status, answer = access_requests.redact_person(RUNTIME_DIR, field('id')); done = 'person'
+            LOGGER.info('access_request_%s status=%s', action.replace('-', '_'), status)
+            if status != 200: self._json(answer, status); return
+            back = field('back') if field('back') in access_requests.FILTERS else 'all'
+            self.send_response(303); self.send_header('Location', f'/access-requests?status={back}&{done}=1'); self.end_headers(); return
         body = json.loads(raw or b'{}')
         if self.path in ('/map-query','/map-profile','/map-focus'):
             try:
@@ -1036,6 +1409,19 @@ class H(BaseHTTPRequestHandler):
             except Exception as error:
                 log_map_api_failure('map-context', error)
                 self._json({'error':'UNAVAILABLE'},503)
+        elif self.path == '/access-requests/deletion':
+            # «احذف بياناتي» from Atlas: the contact's hash is kept for the owner, who deletes by hand (nothing revealed)
+            status, answer = access_requests.request_deletion(RUNTIME_DIR, body.get('contact'))
+            LOGGER.info('access_request_deletion status=%s', status)
+            self._json(answer, status)
+        elif self.path == '/access-requests':
+            # «اطلب حساباً» from Atlas: stored for the owner's review, nothing is sent and no account is created
+            try: known = {row['en'] for row in cities()}
+            except Exception: known = None
+            access_requests.apply_retention(RUNTIME_DIR)
+            status, answer = access_requests.submit(RUNTIME_DIR, body, known)
+            LOGGER.info('access_request status=%s', status)
+            self._json(answer, status)
         elif self.path == '/trial-search':
             try:
                 result=TRIAL_DIRECTORY.search(body.get('q'), body.get('city'), body.get('objective', 'purchase'),min(200,max(1,int(body.get('limit',30)))),int(body.get('offset',0)));result.pop('_map_rows',None);self._json(result)
@@ -1070,7 +1456,7 @@ class H(BaseHTTPRequestHandler):
             status, answer = advisor_proxy.reply(system, messages)
             LOGGER.info('advisor status=%s', status)
             self._json(answer, status)
-        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/registered-deals', '/real-estate-listings', '/district-profile'):
+        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/registered-deals', '/real-estate-listings', '/real-estate-phone', '/price-estimate', '/district-profile'):
             # Commercial insights over the district layers (insights.py); aggregates only, no business records.
             try:
                 self._json(insight_response(self.path, body))
@@ -1078,12 +1464,30 @@ class H(BaseHTTPRequestHandler):
             except Exception as error:
                 log_map_api_failure('insights', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
+        elif self.path == '/weekly-plan':
+            # A rep's working week over stops the browser already holds (weekly_plan.py): ids and points in, day order out.
+            import weekly_plan
+            try:
+                stops, days, per_day, start = weekly_plan.read(body)
+                self._json({'ok': True, **weekly_plan.plan_week(stops, days, per_day, start),
+                            'detour': weekly_plan.DETOUR, 'speed_kmh': weekly_plan.SPEED_KMH})
+            except ValueError: self._json({'error': 'INPUT'}, 400)
+            except Exception as error:
+                log_map_api_failure('weekly-plan', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
+        elif self.path == '/site-card':
+            # The store owners' site card: people, measured segments and competitors inside one range.
+            try: self._json(site_card_response(body))
+            except ValueError: self._json({'error': 'INPUT'}, 400)
+            except Exception as error:
+                log_map_api_failure('site-card', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/market-gaps':
             # Districts where an activity has fewer directory businesses than its residents would carry at the city rate.
             try:
                 city = body.get('city')
                 if not isinstance(city, str) or not 1 <= len(city) <= 80: raise ValueError('city')
-                self._json(MARKET_ANALYTICS.market_gaps(body, district_population_by_name(city)))
+                self._json(MARKET_ANALYTICS.market_gaps(body, population_by_name_cached(city)))
             except ValueError: self._json({'error': 'INPUT'}, 400)
             except Exception as error:
                 log_map_api_failure('market-gaps', error)
@@ -1113,7 +1517,7 @@ class H(BaseHTTPRequestHandler):
             # chains of an activity and where their branches are (market_analytics.brands); aggregate counts only
             try:
                 city = _city(body)
-                self._json(MARKET_ANALYTICS.brands(body, population=district_population_by_name(city), history=market_analytics.read_chain_history(CHAIN_HISTORY)))
+                self._json(MARKET_ANALYTICS.brands(body, population=population_by_name_cached(city), history=market_analytics.read_chain_history(CHAIN_HISTORY)))
             except ValueError: self._json({'error': 'INPUT'}, 400)
             except Exception as error:
                 log_map_api_failure('brands', error)
@@ -1122,7 +1526,7 @@ class H(BaseHTTPRequestHandler):
             # Read-only market aggregates for the map; analytics return aggregate counts only.
             try:
                 if self.path == '/market-summary': self._json(MARKET_ANALYTICS.market_summary(body))
-                elif self.path == '/district-counts': self._json(MARKET_ANALYTICS.district_counts(body))
+                elif self.path == '/district-counts': self._json(enrich_district_counts(MARKET_ANALYTICS.district_counts(body), body.get('city')))
                 elif self.path == '/district-insights': self._json(MARKET_ANALYTICS.district_insights(body))
                 else: self._json(MARKET_ANALYTICS.who_buys(body))
             except ValueError: self._json({'error': 'INPUT'}, 400)
@@ -1145,18 +1549,23 @@ class H(BaseHTTPRequestHandler):
                 path = STREET_DENSITY
                 if not os.path.isfile(path): self._json({'type': 'FeatureCollection', 'features': [], 'specialty_available': not bool(specialties), 'basis': 'بيانات كثافة الشوارع غير متاحة.'}); return
                 db = duckdb.connect()
+                columns = {row[0] for row in db.execute('describe select * from read_parquet(?)', [path]).fetchall()}
                 if specialties:
-                    columns = {row[0] for row in db.execute('describe select * from read_parquet(?)', [path]).fetchall()}
                     if 'specialty_ids' not in columns:
                         db.close()
                         self._json({'type': 'FeatureCollection', 'features': [], 'specialty_available': False, 'basis': 'مصدر كثافة الشوارع لا يفصل التخصصات حتى الآن؛ أخفينا الخطوط العامة كي لا تبدو كأنها مطابقة للتخصص.'}); return
                 if q and tx is not None and not subs:
-                    subs = list(tx.understand(q, 'marketing' if body.get('objective') == 'marketing' else 'purchase')['targets'])
+                    subs = market_analytics.corridor_subs(tx, q, body.get('objective'))
+                    # a request the taxonomy cannot read finds no street, rather than every corridor in the city under its name
+                    if not subs and not main and not specialties:
+                        db.close()
+                        self._json({'mains': []} if self.path.endswith('/catalog') else {'type': 'FeatureCollection', 'features': [], 'specialty_available': True, 'sub_ids': [], 'understood': False,
+                                    'basis': 'لم نتعرف على النشاط المطلوب؛ جرّب اسماً آخر له.'}); return
                 where, params = ['city_en = ?'], [city]
                 if subs: where.append('sub_id in (select unnest(?::varchar[]))'); params.append(subs[:20])
                 if specialties: where.append("list_has_any(string_split(coalesce(specialty_ids, ''), '|'), ?::varchar[])"); params.append(specialties)
                 if main: where.append('main_id = ?'); params.append(main)
-                if districts: where.append('district_ar in (select unnest(?::varchar[]))'); params.append(districts)
+                if districts: where.append(market_analytics.street_density_district_sql(columns)); params.append(districts)
                 if self.path.endswith('/catalog'):
                     rows = db.execute(f"""select main_id, any_value(main_ar), sub_id, any_value(sub_ar), count(*), sum(n) from read_parquet(?)
                         where {' and '.join(where)} group by main_id, sub_id order by 6 desc""", [path] + params).fetchall()
@@ -1165,16 +1574,44 @@ class H(BaseHTTPRequestHandler):
                         m = mains.setdefault(mid, {'main_id': mid, 'main_ar': mar, 'streets': 0, 'shops': 0, 'subs': []})
                         m['streets'] += k; m['shops'] += int(n); m['subs'].append({'sub_id': sid, 'sub_ar': sar, 'streets': k, 'shops': int(n)})
                     self._json({'mains': sorted(mains.values(), key=lambda m: -m['shops'])}); return
-                rows = db.execute(f"""select sub_id, sub_ar, main_id, main_ar, street_ar, district_ar, n, n_wholesale, length_m, per_100m, lift, geojson
+                # corridors built on the road network (build_trade_corridors.py) also carry the road class and every district crossed
+                extra = ', '.join(c if c in columns else f'null as {c}' for c in ('road_class', 'districts_ar'))
+                rows = db.execute(f"""select sub_id, sub_ar, main_id, main_ar, street_ar, district_ar, n, n_wholesale, length_m, per_100m, lift, geojson, {extra}
                     from read_parquet(?) where {' and '.join(where)} order by n desc limit 80""", [path] + params).fetchall()
+                db.close()
                 self._json({'type': 'FeatureCollection', 'features': [{'type': 'Feature', 'geometry': json.loads(g), 'properties': {
                     'sub_id': sid, 'sub_ar': sar or '', 'main_id': mid, 'main_ar': mar or '', 'street_ar': st, 'district_ar': dist or '', 'n': n,
-                    'n_wholesale': nw, 'length_m': L, 'per_100m': d, 'lift': lf,
-                    'label_ar': f'{st} — {n} محل {sar or ""} على {L} م'}} for sid, sar, mid, mar, st, dist, n, nw, L, d, lf, g in rows],
-                    'specialty_available': True,
-                    'basis': 'كل منشأة على أقرب شارع لها (حتى ٤٠ م)؛ الكثافة = عدد المحلات لكل ١٠٠ م مقارنة بنسبة النشاط في المدينة'})
+                    'n_wholesale': nw, 'length_m': L, 'per_100m': d, 'lift': lf, 'road_class': rc,
+                    'districts_ar': [x for x in (ds or dist or '').split('|') if x],
+                    'label_ar': f'{st} — {n} محل {sar or ""} على {L} م'}} for sid, sar, mid, mar, st, dist, n, nw, L, d, lf, g, rc, ds in rows],
+                    'specialty_available': True, 'sub_ids': subs[:20],
+                    'basis': 'كل منشأة على أقرب شارع مسمّى لها (حتى 60 م)؛ الممر مقاطع الشارع نفسه التي فيها النشاط، والكثافة عدد المحلات لكل 100 م'})
             except Exception as error:
                 log_map_api_failure('street-density', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
+        elif self.path == '/street-opportunities':
+            # «فرص الشوارع»: busy named streets where the requested activity is absent or thin (street_opportunities.py)
+            try:
+                import taxonomy_search, duckdb, street_opportunities
+                city = body.get('city'); q = body.get('q'); main = body.get('main_id')
+                if (not isinstance(city, str) or not 1 <= len(city) <= 80 or (q is not None and (not isinstance(q, str) or len(q) > 120))
+                        or (main is not None and (not isinstance(main, str) or len(main) > 40)) or not (q or main)):
+                    self._json({'error': 'INPUT'}, 400); return
+                empty = {'type': 'FeatureCollection', 'features': []}
+                if not os.path.isfile(STREET_DENSITY): self._json({**empty, 'available': False}); return
+                subs = []
+                if q:
+                    tx = taxonomy_search.get()
+                    subs = market_analytics.corridor_subs(tx, q, body.get('objective')) if tx is not None else []
+                    if not subs: self._json({**empty, 'understood': False}); return
+                try: population = population_by_name_cached(city)
+                except Exception: population = {}
+                db = duckdb.connect()
+                try: result = street_opportunities.opportunities(db, STREET_DENSITY, city, subs=subs[:20], main_id=None if subs else main, population=population)
+                finally: db.close()
+                self._json({**result, 'sub_ids': subs[:20]})
+            except Exception as error:
+                log_map_api_failure('street-opportunities', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/suggest-specialties':
             # supplier onboarding: the supplier names his sector and his main materials in his own words; we suggest specialties to confirm
@@ -1221,6 +1658,17 @@ class H(BaseHTTPRequestHandler):
         elif self.path == '/send-farq':
             try: self._json(send_farq(body))
             except Exception as e: self._json({'ok': False, 'error': str(e)}, 500)
+        elif self.path == '/inbox/read':
+            # the account's own replies read or unread again, so the state follows the person across devices
+            try: self._json({'ok': True, 'changed': INBOX.set_read(body.get('account'), body.get('ids'), body.get('read') is not False)})
+            except Exception as error: log_map_api_failure('inbox-read', error); self._json({'ok': False, 'error': 'UNAVAILABLE'}, 503)
+        elif self.path in ('/inbox/attach', '/inbox/dismiss'):
+            # Farq owner review (the Atlas server checks the owner); a reply is placed only on a message sent to its number
+            try:
+                done = INBOX.attach(body.get('message_id'), body.get('outbound_id'), body.get('reviewer')) if self.path == '/inbox/attach' \
+                    else INBOX.dismiss(body.get('message_id'), body.get('reviewer'))
+                self._json({'ok': done}, 200 if done else 409)
+            except Exception as error: log_map_api_failure('inbox-review', error); self._json({'ok': False, 'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/log':
             new = not os.path.exists(LOG)
             with open(LOG, 'a', encoding='utf-8', newline='') as f:
@@ -1237,4 +1685,11 @@ if __name__ == '__main__':
     import startup_jobs
     for job in startup_jobs.start(DATA_DIR, AUX_DATA_DIR): print(f"startup job running in background: {job}", flush=True)
     threading.Thread(target=_record_chain_history, daemon=True, name='chain-history').start()
-    ThreadingHTTPServer(('0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT') else '127.0.0.1', PORT), H).serve_forever()
+    print(f"inbox source: {start_inbox_source()}", flush=True)
+    if not read_only_test.enabled():
+        # «اطلب حساباً» details past their retention period are cleared once a day, whether or not anyone opens the list
+        access_requests.start_retention(RUNTIME_DIR, log=lambda n: LOGGER.info('access_request_retention cleared=%s', n))
+    httpd = ThreadingHTTPServer(('0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT') else '127.0.0.1', PORT), H)
+    # socket is bound now, so /healthz answers at once; warm the cold caches on a daemon thread that never blocks serving
+    threading.Thread(target=_warm_caches, daemon=True, name='warm-caches').start()
+    httpd.serve_forever()

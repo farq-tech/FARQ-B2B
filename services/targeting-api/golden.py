@@ -61,12 +61,28 @@ def population(rows, city, buildings=None, path=district_reference.PATH):
         built = buildings.get(str(row.get('district_id')))
         if ref and ref.get('population'):
             figure = shares.get(id(row), float(ref['population']))
-            row.update(population=round(figure, 1), source=district_reference.SOURCE, license=None,
+            # whole people: a split share or a building model gives fractions, and «58,770.9 ساكن» is not a count
+            row.update(population=round(figure), source=district_reference.SOURCE, license=None,
                        year=year if year is not None else row.get('year'), coverage_pct=100.0)
-        elif built is not None:
-            row.update(population=round(built, 1), source=BUILDINGS, license=None, coverage_pct=100.0)
+        elif built is not None and round(built) > 0:
+            row.update(population=round(built), source=BUILDINGS, license=None, coverage_pct=100.0)
         else:
             row['source'] = WORLDPOP
+        # no model's 0 is a count of people (owner, 2026-11-02): a district that every source puts at 0 has no
+        # figure, so it reads «غير متاح» on every screen instead of «السكان 0» and «ساكن لكل منشأة 0»
+        if not row.get('population'):
+            row['population'] = None
+    return rows
+
+
+def with_settled_share(rows):
+    """Each row's `settled_pct`: the share of the district's grid cells the population grid holds as settled
+    (valid_cells ÷ polygon_cells, the grid's own count, kept whatever source the total came from). A district settled
+    over little of its area (وادي لبن: 2,309 of 5,519 cells, 42%) reads «light» per km² and «empty» inside its edge
+    while its people live on a part of it. None without the cell counts. The figures themselves are not changed."""
+    for row in rows:
+        valid, cells = row.get('valid_cells'), row.get('polygon_cells')
+        row['settled_pct'] = round(100.0 * float(valid) / float(cells)) if valid is not None and cells else None
     return rows
 
 

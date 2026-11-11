@@ -35,7 +35,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
   const password = typeof body.password === 'string' ? body.password : ''
   if (!email || !password || email.length > 254 || password.length > 512) return responseError('أدخل البريد الإلكتروني وكلمة المرور.', 400)
   const { status, session } = await signIn(email, password)
-  if (!session) return responseError(status === 401 || status === 403 ? 'بيانات الدخول غير صحيحة.' : 'تعذر الوصول إلى خدمة الحسابات.', status >= 400 ? status : 502)
+  if (!session) return responseError(status === 401 || status === 403 ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة. تحقق منهما ثم أعد المحاولة.' : 'خدمة الحسابات لا تستجيب الآن. أعد المحاولة بعد قليل.', status >= 400 ? status : 502)
   const response = NextResponse.json({ data: publicSession(session) }, { headers: { 'cache-control': 'no-store' } })
   setSession(response, session)
   return response

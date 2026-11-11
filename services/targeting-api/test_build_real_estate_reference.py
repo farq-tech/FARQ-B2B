@@ -32,6 +32,18 @@ class RealEstateReferenceTests(unittest.TestCase):
         self.assertEqual(riyadh[0]['groups'], {'rent_year_residential': {'listings': 5, 'median_sar_per_sqm': 517, 'reliable': False}})
         self.assertNotIn('9665', str(doc), 'no advertiser detail leaves the script')
 
+    def test_a_district_splits_its_figure_by_building_age_where_ads_state_it(self):
+        rows = [dict(listing('rent', 'floor', 100000 + i * 1000, 160), age=0) for i in range(5)]        # five new
+        rows += [dict(listing('rent', 'floor', 60000 + i * 1000, 160), age=11) for i in range(5)]      # five older
+        rows += [listing('rent', 'floor', 80000, 160) for _ in range(3)]                                # three unstated
+        cards = []
+        group = ref.build(rows, {'Riyadh': ATLAS}, 'd', cards=cards)['cities']['Riyadh'][0]['groups']['rent_year_residential']
+        self.assertEqual(group['listings'], 13, 'every ad counts in the district figure, stated age or not')
+        self.assertEqual(group['by_age'], {'new': {'listings': 5, 'median_sar_per_sqm': 638}, 'older': {'listings': 5, 'median_sar_per_sqm': 388}})
+        self.assertEqual(sorted({card.get('age') for card in cards}, key=str), [0, 11, None])
+        thin = ref.build([dict(r, age=0) for r in rows[:3]] + rows[5:10], {'Riyadh': ATLAS}, 'd')['cities']['Riyadh'][0]['groups']['rent_year_residential']
+        self.assertEqual(list(thin['by_age']), ['older'], 'a band under the listing floor is left out, not shown thin')
+
     def test_each_rent_period_keeps_its_own_figure_and_nothing_is_converted(self):
         self.assertEqual(ref.price_per_sqm(listing('rent', 'store', 5000, 100, period='monthly')), ('rent_month', 'commercial', 50))
         self.assertEqual(ref.price_per_sqm(listing('rent', 'store', 60000, 100, period='annually')), ('rent_year', 'commercial', 600))
@@ -73,6 +85,16 @@ class RealEstateReferenceTests(unittest.TestCase):
         self.assertEqual(first['vs_district_pct'], -3)   # 500 per m² against the district's 516.67
         self.assertFalse({'sellerPhone', 'sellerName'} & set(first))
 
+    def test_cards_carry_what_the_property_has_its_dates_and_licence_when_stated(self):
+        row = dict(listing('rent', 'apartment', 60000, 120), aqar_id='7', images=['7.jpg'], lift=1, furnished=0,
+                   ac=None, pool=3, tenants='families', create_time=1793000000, last_update=0, rega_licensed=True)
+        cards = []
+        ref.build([row], {'Riyadh': ATLAS}, '2026-10-28', cards=cards)
+        card = cards[0]
+        self.assertEqual(card['features'], {'lift': 1, 'furnished': 0}, 'unstated and unreadable values stay out')
+        self.assertEqual((card['tenants'], card['listed_on'], card['licensed']), ('families', '2026-10-26', True))
+        self.assertNotIn('updated_on', card)
+
     def test_every_located_listing_is_a_card_and_doubtful_ones_are_marked(self):
         rows = [dict(listing('rent', 'apartment', 60000, 120), aqar_id=str(i)) for i in range(5)]
         rows.append(dict(listing('rent', 'apartment', 10000, 120), aqar_id='odd'))           # 83% under: a wrong figure
@@ -95,7 +117,14 @@ class RealEstateReferenceTests(unittest.TestCase):
         cards = []
         ref.build([bare, away], {'Riyadh': ATLAS}, 'd', cards=cards)
         by_id = {card['id']: card for card in cards}
-        self.assertEqual((by_id['bare']['price_sar'], by_id['bare']['sar_per_sqm'], by_id['bare']['check']), (None, None, True))
+        self.assertEqual((by_id['bare']['price_sar'], by_id['bare']['sar_per_sqm'], by_id['bare']['check']), (None, None, False),
+                         'no figure to doubt: hidden for lack of a price, not marked for checking')
+        no_area = [dict(listing('rent', 'store', 90000, None), aqar_id='no_area', images=['a.jpg']),
+                   dict(listing('rent', 'store', 4000, None, period='annually'), aqar_id='low_year', images=['a.jpg'])]
+        cards = []
+        ref.build(no_area, {'Riyadh': ATLAS}, 'd', cards=cards)
+        self.assertEqual({card['id']: card['check'] for card in cards}, {'no_area': False, 'low_year': True},
+                         'a shop without an area is shown; a yearly rent too low to be one is still doubted')
         self.assertEqual(by_id['bare']['photos'], ['https://images.aqar.fm/webp/750x0/props/a.jpg', 'https://images.aqar.fm/webp/750x0/props/b.jpg'])
         self.assertEqual((by_id['away']['city'], by_id['away']['district_id']), ('Dammam', None))
 

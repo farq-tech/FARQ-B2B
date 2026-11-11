@@ -1,21 +1,32 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, MapPin, Scale, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Check, MapPin, Scale, X } from 'lucide-react'
+import { NoResult, NotAvailable } from '@/components/shared/empty-state'
+import { LoadError } from '@/components/shared/load-error'
 import { Explained } from '@/components/shared/explained'
+import { Skeleton } from '@/components/ui/skeleton'
+import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
-import { areaKm2, distanceKm } from '@/lib/geo-measure'
-import { BUDGETS, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Deal, type Listing, type ListingKind } from '@/lib/real-estate'
+import { counted, formatDistance, numberFormat, postMarket } from '@/lib/insights-api'
+import { distanceKm } from '@/lib/geo-measure'
+import { BUDGETS, shownPhotos, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Deal, type Listing, type ListingKind } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { AdvisorPanel, type AdvisorSubject } from '../advisor-panel'
 import type { DistrictRow } from '../city-data'
-import { ListingCard } from '../listing-card'
+import { ListingCard, NoPhoto } from '../listing-card'
+import { ListingCompare } from '../listing-compare'
 import type { MyPoint } from '../listing-surroundings'
-import type { Overlay } from './overlay'
+import { waiting, type Overlay } from './overlay'
 import { Icon3D } from '@/components/shared/icon-3d'
+import { useStickyState } from '@/lib/sticky-state'
+import { useAnswer } from './use-answer'
+import { Choice } from './choice'
+import { listingVerdict, oversizedShop } from './tool-answers'
+import { Verdict } from './verdict'
+import { homesFacts, homesMedianKey } from './district-facts'
 
-type Result = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number; listings: Listing[] }
+type Result = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; listings: Listing[] }
 const LIMIT = 1500
 const BEST = 8
 const MY_POINT_KEY = 'atlas.myPoint'
@@ -30,12 +41,25 @@ function savePoint(point: MyPoint | null) {
   try { if (point) localStorage.setItem(MY_POINT_KEY, JSON.stringify(point)); else localStorage.removeItem(MY_POINT_KEY) } catch { /* the point stays for this visit */ }
 }
 
-/** The ad's first photo, small, beside its line in the list; nothing when it fails to load. */
-function Thumb({ src }: { src: string | null }) {
+/**
+ * The ad's first photo, small, beside its line in the list; the property type's tile when it has none or it fails to
+ * load. A listing already in the comparison carries a check on its corner, so the second pick is never the first again.
+ */
+function Thumb({ src, type, comparing }: { src: string | null; type: string; comparing: boolean }) {
   const [broken, setBroken] = useState(false)
-  if (!src || broken) return <span className="size-14 shrink-0 rounded-lg bg-muted" aria-hidden />
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="size-14 shrink-0 rounded-lg object-cover" />
+  return (
+    <span className="relative shrink-0">
+      {!src || broken
+        ? <NoPhoto type={type} className="size-14 rounded-lg" />
+        // eslint-disable-next-line @next/next/no-img-element
+        : <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="size-14 rounded-lg object-cover" />}
+      {comparing && (
+        <span className="absolute -end-1 -top-1 grid size-5 place-items-center rounded-full bg-primary text-primary-foreground ring-2 ring-card">
+          <Check className="size-3" strokeWidth={3} aria-hidden /><span className="sr-only">في المقارنة</span>
+        </span>
+      )}
+    </span>
+  )
 }
 
 /**
@@ -43,112 +67,123 @@ function Thumb({ src }: { src: string | null }) {
  * price against their district (in the selected districts, or the whole city). A dot opens one card; the side list
  * puts the best value first; two listings, or two selected districts, go to the comparison assistant.
  */
-export function HomesTool({ city, rows, features = [], selected, onOverlay, preset }: {
+export function HomesTool({ city, rows, selected, onOverlay, preset, onHover, next, onListings }: {
   city: string
   rows: DistrictRow[]
-  /** District outlines, for each listing's district density. */
-  features?: DistrictFeature[]
   selected: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
   /** Where the search starts: a shop owner looks for a shop to rent, whatever period its ad states. */
   preset?: { kind: ListingKind; type: string; deal?: Deal | 'all' }
+  /** The district of the listing a row points at, outlined on the map; null when it leaves. */
+  onHover?: (id: string | null) => void
+  /** The step after the verdict (the listing's own page, a request), given by the map shell. */
+  next?: ReactNode
+  /** The listings on the map, for the shell's card on a group of them (its cheapest, each opening its card). */
+  onListings?: (listings: Listing[]) => void
 }) {
-  const [kind, setKind] = useState<ListingKind>(preset?.kind ?? 'rent')
-  const [type, setType] = useState(preset?.type ?? 'apartment')
+  // the shops lens opens on store rents, so its choices are kept apart from the homes lens's
+  const sticky = `homes.${preset ? 'preset' : 'plain'}`
+  const [kind, setKind] = useStickyState<ListingKind>(`${sticky}.kind`, preset?.kind ?? 'rent')
+  const [type, setType] = useStickyState(`${sticky}.type`, preset?.type ?? 'apartment')
   // a rent is searched in one period at a time, the one its ad states; «all» mixes them, so it takes no budget
-  const [rentDeal, setRentDeal] = useState<Deal | 'all'>(preset?.deal ?? 'rent_year')
-  const [budget, setBudget] = useState(0)
+  const [rentDeal, setRentDeal] = useStickyState<Deal | 'all'>(`${sticky}.rentDeal`, preset?.deal ?? 'rent_year')
+  const [budget, setBudget] = useStickyState(`${sticky}.budget`, 0)
   const deal: Deal | null = kind === 'sale' ? 'sale' : rentDeal === 'all' ? null : rentDeal
-  const [result, setResult] = useState<Result>({ status: 'loading', available: true, total: 0, listings: [] })
   const [active, setActive] = useState<Listing | null>(null)
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
   const [compare, setCompare] = useState<Listing[]>([])
   const [advisor, setAdvisor] = useState<AdvisorSubject | null>(null)
+  const [sideBySide, setSideBySide] = useState(false)
   // the viewer's own point (work, a school…): kept in this browser only, measured from every home
   const [myPoint, setMyPoint] = useState<MyPoint | null>(null)
   const [picking, setPicking] = useState(false)
   const [nearest, setNearest] = useState(false)
   useEffect(() => { setMyPoint(readPoint()) }, [])
-  const density = useMemo(() => {
-    const areas = new Map(features.map((feature) => [String(feature.properties.id), areaKm2(feature.geometry)]))
-    return new Map(rows.map((row) => {
-      const area = areas.get(row.id) ?? 0
-      return [row.id, row.population != null && area > 0 ? row.population / area : null]
-    }))
-  }, [rows, features])
-  const districtIds = selected.map((row) => row.id)
-  const districtKey = districtIds.join('|')
+  // residents per km², computed once in the service (server.py enrich_district_counts); read here per district
+  const density = useMemo(() => new Map(rows.map((row) => [row.id, row.density])), [rows])
+  const districtKey = selected.map((row) => row.id).join('|')
 
   useEffect(() => { if (!LISTING_TYPES.find((item) => item.id === type)?.kinds.includes(kind)) setType('apartment') }, [kind, type])
-  useEffect(() => { setBudget(0) }, [kind, rentDeal])
+  // a budget belongs to one deal (a yearly rent is not a monthly one), so it resets when the deal changes; it used to
+  // reset on every mount too, so coming back to this step lost the budget the visitor had set
+  const pickKind = (next: ListingKind) => { if (next !== kind) { setKind(next); setBudget(0) } }
+  const pickRentDeal = (next: Deal | 'all') => { if (next !== rentDeal) { setRentDeal(next); setBudget(0) } }
 
-  useEffect(() => {
-    let live = true
-    setResult((current) => ({ ...current, status: 'loading' }))
-    setActive(null)
-    postMarket<{ available?: boolean; total?: number; listings?: Listing[] }>('real-estate-listings', {
-      city, kind, types: [type], limit: LIMIT,
-      ...(deal ? { deal } : {}),
-      ...(budget && deal ? { max_price: budget } : {}),
-      ...(districtKey ? { district_ids: districtKey.split('|') } : {}),
-    })
-      .then((data) => { if (live) setResult({ status: 'ready', available: data.available !== false, total: data.total ?? 0, listings: (data.listings ?? []).filter(isPublishable) }) })
-      .catch(() => { if (live) setResult({ status: 'error', available: true, total: 0, listings: [] }) })
-    return () => { live = false }
-  }, [city, kind, type, deal, budget, districtKey])
+  // keyed by the filters and the selected districts' ids; the last filters' listings go at once, so the map never
+  // shows their dots under the new filters' skeleton
+  const searchKey = `${city}|${kind}|${type}|${deal ?? 'all'}|${budget}|${districtKey}`
+  const search = useAnswer(searchKey, () => postMarket<{ available?: boolean; total?: number; listings?: Listing[] }>('real-estate-listings', {
+    city, kind, types: [type], limit: LIMIT,
+    ...(deal ? { deal } : {}),
+    ...(budget && deal ? { max_price: budget } : {}),
+    ...(districtKey ? { district_ids: districtKey.split('|') } : {}),
+  }))
+  const result = useMemo<Result>(() => (search.status === 'ready' && search.data
+    ? { status: 'ready', available: search.data.available !== false, total: search.data.total ?? null, listings: (search.data.listings ?? []).filter(isPublishable) }
+    : { status: search.status === 'error' ? 'error' : 'loading', available: true, total: null, listings: [] }), [search.status, search.data])
+  useEffect(() => { setActive(null) }, [searchKey])
 
   const byId = useMemo(() => new Map(result.listings.map((listing) => [listing.id, listing])), [result.listings])
+  const compareIds = useMemo(() => new Set(compare.map((item) => item.id)), [compare])
   const toggleCompare = useCallback((listing: Listing) => setCompare((current) => (
     current.some((item) => item.id === listing.id) ? current.filter((item) => item.id !== listing.id) : [...current.slice(-1), listing]
   )), [])
   const open = useCallback((listing: Listing) => { setActive(listing); setFocus({ lon: listing.lon, lat: listing.lat }) }, [])
 
+
+  // the list in the server's best-value order, or nearest to the viewer's point first, BEST at a time
+  const [limit, showMore] = useShowMore(BEST, `${city}|${kind}|${type}|${deal}|${budget}|${districtKey}|${nearest}`)
+  const ordered = useMemo(() => (nearest && myPoint
+    ? [...result.listings].sort((a, b) => distanceKm(a, myPoint) - distanceKm(b, myPoint))
+    : result.listings), [result.listings, nearest, myPoint])
+  const shown = useMemo(() => ordered.slice(0, limit), [ordered, limit])
+
+  const where = selected.length ? (selected.length === 1 ? `في ${selected[0].name}` : `في ${counted(selected.length, 'district')}`) : 'في المدينة'
+  const types = LISTING_TYPES.filter((item) => item.kinds.includes(kind))
+
+  // the step's answer in one line for the peeking sheet: the service's count, and the first listing of the list
+  const summary = result.status !== 'ready' ? null
+    : !result.available ? 'عروض العقار غير متاحة لهذه المدينة بعد'
+      : `${result.total != null ? `${counted(result.total, 'listing')} ${where}` : `عدد العروض غير متاح ${where}`}${shown[0] ? ` · ${nearest && myPoint ? 'الأقرب' : 'الأنسب'}: ${priceLine(shown[0])}` : ''}`
+
+  // the card on a clicked district: its own median for the type and deal searched (the figure each dot's colour is
+  // measured against), from the district rows as loaded
+  const facts = useMemo(() => homesFacts(rows, homesMedianKey(kind, deal, type)), [rows, kind, deal, type])
+
+  useEffect(() => { onListings?.(result.listings) }, [result.listings, onListings])
   useEffect(() => {
     const dots = result.listings.map((listing) => ({
       id: listing.id, lon: listing.lon, lat: listing.lat,
       color: toneColor[versusDistrict(listing)?.tone ?? 'none'],
     }))
     onOverlay({
+      ...(result.status !== 'ready' ? waiting(search) : {}),
       listings: dots,
       onListing: (id) => { const listing = byId.get(id); if (listing) setActive(listing) },
       focus,
       popup: active ? <ListingCard listing={active} comparing={compare.some((item) => item.id === active.id)} onCompare={() => toggleCompare(active)} onClose={() => setActive(null)}
+        compareCount={compare.length} onCompareNow={() => { setActive(null); setSideBySide(true) }}
         myPoint={myPoint} density={active.district_id ? density.get(active.district_id) ?? null : null} /> : null,
       start: myPoint,
+      summary,
+      facts,
+      // «أرني الأعلى» opens the district of the first listing in the list
+      lead: result.status === 'ready' ? shown[0]?.district_id ?? null : null,
       onPick: picking ? (point) => { setMyPoint(point); savePoint(point); setPicking(false); setNearest(true) } : null,
     })
-  }, [result.listings, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density])
-
-  // the list in the server's best-value order, or nearest to the viewer's point first
-  const shown = useMemo(() => (nearest && myPoint
-    ? [...result.listings].sort((a, b) => distanceKm(a, myPoint) - distanceKm(b, myPoint))
-    : result.listings).slice(0, BEST), [result.listings, nearest, myPoint])
-
-  const where = selected.length ? (selected.length === 1 ? `في ${selected[0].name}` : `في ${numberFormat.format(selected.length)} أحياء`) : 'في المدينة'
-  const types = LISTING_TYPES.filter((item) => item.kinds.includes(kind))
+    // search.retry is stable; slow is what the waiting overlay says
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result.listings, result.status, shown, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density, summary, facts, search.slow])
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-      <h2 className="text-xl font-bold">اختر عقاراً</h2>
-      <div className="flex gap-1.5">
-        {([['rent', 'إيجار'], ['sale', 'شراء']] as const).map(([id, label]) => (
-          <button key={id} onClick={() => setKind(id)} aria-pressed={kind === id}
-            className={cn('flex-1 rounded-lg border py-2 text-sm', kind === id ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>{label}</button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {types.map((item) => (
-          <button key={item.id} onClick={() => setType(item.id)} aria-pressed={type === item.id}
-            className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', type === item.id ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}><Icon3D type={item.id} />{item.label}</button>
-        ))}
-      </div>
+      {/* the heading is the step's own name (lenses.ts): the shops lens opens this tool as «محلات للإيجار» */}
+      <h2 className="text-xl font-bold max-lg:-order-2">{preset ? 'محلات للإيجار' : 'اختر عقاراً'}</h2>
+      <Choice label="إيجار أو شراء" value={kind} onChange={pickKind} options={[{ id: 'rent', label: 'إيجار' }, { id: 'sale', label: 'شراء' }]} />
+      <Choice label="نوع العقار" variant="chip" value={type} onChange={setType} options={types.map((item) => ({ id: item.id, label: item.label, icon: <Icon3D type={item.id} /> }))} />
       {kind === 'rent' && (
-        <div className="flex flex-wrap gap-1.5" aria-label="مدة الإيجار">
-          {[...RENT_DEALS, { id: 'all' as const, label: 'الكل' }].map((item) => (
-            <button key={item.id} onClick={() => setRentDeal(item.id)} aria-pressed={rentDeal === item.id}
-              className={cn('rounded-full border px-3 py-1.5 text-sm', rentDeal === item.id ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}>{item.label}</button>
-          ))}
-        </div>
+        <Choice<Deal | 'all'> label="مدة الإيجار" variant="chip" value={rentDeal} onChange={pickRentDeal}
+          options={[...RENT_DEALS.map((item) => ({ id: item.id as Deal | 'all', label: item.label })), { id: 'all', label: 'الكل' }]} />
       )}
       {deal && (
         <select aria-label="الميزانية" value={budget} onChange={(event) => setBudget(Number(event.target.value))} className="rounded-lg border bg-background px-3 py-2 text-base">
@@ -177,36 +212,58 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
         )}
       </div>
 
-      {result.status === 'loading' && <Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ التحميل" />}
-      {result.status === 'error' && <p role="alert" className="text-base text-destructive">تعذر تحميل العروض.</p>}
-      {result.status === 'ready' && !result.available && <p className="text-base text-muted-foreground">عروض العقار غير متاحة لهذه المدينة بعد.</p>}
+      {result.status === 'loading' && (
+        <>
+          <Skeleton className="h-4 w-48 max-w-full" aria-hidden />
+          <ResultRowsSkeleton rows={5} sub leading="thumb" value={false} />
+        </>
+      )}
+      {result.status === 'error' && <LoadError what="العروض" onRetry={search.retry} />}
+      {result.status === 'ready' && !result.available && <NotAvailable what="عروض العقار" where="هذه المدينة" body="اختر مدينة أخرى من قائمة المدن لترى عروضها." />}
       {result.status === 'ready' && result.available && (
         <>
           <p className="text-sm text-muted-foreground">
-            {numberFormat.format(result.total)} عرضاً {where}
-            {result.total > result.listings.length ? ` · على الخريطة أنسب ${numberFormat.format(result.listings.length)}` : ''}
+            {result.total != null ? `${counted(result.total, 'listing')} ${where}` : `عدد العروض غير متاح ${where}`}
+            {result.total != null && result.total > result.listings.length ? ` · على الخريطة أنسب ${numberFormat.format(result.listings.length)}` : ''}
           </p>
+          {result.listings.length === 0 && (
+            <NoResult title={`لا عروض تطابق اختيارك ${where}`} body={budget ? 'جرّب ميزانية أعلى، أو نوعاً آخر، أو أحياء أكثر.' : 'جرّب نوعاً آخر أو مدة أخرى، أو أحياء أكثر.'} />
+          )}
+          {result.listings.length > 0 && shown[0] && (
+            // the first listing of the list as the answer, with why it comes first; a tap opens its card on the map
+            <Verdict lift next={next} verdict={listingVerdict({
+              type: typeLabel(shown[0].type), district: shown[0].district_ar ?? null, price: shown[0].price_sar == null ? null : priceLine(shown[0]),
+              versus: versusDistrict(shown[0])?.text ?? null, area: shown[0].area_sqm ?? null,
+              away: myPoint ? `${formatDistance(distanceKm(shown[0], myPoint) * 1000)} من نقطتك` : null,
+              oversized: oversizedShop(shown[0].type, shown[0].area_sqm),
+            }, nearest && Boolean(myPoint))} />
+          )}
           {result.listings.length > 0 && (
             <div>
               <Explained title={nearest && myPoint ? 'الأقرب لنقطتك' : 'أنسب العروض'} lines={EXPLAIN.bestListings} className="mb-1 text-sm font-semibold text-muted-foreground">{nearest && myPoint ? 'الأقرب لنقطتك' : 'أنسب العروض'}</Explained>
               <ol className="divide-y">
                 {shown.map((listing) => {
                   const versus = versusDistrict(listing)
+                  const away = myPoint ? `${formatDistance(distanceKm(listing, myPoint) * 1000)} من نقطتك` : null
                   return (
-                    <li key={listing.id}>
-                      <button onClick={() => open(listing)} className={cn('flex w-full items-center justify-between gap-2 py-2 text-start hover:text-primary', active?.id === listing.id && 'text-primary')}>
-                        <Thumb src={listing.photo} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium">{[typeLabel(listing.type), listing.district_ar, listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null].filter(Boolean).join(' · ')}</span>
-                          {versus && <span className={cn('block text-sm', versus.tone === 'good' ? 'text-primary' : 'text-muted-foreground')}>{versus.text}</span>}
-                          {myPoint && <span className="block text-sm text-muted-foreground">{numberFormat.format(Math.round(distanceKm(listing, myPoint) * 10) / 10)} كم من نقطتك</span>}
-                        </span>
-                        <span className="shrink-0 text-sm font-semibold">{priceLine(listing)}</span>
-                      </button>
-                    </li>
+                    <ResultRow key={listing.id} onClick={() => open(listing)} active={active?.id === listing.id}
+                      onHover={(on) => onHover?.(on && listing.district_id ? String(listing.district_id) : null)}
+                      leading={<Thumb src={shownPhotos(listing)[0] ?? null} type={listing.type} comparing={compareIds.has(listing.id)} />}
+                      // the price leads and takes the row's width: at the row's end it squeezed type and district to a few letters on a phone
+                      title={priceLine(listing)}
+                      sub={(
+                        <>
+                          <span className="block truncate">{[typeLabel(listing.type), listing.district_ar, listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null].filter(Boolean).join(' · ')}</span>
+                          {oversizedShop(listing.type, listing.area_sqm) && <span className="block truncate text-warning">{oversizedShop(listing.type, listing.area_sqm)}</span>}
+                          {(versus || away) && <span className="block truncate">{versus && <span className={versus.tone === 'good' ? 'text-primary' : undefined}>{versus.text}</span>}{versus && away ? ' · ' : ''}{away}</span>}
+                        </>
+                      )} />
                   )
                 })}
               </ol>
+              {/* the list ranks the listings on the map, which can be fewer than the service's total above it */}
+              <MoreRows lead={nearest && myPoint ? 'أقرب' : 'أنسب'} shown={shown.length} total={ordered.length} noun="listing"
+                suffix={result.total != null && result.total > ordered.length ? ' على الخريطة' : ''} onMore={showMore} />
             </div>
           )}
         </>
@@ -227,7 +284,7 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
         </div>
       )}
       {compare.length === 2 && (
-        <button onClick={() => setAdvisor({ kind: 'listings', listings: compare })}
+        <button onClick={() => setSideBySide(true)}
           className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-base font-semibold text-primary-foreground">
           <Scale className="size-4" aria-hidden /> قارن العرضين
         </button>
@@ -237,6 +294,10 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
           className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary px-3 py-2 text-base font-semibold text-primary">
           <Scale className="size-4" aria-hidden /> قارن {selected[0].name} و{selected[1].name}
         </button>
+      )}
+      {sideBySide && compare.length === 2 && (
+        <ListingCompare listings={[compare[0], compare[1]]} onClose={() => setSideBySide(false)} onRemove={toggleCompare}
+          onAdvisor={() => { setSideBySide(false); setAdvisor({ kind: 'listings', listings: compare }) }} />
       )}
       {advisor && <AdvisorPanel key={JSON.stringify(advisor.kind === 'listings' ? advisor.listings.map((item) => item.id) : advisor.rows.map((row) => row.id))} subject={advisor} rows={rows} onClose={() => setAdvisor(null)} />}
     </section>

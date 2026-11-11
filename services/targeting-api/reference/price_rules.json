@@ -1,0 +1,9 @@
+{
+  "source": "Hedonic model of yearly asking rent per m² on 1,558 Aqar listings (apartments, floors, villas) in Al-Rabie and 18 neighbouring north-Riyadh districts, with each listing's detail page (age, facade, street width, furnishing), 2026-10-29. Only effects whose 90% bootstrap range stays on one side of zero are kept; fields Aqar fills unevenly (air conditioning, yard, maid's room, entrances, lift) are left out because their effect reflected which ads fill them, not the feature.",
+  "retrieved": "2026-10-29",
+  "unit": "percent change in price per m² against the comparable listings, which mix ages, streets and furnishing",
+  "age": {"0": 4, "1-2": 4, "3-5": 0, "6-10": -7, "11+": -7},
+  "streets": {"1": 0, "2": 10, "3+": 10},
+  "street_width": {"lt15": 0, "15-19": 0, "20-29": 5, "30+": 11},
+  "furnished": {"no": 0, "yes": 24}
+}

@@ -7,6 +7,74 @@ export type City = { en: string; ar: string | null; districts?: number }
 // every figure in Atlas is written in English digits with English separators (docs/atlas-product-foundation.md §5)
 export const numberFormat = new Intl.NumberFormat('en-US')
 
+/**
+ * Keeps a signed number, a percentage or a date in reading order inside an Arabic line. After an Arabic word the
+ * browser reads Latin digits as Arabic numbers, which detaches their sign: «48%» shows as «%48», «−2» as «2−» and
+ * «2026-10-28» as «28-10-2026». A left-to-right isolate keeps the figure whole.
+ */
+export const ltr = (text: string) => `\u2066${text}\u2069`
+/** «48%», kept whole inside an Arabic line. */
+export const percent = (value: number) => ltr(`${numberFormat.format(value)}%`)
+/** One way to write a distance everywhere: «850 م» to the nearest 10 m under a kilometre, «1.4 كم» from there. */
+export const formatDistance = (metres: number) => (Math.round(metres / 10) * 10 < 1000
+  ? `${numberFormat.format(Math.round(metres / 10) * 10)} م`
+  : `${numberFormat.format(Math.round(metres / 100) / 10)} كم`)
+
+// one, two, 3–10, a figure ending 11–99, and the singular after any other figure from 100 up (100, 105, 1,000 …)
+const NOUNS = {
+  district: ['حي واحد', 'حيّان', 'أحياء', 'حياً', 'حي'],
+  branch: ['فرع واحد', 'فرعان', 'فروع', 'فرعاً', 'فرع'],
+  business: ['منشأة واحدة', 'منشأتان', 'منشآت', 'منشأة', 'منشأة'],
+  listing: ['عرض واحد', 'عرضان', 'عروض', 'عرضاً', 'عرض'],
+  street: ['شارع واحد', 'شارعان', 'شوارع', 'شارعاً', 'شارع'],
+  chain: ['سلسلة واحدة', 'سلسلتان', 'سلاسل', 'سلسلة', 'سلسلة'],
+  reply: ['ردّ واحد', 'ردّان', 'ردود', 'رداً', 'ردّ'],
+  day: ['يوم واحد', 'يومان', 'أيام', 'يوماً', 'يوم'],
+  hour: ['ساعة واحدة', 'ساعتان', 'ساعات', 'ساعة', 'ساعة'],
+  minute: ['دقيقة واحدة', 'دقيقتان', 'دقائق', 'دقيقة', 'دقيقة'],
+  photo: ['صورة واحدة', 'صورتان', 'صور', 'صورة', 'صورة'],
+  room: ['غرفة واحدة', 'غرفتان', 'غرف', 'غرفة', 'غرفة'],
+  bathroom: ['دورة مياه واحدة', 'دورتا مياه', 'دورات مياه', 'دورة مياه', 'دورة مياه'],
+  shop: ['محل واحد', 'محلان', 'محلات', 'محلاً', 'محل'],
+  request: ['طلب واحد', 'طلبان', 'طلبات', 'طلباً', 'طلب'],
+} as const
+
+/** A count with its noun in Arabic agreement: «حي واحد», «حيّان», «5 أحياء», «23 حياً», «100 حي». */
+export function counted(value: number, noun: keyof typeof NOUNS): string {
+  const [one, two] = NOUNS[noun]
+  if (value === 1) return one
+  if (value === 2) return two
+  return `${numberFormat.format(value)} ${nounAfter(value, noun)}`
+}
+
+/** The noun that follows a written figure, for a figure set apart (a signed change): «+1 فرع», «+5 فروع», «+30 فرعاً». */
+export function nounAfter(value: number, noun: keyof typeof NOUNS): string {
+  const [, , few, many, hundred] = NOUNS[noun]
+  // the plural only for 3–10 itself: «105 منشآت» is correct Arabic but reads as a different word beside «144 منشأة»
+  const size = Math.abs(value)
+  if (size >= 3 && size <= 10) return few
+  return size % 100 >= 11 ? many : hundred
+}
+
+/**
+ * The data version the service sends with its answers (X-Data-Version: when the mounted snapshot was built), heard by
+ * whoever keeps answers (components/lens/tools/answer-cache.ts), so a new snapshot is noticed on the first answer
+ * that carries it. Null until an answer has carried one.
+ */
+let dataVersionSeen: string | null = null
+const versionListeners = new Set<(version: string) => void>()
+export function noteDataVersion(response: Pick<Response, 'headers'>) {
+  const version = response.headers.get('x-data-version')
+  if (!version || version === dataVersionSeen) return
+  dataVersionSeen = version
+  for (const listener of versionListeners) listener(version)
+}
+export function onDataVersion(listener: (version: string) => void): () => void {
+  versionListeners.add(listener)
+  if (dataVersionSeen) listener(dataVersionSeen)
+  return () => { versionListeners.delete(listener) }
+}
+
 /** POST a read-only market resource through the Atlas proxy and surface its Arabic error. */
 export async function postMarket<T>(resource: string, body: unknown): Promise<T> {
   const response = await fetch(`/api/market/${resource}`, {
@@ -14,9 +82,31 @@ export async function postMarket<T>(resource: string, body: unknown): Promise<T>
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
+  noteDataVersion(response)
   const payload = await response.json().catch(() => null)
   if (!response.ok) throw new Error((payload && payload.error) || 'تعذر تحميل البيانات.')
   return payload as T
+}
+
+/** One row per city (by its English name, first one kept): the service once sent every city twice, which doubled
+ * pickers and any sum over the list. */
+export function uniqueCities<T extends { en: string }>(rows: T[]): T[] {
+  const seen = new Set<string>()
+  return rows.filter((row) => !seen.has(row.en) && Boolean(seen.add(row.en)))
+}
+
+// one request for the city list per page load, shared by every picker and the landing figures: the list changes
+// with a data release, not while someone moves between the map, the listings and the price pages. A failed answer
+// is forgotten, so the next page that asks tries again.
+let citiesRequest: Promise<City[]> | null = null
+
+/** Every row of /api/market/cities, once per page load (rejects, and is retried next time, when it fails). */
+export function fetchCities(): Promise<City[]> {
+  citiesRequest ??= fetch('/api/market/cities')
+    .then((response) => { noteDataVersion(response); return response.ok ? response.json() : Promise.reject(new Error(`cities ${response.status}`)) })
+    .then((rows: unknown) => (Array.isArray(rows) ? uniqueCities(rows as City[]) : Promise.reject(new Error('cities: not a list'))))
+    .catch((error) => { citiesRequest = null; throw error })
+  return citiesRequest
 }
 
 /** Cities that have districts in the golden atlas, largest first: every insight works per district, so a city
@@ -24,14 +114,14 @@ export async function postMarket<T>(resource: string, body: unknown): Promise<T>
 export function useCities(): City[] {
   const [cities, setCities] = useState<City[]>([{ en: 'Riyadh', ar: 'الرياض' }])
   useEffect(() => {
-    fetch('/api/market/cities')
-      .then((response) => response.json())
-      .then((rows: City[]) => {
-        if (!Array.isArray(rows)) return
-        const mapped = rows.some((row) => typeof row.districts === 'number') ? rows.filter((row) => (row.districts ?? 0) > 0) : rows
-        if (mapped.length) setCities(mapped)
+    let live = true
+    fetchCities()
+      .then((unique) => {
+        const mapped = unique.some((row) => typeof row.districts === 'number') ? unique.filter((row) => (row.districts ?? 0) > 0) : unique
+        if (live && mapped.length) setCities(mapped)
       })
       .catch(() => undefined)
+    return () => { live = false }
   }, [])
   return cities
 }

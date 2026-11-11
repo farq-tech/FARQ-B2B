@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+import { requestFor } from '@/lib/inbox-feed'
 import { useAppStore } from '@/lib/store'
 import type { InboxMessage } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -12,8 +14,8 @@ const SENTIMENT_STYLE: Record<NonNullable<InboxMessage['sentiment']>, string> = 
 
 export function SourceLabel({ message, compact }: { message: InboxMessage; compact?: boolean }) {
   const { requests } = useAppStore()
-  const request = requests.find((r) => r.id === message.requestId)
-  const label = message.source === 'rfq' ? (message.quote ? 'عرض سعر · طلب تسعير' : 'رد على طلب تسعير') : 'تفاعل حملة تسويقية'
+  const request = requestFor(requests, message.requestId)
+  const label = message.source === 'rfq' ? (message.quote ? 'عرض سعر · طلب تسعير' : 'رد على طلب تسعير') : message.origin === 'whatsapp' ? 'رد واتساب على حملة' : 'تفاعل حملة تسويقية'
 
   return (
     <span className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -30,7 +32,12 @@ export function SourceLabel({ message, compact }: { message: InboxMessage; compa
           {message.sentiment}
         </span>
       ) : null}
-      {!compact && request ? <span className="truncate text-xs text-muted-foreground">{request.title}</span> : null}
+      {/* the request the reply belongs to, one tap away */}
+      {!compact && request ? (
+        <Link href={`/requests/${request.id}`} className="truncate rounded text-xs text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+          ردّ على «{request.title}»
+        </Link>
+      ) : null}
     </span>
   )
 }

@@ -92,6 +92,42 @@ export interface LiveBusinessSnapshot {
   buildingUse?: string
   makani?: string
   atlasId?: string
+  /** The official description of the place (v7 directory); shown as Farq, never a provider name. */
+  description?: string
+  /** Delivery-app signals (v7), non-contact: rating out of 5 and its ratings count, delivery fee and minimum order in
+   * SAR, and the typical delivery time. Each present only when the directory carries it. */
+  deliveryRating?: number
+  deliveryRateCount?: number
+  deliveryFee?: number
+  deliveryMinOrder?: number
+  deliveryEta?: string
+  /** v13 enrichment: the operating-status vote (status_policy vocabulary) and its confidence/freshness; the canonical
+   * weekly hours (JSON in the sun..sat schema); and the WhatsApp state. Each present only when the release carries it. */
+  statusVoted?: string
+  statusConfidence?: 'low' | 'medium' | 'high'
+  lastSeenAt?: string
+  isStale?: boolean
+  hoursWeek?: string
+  whatsappState?: 'verified' | 'source_flag_unverified' | 'not_available'
+  /** Listing content the directory already carries, shown as Farq (no provider named). Each present only when the
+   * release carries a real value; a missing or placeholder value is left out entirely (never shown as «غير متاح»). */
+  website?: string
+  instagram?: string
+  facebook?: string
+  snapchat?: string
+  tiktok?: string
+  xLink?: string
+  linkedin?: string
+  menuLink?: string
+  orderLink?: string
+  reservationLink?: string
+  reviewsCount?: number
+  fullAddressAr?: string
+  fullAddressEn?: string
+  nationalAddress?: string
+  postalCode?: string
+  descriptionEn?: string
+  extraPhones?: string[]
 }
 
 export type RequestType = 'list' | 'rfq' | 'campaign'
@@ -120,6 +156,8 @@ export interface CampaignDetails {
   included: string[]
   /** Per-directory-recipient result from the WhatsApp Cloud API. */
   delivery?: Record<string, 'sent' | 'failed' | 'unknown'>
+  /** Recipients a follow-up left unticked, and why (they answered another campaign); the person may tick them at review. */
+  heldBack?: Record<string, 'replied_elsewhere'>
 }
 
 export interface RequestItem {
@@ -132,6 +170,8 @@ export interface RequestItem {
   createdAt: string
   updatedAt: string
   cityId: string
+  /** The city's Arabic name as the map showed it when the request was made (cityId alone only names the sample cities). */
+  cityName?: string
   businessIds: string[]
   /** Captures only decision fields from live search, never contact details. */
   liveBusinesses?: LiveBusinessSnapshot[]
@@ -141,8 +181,12 @@ export interface RequestItem {
   rfq?: RfqDetails
   campaign?: CampaignDetails
   reviewedAt?: string
+  /** The map view the request was made from (a `/map?…` address), so the request leads back to it. */
+  origin?: string
   /** Inbox message id of the accepted quote. */
   acceptedQuoteId?: string
+  /** The campaign this draft follows up: made from its recipients who had not replied (reviewed and sent like any other). */
+  followUpOf?: string
 }
 
 export interface Template {
@@ -170,4 +214,8 @@ export interface InboxMessage {
   quote?: { lines: QuoteLine[]; validity: string; deliveryDays: number }
   sentiment?: 'مهتم' | 'استفسار' | 'غير مهتم'
   replyDraft?: string
+  /** Set on a reply received over WhatsApp from the account's server feed (lib/inbox-feed.ts); absent on device-only items. */
+  origin?: 'whatsapp'
+  /** A received reply that is not text (image, audio, document…): its kind, and `body` holds only its caption, if any. */
+  kind?: string
 }

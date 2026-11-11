@@ -1,37 +1,63 @@
 'use client'
 
-import { Check, ExternalLink, MailOpen, Mail, Scale } from 'lucide-react'
+import { Check, ExternalLink, MailOpen, Mail, MapPinned, Scale } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { businessById, districtById } from '@/lib/mock-data'
-import { formatDateTime, formatPhone, formatSar } from '@/lib/format'
+import { requestBusiness } from '@/lib/business-name'
+import { formatDateTime, formatSar } from '@/lib/format'
+import { cityKey, mapHref } from '@/lib/handoff'
+import { kindNote, replyWindow, requestFor } from '@/lib/inbox-feed'
+import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import type { InboxMessage } from '@/lib/types'
 import { SourceLabel } from './source-label'
 
 export function MessageDetail({ message }: { message: InboxMessage }) {
-  const { requests, markRead, updateMessage } = useAppStore()
+  const { requests, inbox, markRead, updateMessage } = useAppStore()
   const [draft, setDraft] = useState(message.replyDraft ?? '')
   const [saved, setSaved] = useState(false)
-  const b = businessById.get(message.businessId)
-  const request = requests.find((r) => r.id === message.requestId)
+  const cities = useCities()
+  const request = requestFor(requests, message.requestId)
+  // named from the request's own saved businesses, as the map and the request show it; no contact is shown
+  const b = requestBusiness(message.businessId, request)
+  const name = b.name ?? 'غير متاح'
+  const note = kindNote(message.kind)
+  // WhatsApp's 24 hours for a free reply, from this business's latest message on the request: information only, since
+  // Atlas sends no reply from the inbox
+  const [now] = useState(() => Date.now())
+  const window24 = replyWindow(inbox, message, now)
   const total = message.quote?.lines.reduce((s, l) => s + l.unitPrice * l.qty, 0) ?? 0
 
   return (
     <article className="flex flex-col gap-4 rounded-2xl border bg-card p-4 lg:p-5">
       <header className="flex flex-col gap-2">
         <SourceLabel message={message} />
-        <h2 className="text-xl font-bold text-balance">{b?.name}</h2>
-        <p className="text-xs text-muted-foreground">
-          {b ? `${b.category} · ${districtById.get(b.districtId)?.name ?? ''} · ` : ''}
-          <span dir="ltr">{formatPhone(b?.whatsapp ?? null)}</span> · {formatDateTime(message.receivedAt)}
-        </p>
+        <h2 className="text-xl font-bold text-balance">{name}</h2>
+        {/* only the parts the directory has, so a missing district never leaves «·  ·» */}
+        {(b.category || b.district) && <p className="text-xs text-muted-foreground">{[b.category, b.district].filter(Boolean).join(' · ')}</p>}
       </header>
 
-      <div className="max-w-lg self-start rounded-2xl rounded-tl-sm bg-muted px-3.5 py-2.5 text-sm leading-relaxed">{message.body}</div>
+      {/* the thread reads like a chat: who wrote and when above the bubble, the message at reading size with its own
+          line breaks, so a long supplier reply is not a grey block of small text */}
+      <figure className="flex max-w-xl flex-col gap-1 self-start">
+        <figcaption className="text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">{name}</span> · <time dateTime={message.receivedAt}>{formatDateTime(message.receivedAt)}</time>
+          {message.origin === 'whatsapp' ? ' · واتساب' : null}
+        </figcaption>
+        {/* a photo, a voice note or a file is named, not shown: Atlas keeps only the words of a reply */}
+        {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
+        {message.body.trim() ? <blockquote className="whitespace-pre-line rounded-2xl rounded-ss-sm bg-muted px-4 py-3 text-base leading-7">{message.body}</blockquote> : null}
+        {window24 ? (
+          <p className="text-xs text-muted-foreground">
+            {window24.open
+              ? `يمكن الرد على هذه المنشأة في واتساب حتى ${formatDateTime(window24.until)}. الرد يكون من واتساب، لا من أطلس.`
+              : `انتهت في ${formatDateTime(window24.until)} مدة الـ24 ساعة للرد الحر في واتساب؛ أي رسالة جديدة تحتاج رسالة معتمدة.`}
+          </p>
+        ) : null}
+      </figure>
 
       {message.quote ? (
         <section aria-labelledby="quote-title" className="flex flex-col gap-2 rounded-xl border p-3">
@@ -41,29 +67,30 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
           <table className="w-full text-sm">
             <thead className="text-xs text-muted-foreground">
               <tr>
-                <th className="py-1 text-right font-medium">البند</th>
-                <th className="py-1 text-right font-medium">الكمية</th>
-                <th className="py-1 text-left font-medium">سعر الوحدة</th>
+                <th className="py-1 text-start font-medium">البند</th>
+                <th className="py-1 text-start font-medium">الكمية</th>
+                <th className="py-1 text-end font-medium">سعر الوحدة</th>
               </tr>
             </thead>
             <tbody>
               {message.quote.lines.map((l) => (
                 <tr key={l.name} className="border-t">
                   <td className="py-1.5">{l.name}</td>
-                  <td className="py-1.5 tabular-nums">{l.qty}</td>
-                  <td className="py-1.5 text-left tabular-nums">{formatSar(l.unitPrice)}</td>
+                  <td className="py-1.5 tabular-nums">{numberFormat.format(l.qty)}</td>
+                  <td className="py-1.5 text-end tabular-nums">{formatSar(l.unitPrice)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="flex flex-wrap justify-between gap-2 border-t pt-2 text-xs text-muted-foreground">
-            <span>
-              الإجمالي: <span className="font-semibold text-foreground tabular-nums">{formatSar(total)}</span>
-            </span>
-            <span>
-              التسليم خلال {message.quote.deliveryDays} أيام · صلاحية {message.quote.validity}
-            </span>
+          {/* the figure a buyer looks for first, at a size it can be found: the total on its own row, then the terms */}
+          <p className="flex items-baseline justify-between gap-2 border-t pt-2">
+            <span className="text-sm font-semibold">الإجمالي</span>
+            <span className="text-lg font-bold tabular-nums">{formatSar(total)}</span>
           </p>
+          <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <div className="flex gap-1"><dt>التسليم</dt><dd className="font-semibold text-foreground">{message.quote.deliveryDays != null ? `خلال ${counted(message.quote.deliveryDays, 'day')}` : 'غير متاح'}</dd></div>
+            <div className="flex gap-1"><dt>صلاحية العرض</dt><dd className="font-semibold text-foreground">{message.quote.validity || 'غير متاح'}</dd></div>
+          </dl>
         </section>
       ) : null}
 
@@ -72,6 +99,12 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
           <Button variant="outline" nativeButton={false} render={<Link href={`/requests/${request.id}`} />}>
             {message.quote ? <Scale data-icon="inline-start" /> : <ExternalLink data-icon="inline-start" />}
             {message.quote ? 'مقارنة العروض في الطلب' : 'فتح الطلب المرتبط'}
+          </Button>
+        ) : null}
+        {/* the business on the map, in the request's city: from the reply to the place it came from */}
+        {request && b.name ? (
+          <Button variant="outline" nativeButton={false} render={<Link href={mapHref({ city: cityKey(request.cityId, cities), q: b.name })} />}>
+            <MapPinned data-icon="inline-start" />اعرضها على الخريطة
           </Button>
         ) : null}
         <Button variant="ghost" onClick={() => markRead(message.id, !message.unread)}>

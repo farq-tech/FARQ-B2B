@@ -25,6 +25,17 @@ REQUIRED_ASSETS = (
     "taxonomy/farq_taxonomy.json",
     "identity/source_to_farq_atlas_id.parquet",
 )
+# the search vocabulary beside farq_taxonomy.json (stage_release.py copies it and refuses a release without it). Each
+# file present is fingerprinted with the required assets, so a changed or removed vocabulary fails an approved manifest;
+# a release staged before these were carried simply has none, and keeps its identifier.
+TAXONOMY_COMPANIONS = (
+    "taxonomy/product_families.csv",
+    "taxonomy/sub_family_relations.csv",
+    "taxonomy/specialties.csv",
+    "taxonomy/specialty_concepts.csv",
+    "taxonomy/saudi_market_terms.csv",
+    "taxonomy/search_lexicon.csv",
+)
 TARGET_COLUMNS = {"poi_key", "farq_atlas_id", "latitude", "longitude", "city_en", "district_ar"}
 
 
@@ -193,7 +204,8 @@ def validate_release(data_dir: Path) -> dict[str, Any]:
     finally:
         db.close()
 
-    assets = {name: {"bytes": (data_dir / name).stat().st_size, "sha256": _sha256(data_dir / name)} for name in REQUIRED_ASSETS}
+    fingerprinted = [*REQUIRED_ASSETS, *(name for name in TAXONOMY_COMPANIONS if (data_dir / name).is_file())]
+    assets = {name: {"bytes": (data_dir / name).stat().st_size, "sha256": _sha256(data_dir / name)} for name in fingerprinted}
     return {
         "schema_version": 1,
         "release_id": _release_id(assets),
@@ -222,12 +234,19 @@ def verify_manifest(report: dict[str, Any], manifest_path: Path) -> None:
         raise ValueError("invalid release manifest") from error
     if expected.get("schema_version") != report.get("schema_version"):
         raise ValueError("release manifest schema version mismatch")
-    if expected.get("release_id") != report.get("release_id"):
-        raise ValueError("release manifest identifier mismatch")
     expected_assets = expected.get("assets")
     if not isinstance(expected_assets, dict):
         raise ValueError("release manifest has no assets")
-    for name, actual in report["assets"].items():
+    # every asset the approved manifest names must be there unchanged; a file beside them it does not name (vocabulary
+    # added to a release approved before it was fingerprinted) is not part of that approval, and the identifier is
+    # recomputed over the approved names only, so such a release keeps verifying against its own manifest
+    missing = sorted(set(expected_assets) - set(report["assets"]))
+    if missing:
+        raise ValueError(f"release manifest mismatch for {missing[0]}")
+    if expected.get("release_id") != _release_id({name: report["assets"][name] for name in expected_assets}):
+        raise ValueError("release manifest identifier mismatch")
+    for name in expected_assets:
+        actual = report["assets"][name]
         candidate = expected_assets.get(name)
         if not isinstance(candidate, dict) or candidate.get("sha256") != actual["sha256"] or candidate.get("bytes") != actual["bytes"]:
             raise ValueError(f"release manifest mismatch for {name}")
