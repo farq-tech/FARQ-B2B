@@ -38,4 +38,3 @@ export function useActivities(city: string): Activity[] {
   }, [city])
   return activities
 }
-
