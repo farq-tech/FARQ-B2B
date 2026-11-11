@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState, type SetStateAction } from 'react'
+import { activityKey, fold, studiedFrom, type Activity } from './activity-query.ts'
 
 // A filter outlives the step tab that shows it: moving between steps unmounts a tool, and coming back must find
 // the same choices. The values live for the page's life, never in storage. Every mounted user of a key hears a change,
@@ -55,8 +56,9 @@ export function stickyHas(key: string): boolean {
   return store.has(key)
 }
 
-/** The activity the user is studying: typed (q) or a main activity (main_id). */
-export type StudiedActivity = { q?: string; main_id?: string; label: string }
+/** The activity the user is studying: typed (q), a picked subcategory or specialty (sub_ids / specialty_ids, from
+ * market-activities), or an older main activity (main_id) a saved link may still name. */
+export type StudiedActivity = { q?: string; main_id?: string; sub_ids?: string[]; specialty_ids?: string[]; label: string }
 
 /** One activity across every step: picked in «أين ينقص نشاطي؟», it is still the one in «المنافسون». */
 export function useStudiedActivity() {
@@ -87,4 +89,34 @@ export function useStudiedMainId(activities: { main_id: string; main_ar: string 
     if (item) setStudied({ main_id: item.main_id, label: item.main_ar })
   }, [activities, setStudied])
   return [mainId, pick] as const
+}
+
+/** The city's entry whose shop name is `label` (spaces and the definite article aside), or undefined. */
+export function matchActivity(activities: readonly Activity[], label: string): Activity | undefined {
+  const plain = (text: string) => fold(text).replace(/^ال/, '')
+  const wanted = plain(label)
+  if (!wanted) return undefined
+  return activities.find((activity) => plain(activity.name_ar) === wanted)
+}
+
+/**
+ * An activity picker that also offers «all» (null): it opens on the studied activity when it is a picked subcategory
+ * or specialty, or a typed one that names an entry exactly («صيدلية»), and picking one studies it in every step.
+ */
+export function useStudiedPick(activities: readonly Activity[]) {
+  const [studied, setStudied] = useStudiedActivity()
+  const studiedPicked = Boolean(studied.sub_ids?.length || studied.specialty_ids?.length || studied.main_id)
+  const [picked, setPicked] = useState<StudiedActivity | null>(() => (studiedPicked ? studied : null))
+  const studiedKey = activityKey(studied)
+  // an activity picked elsewhere (another step, or a shared link read after this step mounted) reaches the picker too
+  useEffect(() => { if (studiedPicked) setPicked(studied) }, [studiedKey])  // eslint-disable-line react-hooks/exhaustive-deps
+  // a typed activity carries over when it names one of the city's entries; the default nobody picked never does
+  const carried = !studiedPicked && stickyHas('activity') ? matchActivity(activities, studied.label) : undefined
+  useEffect(() => { if (carried) setPicked((current) => current ?? studiedFrom(carried)) }, [carried])
+  const pick = useCallback((item: Activity | null) => {
+    const next = item ? studiedFrom(item) : null
+    setPicked(next)
+    if (next) setStudied(next)
+  }, [setStudied])
+  return [picked, pick] as const
 }

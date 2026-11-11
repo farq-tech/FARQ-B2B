@@ -14,10 +14,10 @@ import type { DistrictRow } from '../city-data'
 import type { Overlay } from './overlay'
 import { trackDecisionMoment } from '@/lib/commercial-metrics'
 import { CATEGORICAL, PALETTE as TONE } from '@/lib/palette'
-import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
-import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { useStickyState, useStudiedPick } from '@/lib/sticky-state'
+import { ActivityPicker } from '@/components/shared/activity-picker'
 import { Chip } from '@/components/ui/chip'
-import { useMainActivities } from '@/lib/main-activities'
+import { activityBody, activityKey, useActivities, type Activity } from '@/lib/activities'
 import { duration, territoriesSummary, territoriesVerdict, weekFitHint, weekSummary } from './tool-answers'
 import { Verdict } from './verdict'
 import { useAnswer } from './use-answer'
@@ -103,8 +103,10 @@ function StopOrder({ order, byId }: { order: string[]; byId: Map<string, Custome
  * customers on the map, a start point, and the visit route on the roads, drawn part by part as it is solved.
  */
 export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows: DistrictRow[]; onOverlay: (overlay: Overlay) => void }) {
-  const activities = useMainActivities(city)
-  const [mainId, setMainId] = useStudiedMainId(activities)
+  const activities = useActivities(city)
+  const [picked, setPicked] = useStudiedPick(activities)
+  // one string per picked activity (empty for «all»), for keying answers and for saying whether one is picked
+  const pickedKey = activityKey(picked)
   const [count, setCount] = useStickyState('territories.count', 5)
   const [weight, setWeight] = useStickyState<'population' | 'businesses'>('territories.weight', 'businesses')
   const [rep, setRep] = useState<number | null>(null)
@@ -122,13 +124,13 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
 
   // step 1-2: the territories, rebuilt whenever the activity, count or balance changes; the last split goes at once,
   // so the map never colours the old reps under the new count's skeleton
-  const groupsKey = `${city}|${count}|${weight}|${mainId}`
+  const groupsKey = `${city}|${count}|${weight}|${pickedKey}`
   // the city is split once the distributor has said whose customers it is: an activity, or «كل المنشآت» on purpose.
   // Splitting every business by default handed each rep some 150,000 businesses nobody serves
   const [scope, setScope] = useStickyState<'all' | 'activity'>('territories.scope', 'activity')
-  const told = Boolean(mainId) || scope === 'all'
-  const pickCustomers = (id: string) => { setMainId(id); setScope(id ? 'activity' : 'all') }
-  const split = useAnswer(told ? groupsKey : null, () => postMarket<{ territories: Territory[] }>('territories', { city, count, weight, ...(mainId ? { main_id: mainId } : {}) }))
+  const told = Boolean(pickedKey) || scope === 'all'
+  const pickCustomers = (item: Activity | null) => { setPicked(item); setScope(item ? 'activity' : 'all') }
+  const split = useAnswer(told ? groupsKey : null, () => postMarket<{ territories: Territory[] }>('territories', { city, count, weight, ...activityBody(picked) }))
   // one array per answer: the map's overlay effect follows it, so a new empty array on every render would loop
   const groups = useMemo(() => (split.status === 'ready' ? split.data?.territories ?? [] : null), [split.status, split.data])
   const status = split.status === 'loading' ? 'loading' : split.status === 'error' ? 'error' : 'idle'
@@ -143,7 +145,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const stops = useAnswer<Customer[]>(stopsKey, async () => {
     const response = await fetch('/api/market/stops', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ city, districts: groups![rep!].districts.map((district) => district.district_ar), ...(mainId ? { main_id: mainId } : {}) }),
+      body: JSON.stringify({ city, districts: groups![rep!].districts.map((district) => district.district_ar), ...activityBody(picked) }),
     })
     const payload = await response.json().catch(() => null)
     if (!response.ok) throw { text: payload?.error || 'تعذر تحميل منشآت المنطقة.', login: response.status === 401 }
@@ -250,8 +252,8 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">المناطق والمسار</h2>
 
-      <Step n={1} title="نشاط عملائك" done={Boolean(mainId)}>
-        <MainActivityPicker activities={activities} value={mainId} onChange={pickCustomers} placeholder="نشاط عملائك" allLabel="كل المنشآت" />
+      <Step n={1} title="نشاط عملائك" done={Boolean(pickedKey)}>
+        <ActivityPicker activities={activities} value={picked} onPick={pickCustomers} placeholder="نشاط عملائك" allLabel="كل المنشآت" />
         {!told && (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span className="min-w-0 flex-1">اختر نشاط عملائك فتُقسَّم المدينة على عملائك أنت، لا على كل منشآتها.</span>
@@ -263,12 +265,12 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
       <Step n={2} title="المندوبون" done={Boolean(groups?.length)}>
         <Stepper id="territories-count" label="العدد" value={count} min={MIN_REPS} max={MAX_REPS} onChange={setCount} less="مندوب أقل" more="مندوب أكثر" />
         <Choice label="معيار التوازن" value={weight} onChange={setWeight} className="mt-2"
-          options={[{ id: 'businesses', label: `توازن ${mainId ? 'بعملاء النشاط' : 'بالمنشآت'}` }, { id: 'population', label: 'توازن بالسكان' }]} />
+          options={[{ id: 'businesses', label: `توازن ${pickedKey ? 'بعملاء النشاط' : 'بالمنشآت'}` }, { id: 'population', label: 'توازن بالسكان' }]} />
         {status === 'loading' && <SkeletonRows label="جارٍ التقسيم" rows={Math.min(count, 6)} boxed leading="swatch" trailing className="mt-2" />}
         {status === 'loading' && split.slow && <div className="mt-2"><StillWorking>تقسيم المدينة كلها على المندوبين يأخذ وقتاً أطول.</StillWorking></div>}
         {status === 'error' && <LoadError what="المناطق" title="تعذر تقسيم المناطق." onRetry={split.retry} className="mt-2" />}
         {groups && status !== 'loading' && groups.length === 0 && (
-          <NoResult title="لا مناطق لهذا الاختيار" body={mainId ? 'لا منشآت من هذا النشاط في أحياء المدينة. اختر «كل المنشآت» أو نشاطاً آخر.' : 'أحياء المدينة بلا منشآت معروفة الموقع بعد.'} className="mt-2" />
+          <NoResult title="لا مناطق لهذا الاختيار" body={pickedKey ? 'لا منشآت من هذا النشاط في أحياء المدينة. اختر «كل المنشآت» أو نشاطاً آخر.' : 'أحياء المدينة بلا منشآت معروفة الموقع بعد.'} className="mt-2" />
         )}
         {/* how even the split is, before the reps' rows: a spread over a quarter is said, with what evens it */}
         {groups && status !== 'loading' && groups.length > 0 && <Verdict verdict={territoriesVerdict(groups.map((group) => ({ weight: group.weight, districts: group.districts.length })), weight)} className="mt-2" />}
@@ -301,8 +303,8 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
               action={customerError.login ? <SignInLink className="text-sm font-semibold text-primary underline">تسجيل الدخول</SignInLink> : undefined} />
           )}
           {customers && customers.length === 0 && (
-            <NoResult title={`لا منشأة ${mainId ? 'من هذا النشاط ' : ''}في منطقة المندوب ${numberFormat.format(rep + 1)}`}
-              body={mainId ? 'اختر «كل المنشآت» أو نشاطاً آخر، أو مندوباً آخر.' : 'اختر مندوباً آخر.'} />
+            <NoResult title={`لا منشأة ${pickedKey ? 'من هذا النشاط ' : ''}في منطقة المندوب ${numberFormat.format(rep + 1)}`}
+              body={pickedKey ? 'اختر «كل المنشآت» أو نشاطاً آخر، أو مندوباً آخر.' : 'اختر مندوباً آخر.'} />
           )}
           {customers && customers.length > 0 && (
             <p className="text-base">

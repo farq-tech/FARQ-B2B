@@ -112,9 +112,12 @@ export function duration(seconds: number): string {
  * Whether two studied activities are the same one: the same typed words, the same main activity, or the same name.
  * «قارن بنشاط آخر» refuses to compare an activity with itself (a list of zero gaps).
  */
-export function sameActivity(a: { q?: string; main_id?: string; label: string }, b: { q?: string; main_id?: string; label: string }): boolean {
+type Named = { q?: string; main_id?: string; sub_ids?: string[]; specialty_ids?: string[]; label: string }
+export function sameActivity(a: Named, b: Named): boolean {
   if (a.q && b.q) return a.q.trim() === b.q.trim()
   if (a.main_id != null && a.main_id === b.main_id) return true
+  const ids = (x: Named) => (x.specialty_ids?.length ? `spec:${[...x.specialty_ids].sort().join(',')}` : x.sub_ids?.length ? `sub:${[...x.sub_ids].sort().join(',')}` : null)
+  if (ids(a) != null && ids(a) === ids(b)) return true
   return a.label.trim() === b.label.trim()
 }
 

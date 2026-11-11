@@ -12,11 +12,13 @@ export type MapQuery = {
   /** The studied activity typed as words (`activity`), or a main activity by id (`main`); one or the other. */
   activity: string | null
   main: string | null
+  /** A picked subcategory or specialty (`pick`: «sub:personal.laundry», «spec:a,b»); it wins over both above. */
+  pick: string | null
   /** The figure shading the districts (`layer`), one of the lens's own figures. */
   layer: string | null
 }
 
-export type MapView = { city: string; lens: string; tool: string; districts: string[]; q: string | null; activity?: string | null; main?: string | null; layer?: string | null }
+export type MapView = { city: string; lens: string; tool: string; districts: string[]; q: string | null; activity?: string | null; main?: string | null; pick?: string | null; layer?: string | null }
 
 /** Values the map starts on, which the address leaves out to stay short. */
 export const MAP_DEFAULTS = { city: 'Riyadh', lens: 'shops', activity: 'صيدلية' } as const
@@ -24,6 +26,8 @@ export const MAP_DEFAULTS = { city: 'Riyadh', lens: 'shops', activity: 'صيدل
 const CITY = /^[A-Za-z][A-Za-z .'-]{0,39}$/
 const DISTRICT = /^[A-Za-z0-9_-]{1,40}$/
 const MAIN = /^[A-Za-z0-9_-]{1,40}$/
+// lib/activity-query PICK: a subcategory id, or up to 20 specialty ids of one entry
+const PICK = /^(?:sub:[a-z0-9_.]{1,80}|spec:[a-z0-9_.]{1,80}(?:,[a-z0-9_.]{1,80}){0,19})$/
 const MAX_DISTRICTS = 12
 const MAX_QUERY = 80
 
@@ -49,12 +53,15 @@ export function readMapQuery(search: string, lenses: Record<string, string[]>, g
   const rawTool = query.get('tool')
   const tool = rawTool != null && (lenses[lens ?? MAP_DEFAULTS.lens] ?? []).includes(rawTool) ? rawTool : null
   const districts = [...new Set((query.get('district') ?? '').split(',').map((id) => id.trim()).filter((id) => DISTRICT.test(id)))].slice(0, MAX_DISTRICTS)
+  const rawPick = query.get('pick')
+  const pick = rawPick != null && PICK.test(rawPick) ? rawPick : null
   const main = query.get('main')
-  const validMain = main != null && MAIN.test(main) ? main : null
+  const validMain = !pick && main != null && MAIN.test(main) ? main : null
   const rawLayer = query.get('layer')
   const layer = rawLayer != null && (layers[lens ?? MAP_DEFAULTS.lens] ?? []).includes(rawLayer) ? rawLayer : null
-  // a main activity named by id wins over typed words; its name is checked against the city's list once it loads
-  return { city: city != null && CITY.test(city) ? city : null, lens, tool, districts, q: cleanQuery(query.get('q')), main: validMain, activity: validMain ? null : cleanQuery(query.get('activity')), layer }
+  // a picked subcategory or specialty, then a main activity named by id, win over typed words; the name of either is
+  // checked against the city's list once it loads
+  return { city: city != null && CITY.test(city) ? city : null, lens, tool, districts, q: cleanQuery(query.get('q')), main: validMain, pick, activity: validMain || pick ? null : cleanQuery(query.get('activity')), layer }
 }
 
 /**
@@ -76,10 +83,12 @@ export function writeMapQuery(search: string, view: MapView, firstStep: string, 
   set('district', view.districts.slice(0, MAX_DISTRICTS).join(',') || null)
   set('q', cleanQuery(view.q))
   const activity = cleanQuery(view.activity)
-  set('main', view.main && MAIN.test(view.main) ? view.main : null)
+  const pick = view.pick && PICK.test(view.pick) ? view.pick : null
+  set('pick', pick)
+  set('main', !pick && view.main && MAIN.test(view.main) ? view.main : null)
   // the activity the page passes is one the customer chose (lens-map passes none otherwise), so a chosen «صيدلية»
   // stays in the link: a step waits for a chosen activity and would not compute on one the link dropped
-  set('activity', view.main ? null : activity)
+  set('activity', view.main || pick ? null : activity)
   set('layer', view.layer && view.layer !== firstLayer ? view.layer : null)
   const text = query.toString()
   return text ? `?${text}` : ''

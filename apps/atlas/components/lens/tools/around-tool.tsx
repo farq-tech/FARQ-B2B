@@ -20,6 +20,7 @@ import { useSlow } from './use-answer'
 import { trackDecisionMoment } from '@/lib/commercial-metrics'
 import { Choice, StillWorking } from './choice'
 import type { DistrictRow } from '../city-data'
+import { activityBody, activityKey as keyOfActivity, type ActivityQuery } from '@/lib/activity-query'
 
 type Within = { population: number | null; dwellings: number | null; businesses: number | null; residents_per: number | null; top_activities: { activity: string; n: number }[] }
 type Point = { lon: number; lat: number }
@@ -50,11 +51,11 @@ function insidePoint(geometry: DistrictFeature['geometry']): Point {
 }
 
 /** The site card for one range (/api/market/site-card, signed-in only because it names competitors). */
-async function cardFor(city: string, point: Point, geometry: Geometry, activity: { q?: string; main_id?: string }): Promise<SiteCardState> {
+async function cardFor(city: string, point: Point, geometry: Geometry, activity: ActivityQuery): Promise<SiteCardState> {
   const response = await fetch('/api/market/site-card', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ city, geometry, centre: [point.lon, point.lat], ...(activity.q ? { q: activity.q } : activity.main_id ? { main_id: activity.main_id } : {}) }),
+    body: JSON.stringify({ city, geometry, centre: [point.lon, point.lat], ...activityBody(activity) }),
   })
   const body = await response.json().catch(() => null)
   // the card names competitors, so it needs a signed-in, allowed account; retrying would not change that
@@ -158,7 +159,7 @@ export function AroundTool({ city, onOverlay, districts, features, seed, next, s
   // keyed by what is asked (the reach and the activity as strings), never by their objects; the objects are read from
   // refs when a request starts, so a new object for the same reach or activity asks nothing again
   const reachKey = reach.kind === 'radius' ? `r${reach.metres}` : `d${reach.minutes}`
-  const activityKey = `${activity.q ?? ''}|${activity.main_id ?? ''}`
+  const activityKey = keyOfActivity(activity)
   const asking = useRef({ reach, activity })
   useEffect(() => { asking.current = { reach, activity } })
   const keyOf = useCallback((site: { id: number }) => `${site.id}|${reachKey}|${city}|${activityKey}`, [reachKey, city, activityKey])

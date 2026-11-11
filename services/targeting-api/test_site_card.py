@@ -133,6 +133,14 @@ class CompetitorTests(unittest.TestCase):
         self.assertGreater(result['area_km2'], 100)
         self.assertEqual(set(result['nearest'][0]), {'name', 'district_ar', 'distance_m'}, 'no contact, key or coordinate')
 
+    def test_a_picked_subcategory_or_specialty_counts_too(self):
+        # owner 2026-11-11: the specialty is the unit of every pick; a picked one is an activity, not «none»
+        picked = self.analytics.competitors_within({'city': 'Riyadh', 'sub_ids': ['health.pharmacy']}, SQUARE, centre=[46.65, 24.65])
+        self.assertEqual(picked['n'], 2)
+        exact = self.analytics.competitors_within({'city': 'Riyadh', 'specialty_ids': ['health.pharmacy.24h']}, SQUARE, centre=[46.65, 24.65])
+        self.assertIsNotNone(exact)
+        self.assertEqual(exact['n'], 0, 'a snapshot without specialty tags counts none rather than the whole subcategory')
+
     def test_no_activity_means_no_competitor_figure(self):
         self.assertIsNone(self.analytics.competitors_within({'city': 'Riyadh'}, SQUARE, centre=[46.65, 24.65]))
 

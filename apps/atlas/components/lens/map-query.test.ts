@@ -6,13 +6,13 @@ const LENSES = { shops: ['gaps', 'competitors', 'corridors'], analysts: ['distri
 
 test('a valid address opens the same view', () => {
   assert.deepEqual(readMapQuery('?city=Jeddah&lens=analysts&tool=compare&district=12,40&q=مورد قهوة', LENSES), {
-    city: 'Jeddah', lens: 'analysts', tool: 'compare', districts: ['12', '40'], q: 'مورد قهوة', activity: null, main: null, layer: null,
+    city: 'Jeddah', lens: 'analysts', tool: 'compare', districts: ['12', '40'], q: 'مورد قهوة', activity: null, main: null, pick: null, layer: null,
   })
 })
 
 test('anything outside what a value may be falls back to the default', () => {
   const view = readMapQuery('?city=<script>&lens=__proto__&tool=compare&district=1;drop,../x,ok_1&q=%00%00', LENSES)
-  assert.deepEqual(view, { city: null, lens: null, tool: null, districts: ['ok_1'], q: null, activity: null, main: null, layer: null })
+  assert.deepEqual(view, { city: null, lens: null, tool: null, districts: ['ok_1'], q: null, activity: null, main: null, pick: null, layer: null })
   // a step of another lens does not open in the default one
   assert.equal(readMapQuery('?tool=compare', LENSES).tool, null)
   assert.equal(readMapQuery('?tool=competitors', LENSES).tool, 'competitors')
@@ -49,6 +49,20 @@ test('the studied activity: typed words, or a main activity by id that wins over
   assert.equal(writeMapQuery('?main=1', { ...base, activity: 'مخبز' }, 'gaps'), '?activity=%D9%85%D8%AE%D8%A8%D8%B2')
 })
 
+test('a picked subcategory or specialty: kept by id, it wins over a main activity and typed words', () => {
+  assert.equal(readMapQuery('?pick=sub:personal.laundry', LENSES).pick, 'sub:personal.laundry')
+  assert.equal(readMapQuery('?pick=spec:food.fast_food.burger,food.restaurant.burger', LENSES).pick, 'spec:food.fast_food.burger,food.restaurant.burger')
+  const both = readMapQuery('?pick=sub:health.pharmacy&main=health&activity=صيدلية', LENSES)
+  assert.deepEqual([both.pick, both.main, both.activity], ['sub:health.pharmacy', null, null])
+  // anything else falls back: an unknown kind, a path, capitals, more than one subcategory
+  for (const bad of ['main:health', 'sub:../x', 'sub:Health', 'sub:a,b', 'spec:', 'sub:a b']) assert.equal(readMapQuery(`?pick=${encodeURIComponent(bad)}`, LENSES).pick, null, bad)
+  const base = { city: 'Riyadh', lens: 'shops', tool: 'gaps', districts: [], q: null }
+  assert.equal(writeMapQuery('?main=health&activity=x', { ...base, pick: 'sub:health.pharmacy', main: 'health', activity: 'صيدلية' }, 'gaps'), '?pick=sub%3Ahealth.pharmacy')
+  assert.equal(writeMapQuery('?pick=sub:x', { ...base, pick: 'sub:../x', activity: 'مخبز' }, 'gaps'), '?activity=%D9%85%D8%AE%D8%A8%D8%B2')
+  const view = { ...base, tool: 'competitors', main: null, pick: 'spec:food.fast_food.pizza', activity: null, layer: null }
+  assert.deepEqual(readMapQuery(writeMapQuery('', view, 'gaps'), LENSES), { ...view, city: null, lens: null })
+})
+
 test('the shading figure: kept when it is one of the lens\'s own, left out when it is the lens\'s first', () => {
   const LAYERS = { shops: ['residentsPerBusiness', 'unmet', 'population'], analysts: ['population', 'income'] }
   assert.equal(readMapQuery('?layer=unmet', LENSES, {}, LAYERS).layer, 'unmet')
@@ -65,10 +79,10 @@ test('the shading figure: kept when it is one of the lens\'s own, left out when 
 
 test('a written address reads back as the same view (a reload or a shared link restores the work)', () => {
   const LAYERS = { shops: ['residentsPerBusiness', 'unmet'], analysts: ['population', 'income'] }
-  const view = { city: 'Jeddah', lens: 'analysts', tool: 'compare', districts: ['7', '9'], q: 'مورد قهوة', main: '5611', activity: null, layer: 'income' }
+  const view = { city: 'Jeddah', lens: 'analysts', tool: 'compare', districts: ['7', '9'], q: 'مورد قهوة', main: '5611', pick: null, activity: null, layer: 'income' }
   assert.deepEqual(readMapQuery(writeMapQuery('?ref=x', view, 'district', 'population'), LENSES, {}, LAYERS), view)
   // defaults are left out of the address and read back as «the default» (null)
-  const typed = { city: 'Riyadh', lens: 'shops', tool: 'competitors', districts: [], q: null, main: null, activity: 'مخبز', layer: 'unmet' }
+  const typed = { city: 'Riyadh', lens: 'shops', tool: 'competitors', districts: [], q: null, main: null, pick: null, activity: 'مخبز', layer: 'unmet' }
   assert.deepEqual(readMapQuery(writeMapQuery('', typed, 'gaps', 'residentsPerBusiness'), LENSES, {}, LAYERS),
     { ...typed, city: null, lens: null })
 })
