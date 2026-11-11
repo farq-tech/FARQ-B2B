@@ -1287,9 +1287,12 @@ class MarketAnalytics:
         # the connection is shared by every request thread: a query outside the lock swaps the result set under
         # another thread's fetch («No open result set») and fails both
         with self.lock:
+            columns = {c[0] for c in self.db.execute("describe select * from read_parquet(?)", [self.street_density]).fetchall()}
+            if 'specialty_key' in columns:
+                # specialty corridors are read only when a specialty is asked for (never here)
+                clauses.append("specialty_key is null")
             if districts:
                 # a corridor built on the road network matches every district it crosses (build_trade_corridors.py)
-                columns = {c[0] for c in self.db.execute("describe select * from read_parquet(?)", [self.street_density]).fetchall()}
                 clauses.append(street_density_district_sql(columns))
                 params.append(districts)
             row = self.db.execute(

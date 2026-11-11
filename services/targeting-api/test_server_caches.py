@@ -143,6 +143,43 @@ class StreetSpecialtyTests(unittest.TestCase):
         code, result = self.post('/street-density', {'city': 'Riyadh', 'sub_ids': ['food.restaurant']})
         self.assertEqual((code, len(result['features']), result['features'][0]['properties']['n']), (200, 1, 245))
 
+    def with_specialty_rows(self):
+        import duckdb
+        path = os.path.join(self.temp.name, 'street_density_v2.parquet')
+        line = '{"type":"LineString","coordinates":[[46.6,24.7],[46.7,24.7]]}'
+        db = duckdb.connect()
+        db.execute("""create table v(city_en varchar, sub_id varchar, sub_ar varchar, main_id varchar, main_ar varchar,
+            street_ar varchar, district_ar varchar, districts_ar varchar, n integer, n_wholesale integer, length_m integer,
+            per_100m double, lift double, road_class varchar, specialty_ids varchar, specialty_key varchar, geojson varchar)""")
+        db.executemany('insert into v values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+            ('Riyadh', 'food.restaurant', 'مطعم', 'food', 'أغذية', 'شارع الأمير بندر', 'النخيل', 'النخيل', 245, 0, 4200, 5.8, 1.0,
+             'main', 'food.restaurant.burger', None, line),
+            ('Riyadh', '', 'برجر', 'food', 'أغذية', 'شارع الأمير بندر', 'النخيل', 'النخيل', 21, 0, 4200, 0.5, 2.0,
+             'main', 'food.restaurant.burger', 'food.fast_food.burger|food.restaurant.burger', line)])
+        db.execute(f"copy v to '{path}' (format parquet)")
+        db.close()
+        server.STREET_DENSITY = path
+
+    def test_a_specialty_gets_its_own_corridors_once_the_table_counts_them(self):
+        self.with_specialty_rows()
+        # the picker sends the entry's ids; their order does not matter
+        code, result = self.post('/street-density', {'city': 'Riyadh', 'specialty_ids': ['food.restaurant.burger', 'food.fast_food.burger']})
+        self.assertEqual(code, 200)
+        self.assertEqual([(f['properties']['sub_ar'], f['properties']['n']) for f in result['features']], [('برجر', 21)])
+        self.assertIs(result['specialty_available'], True)
+        # one id of a two-parent entry is not that entry: nothing, rather than a figure for something else
+        code, result = self.post('/street-density', {'city': 'Riyadh', 'specialty_ids': ['food.restaurant.burger']})
+        self.assertEqual(result['features'], [])
+
+    def test_specialty_rows_never_add_to_the_trades(self):
+        self.with_specialty_rows()
+        _, everything = self.post('/street-density', {'city': 'Riyadh'})
+        self.assertEqual([f['properties']['n'] for f in everything['features']], [245])
+        _, main = self.post('/street-density', {'city': 'Riyadh', 'main_id': 'food'})
+        self.assertEqual([f['properties']['n'] for f in main['features']], [245])
+        _, catalog = self.post('/street-density/catalog', {'city': 'Riyadh'})
+        self.assertEqual(catalog['mains'][0]['shops'], 245)
+
     def test_street_opportunities_take_a_subcategory_and_refuse_a_specialty(self):
         code, result = self.post('/street-opportunities', {'city': 'Riyadh', 'specialty_ids': ['food.restaurant.burger']})
         self.assertEqual((code, result['available'], result['specialty_available']), (200, False, False))

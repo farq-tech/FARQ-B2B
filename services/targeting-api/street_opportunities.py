@@ -115,8 +115,10 @@ def opportunities(db, path, city, subs=None, main_id=None, population=None, limi
     columns = {row[0] for row in db.execute('describe select * from read_parquet(?)', [path]).fetchall()}
     districts_col = "coalesce(nullif(districts_ar, ''), district_ar)" if 'districts_ar' in columns else 'district_ar'
     road_col = 'road_class' if 'road_class' in columns else 'null'
+    # specialty corridors repeat shops their subcategory rows already count: a street's size is read without them
+    only_trades = ' and specialty_key is null' if 'specialty_key' in columns else ''
     rows = db.execute(f"""select file_row_number, sub_id, main_id, street_ar, {districts_col}, n, {road_col}
-        from read_parquet(?, file_row_number = true) where city_en = ?""", [path, city]).fetchall()
+        from read_parquet(?, file_row_number = true) where city_en = ?{only_trades}""", [path, city]).fetchall()
 
     subs = [s for s in (subs or []) if s]
     if subs:

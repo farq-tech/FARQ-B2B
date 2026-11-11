@@ -130,6 +130,50 @@ class KidsGroupCorridorTest(unittest.TestCase):
         self.assertEqual(by_sub['group.kids']['sub_ar'], 'أغراض الأطفال والمواليد')
 
 
+class SpecialtyCorridorTest(unittest.TestCase):
+    """A specialty («برجر») lines its own corridor, counted by its own shops, grouped as market-activities groups it."""
+    SUBS = {'food.restaurant': {'sub_ar': 'مطعم', 'main_id': 'food', 'main_ar': 'أغذية ومشروبات'},
+            'food.fast_food': {'sub_ar': 'وجبات سريعة', 'main_id': 'food', 'main_ar': 'أغذية ومشروبات'},
+            'personal.laundry': {'sub_ar': 'مغسلة ملابس', 'main_id': 'personal', 'main_ar': 'خدمات شخصية'},
+            'auto.car_wash': {'sub_ar': 'مغسلة سيارات', 'main_id': 'auto', 'main_ar': 'سيارات'}}
+
+    def groups(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'specialties.csv'
+            path.write_text('sub_id,specialty_id,specialty_ar\n'
+                            'food.restaurant,food.restaurant.burger,برجر\n'
+                            'food.fast_food,food.fast_food.burger,برجر\n'
+                            'personal.laundry,personal.laundry.self_service,مغسلة خدمة ذاتية\n'
+                            'auto.car_wash,auto.car_wash.self_service,مغسلة خدمة ذاتية\n'
+                            'unc.unknown,unc.x,شيء\n', encoding='utf-8')
+            return btc.specialty_groups(self.SUBS, path)
+
+    def test_groups_follow_the_picker(self):
+        groups = self.groups()
+        self.assertEqual(groups['food.restaurant.burger'][0], 'food.fast_food.burger|food.restaurant.burger')
+        self.assertEqual(groups['food.fast_food.burger'][0], groups['food.restaurant.burger'][0])
+        self.assertNotEqual(groups['personal.laundry.self_service'][0], groups['auto.car_wash.self_service'][0])
+        self.assertNotIn('unc.x', groups)
+        self.assertEqual(btc.specialty_groups(self.SUBS, None), {})
+
+    def test_a_specialty_corridor_counts_its_own_shops_across_both_parents(self):
+        segments = [('شارع التحلية', 'main', False, [(LON, LAT), (LON + 1000 * M, LAT)])]
+        rows = [shop('العليا', 'food.restaurant', 50 + 60 * i, 5, specialty='food.restaurant.burger') for i in range(3)]
+        rows += [shop('العليا', 'food.fast_food', 300 + 60 * i, 5, specialty='food.fast_food.burger') for i in range(3)]
+        rows += [shop('العليا', 'food.restaurant', 600 + 60 * i, 5, specialty='food.restaurant.indian') for i in range(2)]
+        found, _ = btc.city_corridors('Riyadh', rows, segments, self.SUBS, self.groups())
+        by = {(r['sub_id'], r['specialty_key']): r for r in found}
+        self.assertEqual(by[('food.restaurant', None)]['n'], 5)            # the trade still counts all its shops
+        self.assertNotIn(('food.fast_food', None), by)                      # 3 fast-food shops: under the 5 a corridor needs
+        burger = by[('', 'food.fast_food.burger|food.restaurant.burger')]
+        self.assertEqual((burger['n'], burger['sub_ar'], burger['main_id']), (6, 'برجر', 'food'))
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / 'street_density.parquet'
+            btc.write(found, out)
+            keys = sorted(str(r[0]) for r in duckdb.sql(f"select specialty_key from read_parquet('{out}')").fetchall())
+            self.assertEqual(keys, ['None', 'food.fast_food.burger|food.restaurant.burger'])
+
+
 class CorridorActivityTest(unittest.TestCase):
     class Taxonomy:
         subs = {'auto.workshop': {}, 'beauty.barber': {}, 'equip.workshop_equipment': {}}

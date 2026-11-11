@@ -69,6 +69,21 @@ class StreetOpportunityTests(unittest.TestCase):
         self.assertAlmostEqual(top['nearest']['distance_m'], 2000, delta=30)
         self.assertEqual(out['features'][0]['geometry']['type'], 'MultiLineString')
 
+    def test_specialty_corridors_never_add_to_a_streets_size(self):
+        # build_trade_corridors writes a specialty's own corridor («برجر») beside its trade's; its shops are already in it
+        db = duckdb.connect()
+        db.execute("""create table t(city_en varchar, sub_id varchar, sub_ar varchar, main_id varchar, main_ar varchar, street_ar varchar,
+            district_ar varchar, districts_ar varchar, n integer, n_wholesale integer, length_m integer, per_100m double, lift double,
+            road_class varchar, specialty_ids varchar, specialty_key varchar, geojson varchar)""")
+        rows = [r[:15] + (None,) + r[15:] for r in self.rows] + [
+            ('Riyadh', '', 'برجر', 'food', 'food', 'شارع التحلية', 'العليا', 'العليا', 12, 0, 500, 2.4, None, 'main', '',
+             'food.fast_food.burger|food.restaurant.burger', line(0, 0))]
+        db.executemany('insert into t values (' + ','.join('?' * 17) + ')', rows)
+        path = str(pathlib.Path(tempfile.mkdtemp()) / 'street_density.parquet')
+        db.execute('copy t to ? (format parquet)', [path])
+        top = so.opportunities(db, path, 'Riyadh', subs=['pharmacy'])['features'][0]['properties']
+        self.assertEqual((top['street_ar'], top['total']), ('شارع التحلية', 62))
+
     def test_thin_activity_is_counted_and_scored_below_absent(self):
         rows = self.rows + [row('pharmacy', 'شارع الثلاثين', 'الملقا', 5, 6000, main='health'),
                             row('cafe', 'شارع الثلاثين', 'الملقا', 55, 6000, main='food')]
