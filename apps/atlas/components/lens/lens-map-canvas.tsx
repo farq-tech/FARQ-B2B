@@ -7,7 +7,8 @@ import type { DistrictFeature } from '@/lib/insights-api'
 import { LoadError } from '@/components/shared/load-error'
 import { cn } from '@/lib/utils'
 import { PEEK_PX } from './map-sheet'
-import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
+import { OLIVE_STEPS, PALETTE, readableOn } from '@/lib/palette'
+import { installSymbols, PILL, PIN_SIZE, SYMBOL } from './map-symbols'
 import { boundsOf } from './map-bounds'
 import { cityFrame, framePadding, sheetCoverPx } from './map-framing'
 
@@ -254,6 +255,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         }
       })
       instance.on('load', () => {
+        installSymbols(instance)
         instance.addSource('districts', { type: 'geojson', data: EMPTY, promoteId: 'id' })
         // shading and outlines sit under the basemap's place and road names; district names go on top of everything
         const layers = instance.getStyle().layers ?? []
@@ -265,6 +267,8 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         instance.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: { 'fill-color': fillColor, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 14, 0.3] } }, firstRoad)
         // the picked districts: the same colour once more over them (0.6 → 0.8 at city scale, 0.3 → 0.55 in the
         // streets), shown by a filter on their ids, so a pick never sends every outline to the map again
+        // a district without the lens figure is hatched, so it reads as «غير متاح» and never as the lowest shade
+        instance.addLayer({ id: 'district-missing', type: 'fill', source: 'districts', filter: ['==', ['get', '__missing'], true], paint: { 'fill-pattern': SYMBOL.hatch, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 10, 1, 15, 0.5] } }, firstRoad)
         instance.addLayer({ id: 'district-picked', type: 'fill', source: 'districts', filter: ['in', ['get', 'id'], ['literal', []]], paint: { 'fill-color': fillColor, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 0.36] } }, firstRoad)
         instance.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': PALETTE.olive, 'line-width': 0.6, 'line-opacity': 0.35 } }, firstLabel)
         instance.addLayer({ id: 'district-selected', type: 'line', source: 'districts', filter: ['in', ['get', 'id'], ['literal', []]], paint: { 'line-color': PALETTE.ink, 'line-width': 3 } })
@@ -284,6 +288,11 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         instance.addSource('route', { type: 'geojson', data: EMPTY })
         instance.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': PALETTE.white, 'line-width': 7 } })
         instance.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': PALETTE.olive, 'line-width': 4 } })
+        // which way the route runs: white chevrons along the line
+        instance.addLayer({ id: 'route-arrow', type: 'symbol', source: 'route', minzoom: 11, layout: {
+          'symbol-placement': 'line', 'symbol-spacing': 90, 'icon-image': SYMBOL.arrow, 'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.7, 15, 1],
+          'icon-rotation-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+        } })
         instance.addSource('streets', { type: 'geojson', data: EMPTY })
         instance.addLayer({ id: 'street-casing', type: 'line', source: 'streets', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: {
           'line-color': PALETTE.white, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, ['case', ['boolean', ['get', 'active'], false], 8, 5], 15, ['case', ['boolean', ['get', 'active'], false], 15, 10]],
@@ -299,8 +308,12 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         instance.addSource('start', { type: 'geojson', data: EMPTY })
         instance.addLayer({ id: 'start', type: 'circle', source: 'start', paint: { 'circle-radius': 9, 'circle-color': PALETTE.white, 'circle-stroke-color': PALETTE.olive, 'circle-stroke-width': 4 } })
         instance.addSource('sites', { type: 'geojson', data: EMPTY })
-        instance.addLayer({ id: 'site-dot', type: 'circle', source: 'sites', paint: { 'circle-radius': 13, 'circle-color': ['get', 'color'], 'circle-stroke-color': PALETTE.white, 'circle-stroke-width': 2 } })
-        instance.addLayer({ id: 'site-label', type: 'symbol', source: 'sites', layout: { 'text-field': ['get', 'label'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 15, 'text-allow-overlap': true }, paint: { 'text-color': PALETTE.white } })
+        // a candidate site: a pin in its colour, its tip on the spot, its number in the head
+        instance.addLayer({ id: 'site-dot', type: 'symbol', source: 'sites', layout: {
+          'icon-image': ['concat', 'pin-site-', ['get', 'color']], 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+          'text-field': ['get', 'label'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 14,
+          'text-anchor': 'center', 'text-offset': [0, -PIN_SIZE.head / 14], 'text-allow-overlap': true, 'text-ignore-placement': true,
+        }, paint: { 'text-color': ['coalesce', ['get', 'textColor'], PALETTE.white] } })
         // listings: grouped into a numbered circle until zoomed in, so a dense district stays readable
         instance.addSource('listings', { type: 'geojson', data: EMPTY, cluster: true, clusterRadius: 42, clusterMaxZoom: 15 })
         instance.addLayer({ id: 'listing-cluster', type: 'circle', source: 'listings', filter: ['has', 'point_count'], paint: {
@@ -315,11 +328,16 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
           'circle-stroke-color': ['case', ['boolean', ['get', 'active'], false], PALETTE.ink, PALETTE.white],
           'circle-stroke-width': ['case', ['boolean', ['get', 'active'], false], 3, 1.5],
         } })
-        // the price beside each single listing once zoomed in, like a price pin
+        // the price of each single listing once zoomed in: a capsule in its tone, its tail on the dot; the listing
+        // pointed at in the list turns white with an ink edge and is drawn first
         instance.addLayer({ id: 'listing-price', type: 'symbol', source: 'listings', minzoom: 12.5, filter: ['all', ['!', ['has', 'point_count']], ['has', 'label']], layout: {
-          'text-field': ['get', 'label'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 12, 'text-offset': [0, -1.4], 'text-allow-overlap': false,
+          'text-field': ['get', 'label'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 12,
+          'text-anchor': 'bottom', 'text-offset': [0, -PILL.below / 12], 'text-allow-overlap': false,
+          'icon-image': ['case', ['boolean', ['get', 'active'], false], SYMBOL.pillActive, ['concat', 'price-pill-', ['get', 'color']]],
+          'icon-text-fit': 'both', 'icon-text-fit-padding': [2, 4, 2, 4],
           'symbol-sort-key': ['case', ['boolean', ['get', 'active'], false], 0, 1],
-        }, paint: { 'text-color': PALETTE.ink, 'text-halo-color': PALETTE.white, 'text-halo-width': 6 } })
+          'symbol-z-order': 'source',
+        }, paint: { 'text-color': ['case', ['boolean', ['get', 'active'], false], PALETTE.ink, ['coalesce', ['get', 'textColor'], PALETTE.white]] } })
         // a list's businesses: close ones grouped into a numbered circle until zoomed in (olive when one is in the request
         // being built, ringed when the row under the pointer is inside), then a dot each, its name beside it
         instance.addSource('businesses', { type: 'geojson', data: EMPTY, cluster: true, clusterRadius: 36, clusterMaxZoom: 15,
@@ -365,7 +383,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
             })
             return
           }
-          const [listing] = instance.queryRenderedFeatures(event.point, { layers: ['listing-dot'] })
+          const [listing] = instance.queryRenderedFeatures(event.point, { layers: ['listing-price', 'listing-dot'] })
           if (listing && openListing.current) { openListing.current(String(listing.properties?.id)); return }
           const [cluster] = instance.queryRenderedFeatures(event.point, { layers: ['listing-cluster'] })
           const [street] = instance.queryRenderedFeatures(event.point, { layers: ['street-line'] })
@@ -389,7 +407,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
           districtClick.current?.({ id: String(id), lon: event.lngLat.lng, lat: event.lngLat.lat })
           toggle.current(String(id))
         })
-        for (const layer of ['listing-dot', 'listing-cluster', 'street-line', 'business-dot', 'business-cluster']) {
+        for (const layer of ['listing-dot', 'listing-price', 'listing-cluster', 'street-line', 'business-dot', 'business-cluster']) {
           instance.on('mouseenter', layer, () => { instance.getCanvas().style.cursor = 'pointer' })
           instance.on('mouseleave', layer, () => { instance.getCanvas().style.cursor = '' })
         }
@@ -438,7 +456,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     if (!ready || !instance) return
     const painted = features.map((feature) => {
       const id = String(feature.properties.id)
-      return { ...feature, properties: { ...feature.properties, id, __step: colors ? null : steps.get(id) ?? null, __color: colors?.get(id) ?? null } }
+      return { ...feature, properties: { ...feature.properties, id, __step: colors ? null : steps.get(id) ?? null, __color: colors?.get(id) ?? null,
+        // hatched only while the lens shades some districts: a figure missing everywhere is said in the key instead
+        __missing: !colors && steps.size > 0 && !steps.has(id) } }
     })
     ;(instance.getSource('districts') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: painted })
   }, [ready, features, steps, colors])
@@ -480,13 +500,13 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     const instance = map.current
     if (!ready || !instance) return
     ;(instance.getSource('areas') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (areas ?? []).map((area) => ({ type: 'Feature', properties: { id: area.id, color: area.color }, geometry: area.geometry })) })
-    ;(instance.getSource('sites') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (sites ?? []).map((site) => ({ type: 'Feature', properties: { id: site.id, label: site.label, color: site.color }, geometry: { type: 'Point', coordinates: [site.lon, site.lat] } })) })
+    ;(instance.getSource('sites') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (sites ?? []).map((site) => ({ type: 'Feature', properties: { id: site.id, label: site.label, color: site.color, textColor: readableOn(site.color) }, geometry: { type: 'Point', coordinates: [site.lon, site.lat] } })) })
   }, [ready, areas, sites])
 
   useEffect(() => {
     const instance = map.current
     if (!ready || !instance) return
-    ;(instance.getSource('listings') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (listings ?? []).map((dot) => ({ type: 'Feature', properties: { id: dot.id, color: dot.color, ...(dot.label ? { label: dot.label } : {}), active: !!dot.active }, geometry: { type: 'Point', coordinates: [dot.lon, dot.lat] } })) })
+    ;(instance.getSource('listings') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (listings ?? []).map((dot) => ({ type: 'Feature', properties: { id: dot.id, color: dot.color, textColor: readableOn(dot.color), ...(dot.label ? { label: dot.label } : {}), active: !!dot.active }, geometry: { type: 'Point', coordinates: [dot.lon, dot.lat] } })) })
   }, [ready, listings])
 
   useEffect(() => {

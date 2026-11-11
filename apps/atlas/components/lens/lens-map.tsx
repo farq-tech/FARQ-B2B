@@ -1373,12 +1373,12 @@ export function LensMap() {
                     <span className="flex gap-0.5" aria-hidden>{SHADES.map((shade) => <span key={shade} className="h-4 w-7 rounded-sm" style={{ background: shade }} />)}</span>
                     <span className="text-muted-foreground">أعلى</span>
                   </Explained>}
-                  {/* districts without the figure are drawn unshaded: the key names that, so a blank district (Jeddah's
+                  {/* districts without the figure are hatched: the key names that, so a hatched district (Jeddah's
                       central markets under «السكان») reads as «غير متاح», not as the lowest value */}
                   {!metricMissing && !metricFailed && unshaded > 0 && (
                     <span className={cn('flex items-center gap-1.5 text-sm text-muted-foreground', keyCompact && 'max-lg:hidden')}>
-                      <span className="h-4 w-7 rounded-sm border border-dashed border-muted-foreground/50" aria-hidden />
-                      بلا لون: غير متاح ({counted(unshaded, 'district')})
+                      <span className="h-4 w-7 rounded-sm border border-muted-foreground/30 bg-[repeating-linear-gradient(-45deg,rgba(23,42,30,0.3)_0_1px,transparent_1px_5px)]" aria-hidden />
+                      مخطّط: غير متاح ({counted(unshaded, 'district')})
                     </span>
                   )}
                   </>}
