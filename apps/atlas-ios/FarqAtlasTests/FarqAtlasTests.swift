@@ -18,6 +18,14 @@ final class FarqAtlasTests: XCTestCase {
         XCTAssertEqual(Fmt.counted(100, .district), "\u{2066}100\u{2069} حي")
     }
 
+    func testAudienceSubtitlesDescribeResidentsForEverySegment() {
+        XCTAssertEqual(Segment.everyone.audienceSubtitle, "السكان في الحي")
+        XCTAssertEqual(Segment.men.audienceSubtitle, "الرجال في الحي")
+        XCTAssertEqual(Segment.women.audienceSubtitle, "النساء في الحي")
+        XCTAssertEqual(Segment.saudi.audienceSubtitle, "السعوديون في الحي")
+        XCTAssertEqual(Segment.nonSaudi.audienceSubtitle, "غير السعوديين في الحي")
+    }
+
     func testQuintilesAndScore() {
         let values = Array(stride(from: 1.0, through: 10.0, by: 1.0))
         let q = Quintiles(values)
