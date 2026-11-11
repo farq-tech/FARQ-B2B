@@ -7,9 +7,12 @@ import math
 import os
 import re
 import statistics
+from shapely.geometry import shape
+from collections import Counter
 
 import canonical_data
 import district_reference
+import golden
 import market_signals
 import parse_aqar_list
 
@@ -52,29 +55,27 @@ MIN_HOUSING_UNITS = 200
 
 
 def housing_level(db, path, polygon_ids, id_map, names):
-    """Share of a canonical district's homes that are villas, from the buildings layer: a named stand-in for income
-    where no income is published (docs/atlas-product-foundation.md §7). A district with fewer than MIN_HOUSING_UNITS
-    dwellings is left out: a handful of buildings is no level."""
+    """Estimated share of classified dwelling units in villa buildings, from the buildings layer: a named stand-in for
+    income where no income is published (docs/atlas-product-foundation.md §7). Old layers with only a villa building
+    count cannot produce this ratio and are unavailable. Every canonical district polygon must occur exactly once in
+    the layer before its merged ratio is shown; the rows are reduced by golden.housing (MIN_HOUSING_UNITS applies)."""
     if not path:
         return None
-    rows = db.execute("""select district_id, district_ar, villas, dwelling_units from read_parquet(?)
+    columns = {row[0].casefold() for row in db.execute("describe select * from read_parquet(?)", [path]).fetchall()}
+    if not {"villa_units", "classified_home_units"}.issubset(columns):
+        return None
+    rows = db.execute("""select district_id, district_ar, villa_units, classified_home_units from read_parquet(?)
                          where cast(district_id as varchar) in (select unnest(?::varchar[]))""", [path, list(polygon_ids)]).fetchall()
-    merged = {}
-    for district_id, district_ar, villas, units in rows:
-        canonical = str(id_map.get(str(district_id), district_id))
-        out = merged.setdefault(canonical, {'district_id': canonical, 'district_ar': names.get(canonical, (district_ar, None))[0] or district_ar,
-                                            'villas': 0, 'dwelling_units': 0.0})
-        out['villas'] += int(villas or 0)
-        out['dwelling_units'] += float(units or 0)
-    result = []
-    for row in merged.values():
-        if row['dwelling_units'] < MIN_HOUSING_UNITS:
-            continue
-        row['villa_share_pct'] = round(min(100.0, 100 * row['villas'] / row['dwelling_units']), 1)
-        row['dwelling_units'] = round(row['dwelling_units'])
-        result.append(row)
-    result.sort(key=lambda row: (-row['villa_share_pct'], row['district_ar'] or ''))
-    return result
+    expected = {str(polygon_id) for polygon_id in polygon_ids}
+    observed = Counter(str(row[0]) for row in rows)
+    incomplete_districts = {
+        str(id_map.get(polygon_id, polygon_id))
+        for polygon_id in expected
+        if observed[polygon_id] != 1
+    }
+    if incomplete_districts:
+        rows = [row for row in rows if str(id_map.get(str(row[0]), row[0])) not in incomplete_districts]
+    return golden.housing(rows, id_map, names)
 
 
 def _haversine_sql(lon_col, lat_col):
@@ -201,26 +202,43 @@ def _hilbert(n, x, y):
 
 
 def _centre(geometry):
-    points = []
-    for polygon in canonical_data._polygons(geometry):
-        if polygon:
-            points.extend(polygon[0])
-    if not points:
+    """Return an interior representative point; a concave district's centroid may fall outside it."""
+    try:
+        district = shape(geometry)
+        if district.is_empty or not district.is_valid:
+            return None
+        point = district.centroid
+        if not district.contains(point):
+            point = district.representative_point()
+        if not math.isfinite(point.x) or not math.isfinite(point.y):
+            return None
+        return point.x, point.y
+    except (TypeError, ValueError, AttributeError):
         return None
-    return sum(p[0] for p in points) / len(points), sum(p[1] for p in points) / len(points)
 
 
-def territories(features, weights, count):
+def territories(features, weights, count, by_id=False):
     """Split a city's districts into `count` territories of near-equal weight. Districts are ordered along a
     Hilbert curve through their centres, so each territory is a compact run of neighbouring districts, and
-    the run is cut where the running weight crosses each equal share."""
+    the run is cut where the running weight crosses each equal share. Measured zero-weight districts remain in the
+    run for geographic coverage; districts absent from `weights` stay excluded as unmeasured."""
     items = []
+    id_counts = {}
+    if by_id:
+        for feature in features:
+            district_id = (feature.get('properties') or {}).get('id')
+            if district_id is not None:
+                key = str(district_id)
+                id_counts[key] = id_counts.get(key, 0) + 1
     for feature in features:
         props = feature.get('properties') or {}
         name = props.get('ar') or props.get('district_ar')
         centre = _centre(feature.get('geometry'))
-        weight = weights.get(name) or 0
-        if centre and weight > 0:
+        district_id = props.get('id')
+        if by_id and (district_id is None or id_counts.get(str(district_id)) != 1):
+            continue
+        weight = weights.get(str(district_id)) if by_id and district_id is not None else weights.get(name) if not by_id else None
+        if centre and isinstance(weight, (int, float)) and not isinstance(weight, bool) and math.isfinite(weight) and weight >= 0:
             items.append((name, props.get('id'), centre, float(weight)))
     if not items or count < 1:
         return []
@@ -229,6 +247,8 @@ def territories(features, weights, count):
     keyed = sorted(items, key=lambda item: _hilbert(grid, min(grid - 1, int((item[2][0] - min(xs)) / span_x * (grid - 1))),
                                                     min(grid - 1, int((item[2][1] - min(ys)) / span_y * (grid - 1)))))
     total = sum(item[3] for item in keyed)
+    if total <= 0:
+        return []
     share = total / count
     groups = [{'territory': i + 1, 'weight': 0.0, 'districts': []} for i in range(count)]
     running = 0.0
@@ -241,6 +261,31 @@ def territories(features, weights, count):
         group['weight'] = round(group['weight'])
         group['share_pct'] = round(100 * group['weight'] / total, 1) if total else None
     return [group for group in groups if group['districts']]
+
+
+def territory_centres(features):
+    """Interior representative points in the same compact Hilbert order used for territory groups."""
+    items = []
+    for feature in features:
+        props = feature.get('properties') or {}
+        name = props.get('ar') or props.get('district_ar')
+        centre = _centre(feature.get('geometry'))
+        if name and centre and 34 <= centre[0] <= 56 and 16 <= centre[1] <= 33:
+            items.append((name, props.get('id'), centre))
+    if not items:
+        return []
+    xs = [item[2][0] for item in items]
+    ys = [item[2][1] for item in items]
+    span_x, span_y, grid = (max(xs) - min(xs)) or 1e-9, (max(ys) - min(ys)) or 1e-9, 1024
+    ordered = sorted(items, key=lambda item: _hilbert(
+        grid,
+        min(grid - 1, int((item[2][0] - min(xs)) / span_x * (grid - 1))),
+        min(grid - 1, int((item[2][1] - min(ys)) / span_y * (grid - 1))),
+    ))
+    return [
+        {'district_ar': name, 'district_id': ident, 'lon': centre[0], 'lat': centre[1]}
+        for name, ident, centre in ordered
+    ]
 
 
 INCOME_FIELDS = ('income_all', 'income_male', 'income_female', 'income_saudi', 'income_non_saudi')
@@ -289,6 +334,10 @@ LISTING_TYPES = ('apartment', 'studio', 'floor', 'villa', 'house', 'building', '
 LISTINGS_MAX = 1500
 # commercial units a shop can open in: what «محلات متاحة على هذا الشارع» lists along an activity street
 COMMERCIAL_TYPES = ('store', 'showroom', 'office')
+# amenities a request may require (features filter), as the listing file spells them
+LISTING_FEATURES = ('furnished', 'ketchen', 'ac', 'lift', 'car_entrance', 'extra_unit', 'two_entrances', 'private_roof', 'stairs', 'maid', 'driver', 'backyard', 'pool', 'basement', 'tent')
+# orders a client may ask for; 'best' is best_order
+LISTING_SORTS = ('best', 'price_asc', 'price_desc', 'area_desc', 'sqm_asc')
 # a listing's type is matched by its canonical token, however the source spelt it (parse_aqar_list.canonical_type)
 canonical_type = parse_aqar_list.canonical_type
 NEAR_DEFAULT_M, NEAR_MAX_M, NEAR_MAX_VERTICES = 60, 200, 5000
@@ -419,8 +468,10 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
     advertised, an area range and a building no older than `max_age` years. An ad that does not state the figure a range asks about is left out of that range,
     never counted as zero. Only a publishable listing is served: one with a price, a stated period, at least one photo,
     and figures that do not need checking. Sorted by best_order (under the district's median first, then the freshest
-    ad inside each band; without a comparison and marked for checking last); capped at `limit`, while `total` counts
-    every match. With `group_similar` near-identical ads (similar_key) come as one card carrying the others in
+    ad inside each band; without a comparison and marked for checking last), or by `sort` (LISTING_SORTS); paged by
+    `offset` and capped at `limit`, while `total` counts every match. Room counts (min_beds, min_livings, min_wc),
+    min_street_width, `tenants` (families | singles; an ad for both matches either), required `features` and a
+    min/max `vs_district_pct` band are real filters: an ad that does not state the figure is left out. With `group_similar` near-identical ads (similar_key) come as one card carrying the others in
     `similar`, and `limit` counts the ads in them. Each served card carries `signal`, its district's
     market signal for its type (market_signals.tag), or None. With `near` the answer also carries `rent_summary`, the
     street's rent level against the units within RENT_AROUND_M of its line (rent_summary), and `hidden`, the matching
@@ -429,10 +480,14 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
         table = _listing_cards(path or REAL_ESTATE_LISTINGS_PATH)
     except (OSError, ValueError):
         return None
-    box, districts = filters.get('bbox'), set(filters.get('district_ids') or [])
+    # an explicit empty district set matches no rows (a client that asked for «these districts» and named none);
+    # a request without the key is not filtered by district
+    box, district_filter = filters.get('bbox'), filters.get('district_ids')
+    districts = set(district_filter or [])
     # match a type by its canonical token on both sides, so a card whose source spelt the type differently (case,
     # Arabic, 'shop') still matches a request for 'store'/'showroom'/'office'
     types, kind, deal = {canonical_type(t) for t in (filters.get('types') or [])}, filters.get('kind'), filters.get('deal')
+    features, tenants = set(filters.get('features') or []), filters.get('tenants')
     near = filters.get('near')
     if near:
         # a corridor's buffer: first the line's box widened by the surroundings' reach, then the exact distance to its segments
@@ -445,13 +500,20 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
     within = lambda value, low, high: (low is None and high is None) or (value is not None and (low is None or value >= low) and (high is None or value <= high))
     matches = [card for card in table.get('listings', []) if card['city'] == city
                and (not kind or card['kind'] == kind) and (not deal or card.get('deal') == deal) and (not types or canonical_type(card['type']) in types)
-               and (not districts or card['district_id'] in districts)
+               and (district_filter is None or card['district_id'] in districts)
                and (not box or (box[0] <= card['lon'] <= box[2] and box[1] <= card['lat'] <= box[3]))
                and within(card.get('price_sar'), filters.get('min_price'), filters.get('max_price'))
                and within(card.get('area_sqm'), filters.get('min_area'), filters.get('max_area'))
+               and within(card.get('beds'), filters.get('min_beds'), None)
+               and within(card.get('livings'), filters.get('min_livings'), None)
+               and within(card.get('wc'), filters.get('min_wc'), None)
+               and within(card.get('street_width'), filters.get('min_street_width'), None)
+               and (not tenants or card.get('tenants') in (tenants, 'both'))
+               and all((card.get('features') or {}).get(feature) == 1 for feature in features)
+               and within(card.get('vs_district_pct'), filters.get('min_vs_district_pct'), filters.get('max_vs_district_pct'))
                and within(card.get('age'), None, filters.get('max_age'))]
     found = [card for card in matches if _publishable(card)]
-    found.sort(key=best_order)
+    found.sort(key=sort_order(filters.get('sort') or 'best'))
     extra = {}
     if near:
         inside = lambda card: near_box[0] <= card['lon'] <= near_box[2] and near_box[1] <= card['lat'] <= near_box[3]
@@ -470,6 +532,11 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
         measured = sorted([(d, card) for d, card in measured if d <= metres], key=lambda pair: round(pair[0]))
         found = [dict(card, distance_m=round(d)) for d, card in measured]
     limit = filters.get('limit') or LISTINGS_MAX
+    # a page starts `offset` ads into the one global order, so every page of a request reads the same ranking
+    offset = filters.get('offset') or 0
+    extra['offset'] = offset
+    total = len(found)   # every match, whatever page is served
+    found = found[offset:]
     signals = _market_signals(city, table, path or REAL_ESTATE_LISTINGS_PATH, deals_path)
     # the number stays out of a list of listings: a signed-in person asks for one listing's number (listing_phone);
     # a served card needs no checking, whatever an older file marked on it (_suspect)
@@ -484,9 +551,9 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
             others = others[:max(0, limit - count - 1)]
             shown.append({**serve(lead), 'similar': [serve(card) for card in others]})
             count += 1 + len(others)
-        return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': shown, **extra}
+        return {'retrieved': table.get('retrieved'), 'total': total, 'listings': shown, **extra}
     shown = [serve(card) for card in found[:limit]]
-    return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': shown, **extra}
+    return {'retrieved': table.get('retrieved'), 'total': total, 'listings': shown, **extra}
 
 
 # how far under its district's median a listing must be to rank as clearly under it, and how close counts as «near»
@@ -510,6 +577,20 @@ def best_order(card):
     band = 0 if pct is not None and pct <= BEST_UNDER_PCT else 1 if pct is not None and pct < BEST_NEAR_PCT else 2
     return (bool(card.get('check')), pct is None, (pct or 0) < BEST_DISCOUNT_FLOOR, band, -_day_number(card),
             not card.get('licensed'), -len(card.get('photos') or ([card['photo']] if card.get('photo') else [])), pct or 0)
+
+
+def sort_order(sort):
+    """The key for one of LISTING_SORTS: a price or area order puts ads without the figure last and breaks ties by id,
+    so pages of one request never overlap; 'best' is best_order."""
+    if sort == 'price_asc':
+        return lambda card: (card.get('price_sar') is None, card.get('price_sar') or 0, str(card.get('id') or ''))
+    if sort == 'price_desc':
+        return lambda card: (card.get('price_sar') is None, -(card.get('price_sar') or 0), str(card.get('id') or ''))
+    if sort == 'area_desc':
+        return lambda card: (card.get('area_sqm') is None, -(card.get('area_sqm') or 0), str(card.get('id') or ''))
+    if sort == 'sqm_asc':
+        return lambda card: (card.get('sar_per_sqm') is None, card.get('sar_per_sqm') or 0, str(card.get('id') or ''))
+    return best_order
 
 
 def similar_key(card):
@@ -572,23 +653,57 @@ def _market_signals(city, table, cards_path, deals_path=None):
 AUDIENCE_FIELDS = ('male_pct', 'saudi_pct')
 
 
-def district_audience(city, path=None):
+def district_audience(city, path=None, id_map=None):
     """Measured audience shares by district: the share of men and of Saudis, from the 910ths reference table. A
-    district without a measured share is left out, so the caller shows «غير متاح» for it rather than a guess."""
+    district is kept when either share is measured; the caller can still use that segment while showing the other as
+    «غير متاح». A district with neither measured share is omitted. When supplied, id_map adds the canonical district
+    identity resolved from every source polygon; an unresolved mapping is explicit null, never inferred from its name."""
     table = district_reference.load(path or district_reference.PATH)
-    rows = ((table or {}).get('cities') or {}).get(city)
-    if rows is None:
+    rows_by_name = district_reference.city_rows(city, path or district_reference.PATH)
+    cities = (table or {}).get('cities') or {}
+    if city not in cities or cities.get(city) is None:
         return None
-    return {'districts': [{'district_ar': row['district_ar'], **{key: row.get(key) for key in AUDIENCE_FIELDS}} for row in rows
-                          if all(row.get(key) is not None for key in AUDIENCE_FIELDS)]}
+    rows = rows_by_name.values()
+    districts = []
+    for row in rows:
+        if not any(row.get(key) is not None for key in AUDIENCE_FIELDS):
+            continue
+        result = {'district_ar': row['district_ar'], **{key: row.get(key) for key in AUDIENCE_FIELDS}}
+        if id_map is not None:
+            result['district_id'] = canonical_reference_district_id(row, id_map)
+        districts.append(result)
+    return {'districts': districts}
 
 
-def district_income(city, path=None):
+def canonical_reference_district_id(row, id_map):
+    """Resolve a 910ths row to one canonical district only when all of its source polygons agree."""
+    polygon_ids = row.get('polygon_ids') if isinstance(row, dict) else None
+    if not isinstance(polygon_ids, list) or not polygon_ids:
+        return None
+    canonical = set()
+    for polygon_id in polygon_ids:
+        if isinstance(polygon_id, bool) or not isinstance(polygon_id, (str, int)) or not str(polygon_id).strip():
+            return None
+        key = str(polygon_id)
+        if key not in id_map:
+            return None
+        canonical.add(str(id_map[key]))
+    return next(iter(canonical)) if len(canonical) == 1 else None
+
+
+def district_income(city, path=None, id_map=None):
     """Average monthly income per working person by district, from the 910ths reference table (district_reference)."""
     table = district_reference.load(path or district_reference.PATH)
     rows = ((table or {}).get('cities') or {}).get(city)
     if rows is None:
         return None
-    rows = [{'district_ar': row['district_ar'], **{key: row.get(key) for key in INCOME_FIELDS}} for row in rows
-            if any(row.get(key) is not None for key in INCOME_FIELDS)]
+    selected = []
+    for row in rows:
+        if not any(row.get(key) is not None for key in INCOME_FIELDS):
+            continue
+        item = {'district_ar': row['district_ar'], **{key: row.get(key) for key in INCOME_FIELDS}}
+        if id_map is not None:
+            item['district_id'] = canonical_reference_district_id(row, id_map)
+        selected.append(item)
+    rows = selected
     return {'source': table.get('source'), 'retrieved': table.get('retrieved'), 'unit': table.get('unit', 'SAR/month'), 'districts': rows}

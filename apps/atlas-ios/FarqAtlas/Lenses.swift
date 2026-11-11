@@ -4,7 +4,7 @@ import SwiftUI
 /// recomputes a figure the server already publishes.
 enum Metric: String, CaseIterable, Identifiable {
     // the chosen activity (owners, distributors)
-    case shortfall, activityResidentsPer, activityPerKm2, activityBusinesses
+    case shortfall, marketFit, activityResidentsPer, activityPerKm2, activityBusinesses
     // the whole directory
     case population, density, businesses, residentsPerBusiness, whatsapp, wholesale
     // audience layers
@@ -17,6 +17,7 @@ enum Metric: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .shortfall: return "فرص التوسع"
+        case .marketFit: return "ملاءمة السوق"
         case .activityResidentsPer: return "ساكن لكل منافس"
         case .activityPerKm2: return "المنافسون لكل كم²"
         case .activityBusinesses: return "منشآت النشاط"
@@ -57,6 +58,7 @@ enum Metric: String, CaseIterable, Identifiable {
     var explain: [String] {
         switch self {
         case .shortfall: return Explain.gap
+        case .marketFit: return Explain.marketFit
         case .activityResidentsPer: return ["سكان الحي ÷ منشآت النشاط المختار فيه.", "كلما ارتفع الرقم قلّ المنافسون لكل ساكن."]
         case .activityPerKm2: return ["منشآت النشاط المختار ÷ مساحة الحي بالكيلومتر المربع."]
         case .activityBusinesses: return ["منشآت النشاط المختار القائمة في دليل فرق داخل الحي."]
@@ -86,6 +88,15 @@ enum Lens {
 enum Segment: String, CaseIterable, Identifiable {
     case everyone, men, women, saudi, nonSaudi
     var id: String { rawValue }
+    var incomeLabel: String {
+        switch self {
+        case .everyone: return "متوسط دخل العاملين"
+        case .men: return "متوسط دخل الرجال العاملين"
+        case .women: return "متوسط دخل النساء العاملات"
+        case .saudi: return "متوسط دخل العاملين السعوديين"
+        case .nonSaudi: return "متوسط دخل العاملين غير السعوديين"
+        }
+    }
     var label: String {
         switch self {
         case .everyone: return "الكل"
@@ -117,5 +128,86 @@ struct Quintiles {
         guard let value, value.isFinite, values.count > 1 else { return nil }
         let below = values.filter { $0 < value }.count
         return 100 * Double(below) / Double(values.count - 1)
+    }
+}
+
+/// A city total is valid only when every eligible district has a measured, nonnegative value.
+enum AudienceCoverage {
+    static func total(_ values: [Double?], eligibleDistrictCount: Int) -> Double? {
+        guard eligibleDistrictCount >= 0,
+              values.count == eligibleDistrictCount,
+              values.allSatisfy({ value in value.map { $0.isFinite && $0 >= 0 } == true }) else { return nil }
+        return values.compactMap { $0 }.reduce(0, +)
+    }
+}
+
+/// A comparison leader is meaningful only when every selected district has a finite measurement.
+enum CompleteMetricComparison {
+    static func maximum(_ values: [Double?], selectedCount: Int) -> Double? {
+        guard selectedCount >= 2, values.count == selectedCount,
+              values.allSatisfy({ $0.map(\.isFinite) == true }) else { return nil }
+        return values.compactMap { $0 }.max()
+    }
+}
+
+enum MarketFitScorer {
+    /// Market-fit power must be a measured worker-income value; housing mix is not a purchasing-power measure.
+    static func measuredPurchasingPower(income: Double?) -> Double? {
+        guard let income, income.isFinite, income >= 0 else { return nil }
+        return income
+    }
+
+    /// Scores only districts with both figures, so each component uses the same city cohort as the service.
+    /// The former per-district path filtered both city arrays for every score, making map fills quadratic.
+    static func scores(demandByDistrict: [String: Double], purchasingPowerByDistrict: [String: Double]) -> [String: Double] {
+        let candidates = demandByDistrict.compactMap { name, demand -> (String, Double, Double)? in
+            guard demand.isFinite, let power = purchasingPowerByDistrict[name], power.isFinite, power >= 0 else { return nil }
+            return (name, demand, power)
+        }
+        guard !candidates.isEmpty else { return [:] }
+        if candidates.count == 1 { return [candidates[0].0: 50] }
+        let demand = candidates.map(\.1).sorted()
+        let power = candidates.map(\.2).sorted()
+
+        var result: [String: Double] = [:]
+        for (name, demandValue, powerValue) in candidates {
+            let demandRank = rank(demandValue, in: demand)
+            let powerRank = rank(powerValue, in: power)
+            result[name] = ((demandRank + powerRank) / 2).rounded()
+        }
+        return result
+    }
+
+    /// Average tied rank scaled to 0–100, matching market_analytics._percentile_ranks.
+    private static func rank(_ value: Double, in sorted: [Double]) -> Double {
+        var low = 0, high = sorted.count
+        while low < high {
+            let middle = low + (high - low) / 2
+            if sorted[middle] < value { low = middle + 1 } else { high = middle }
+        }
+        let first = low
+        low = first; high = sorted.count
+        while low < high {
+            let middle = low + (high - low) / 2
+            if sorted[middle] <= value { low = middle + 1 } else { high = middle }
+        }
+        let averageRank = Double(first + low - 1) / 2
+        return 100 * averageRank / Double(sorted.count - 1)
+    }
+}
+
+/// Keeps the city-wide ranking stable across SwiftUI body passes and invalidates it when the store's data revision moves.
+struct VersionedMarketFitCache {
+    private var revision: Int?
+    private var cachedScores: [String: Double] = [:]
+
+    func values(for revision: Int) -> [String: Double]? {
+        guard self.revision == revision else { return nil }
+        return cachedScores
+    }
+
+    mutating func store(_ scores: [String: Double], for revision: Int) {
+        self.revision = revision
+        cachedScores = scores
     }
 }

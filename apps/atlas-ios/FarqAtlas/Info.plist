@@ -26,10 +26,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>UIAppFonts</key>
 	<array>
-		<string>IBMPlexSansArabic-Regular.ttf</string>
-		<string>IBMPlexSansArabic-Medium.ttf</string>
-		<string>IBMPlexSansArabic-SemiBold.ttf</string>
-		<string>IBMPlexSansArabic-Bold.ttf</string>
+		<string>itfHuwiyaArabic-Regular.otf</string>
+		<string>itfHuwiyaArabic-Medium.otf</string>
+		<string>itfHuwiyaArabic-Bold.otf</string>
+		<string>itfHuwiyaArabic-Black.otf</string>
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>

@@ -9,11 +9,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import duckdb
+import canonical_data
 
 
 REQUIRED_ASSETS = (
@@ -101,6 +103,15 @@ def validate_release(data_dir: Path) -> dict[str, Any]:
     if duplicate_district_ids:
         raise ValueError("districts GeoJSON contains duplicate stable ids")
     duplicate_district_labels = len(names) - len(set(names))
+    canonical_districts, _ = canonical_data.canonical_districts(districts, canonical_data.load_corrections())
+    # Overlapping outlines across two cities are reported, not fatal: the serving code already tolerates them
+    # (canonical_data.prepare logs each pair) and the live atlas carries 26 such pairs. A fatal check here stopped
+    # the container at boot (2026-11-11) before the server could answer /healthz. The count goes into the report so a
+    # release that adds pairs is visible; fixing the pairs is a data correction, not a startup condition.
+    cross_city_overlaps = canonical_data.cross_city_duplicates(canonical_districts)
+    if cross_city_overlaps:
+        print(json.dumps({"warning": "districts GeoJSON contains cross-city overlapping boundaries",
+                          "pairs": len(cross_city_overlaps)}, ensure_ascii=False), file=sys.stderr)
 
     target_path = data_dir / "targets.parquet"
     db = duckdb.connect(":memory:")
@@ -221,7 +232,8 @@ def validate_release(data_dir: Path) -> dict[str, Any]:
         },
         "poi_taxonomy": {"rows": taxonomy_rows, "distinct_poi_keys": taxonomy_distinct_keys},
         "identity": {"crosswalk_rows": identity_rows, "distinct_source_poi_keys": identity_unique_sources, "aliases": identity_rows - rows},
-        "districts": {"features": len(features), "labels": len(names), "unlabeled_with_stable_id": unlabeled_districts, "duplicate_labels": duplicate_district_labels},
+        "districts": {"features": len(features), "labels": len(names), "unlabeled_with_stable_id": unlabeled_districts, "duplicate_labels": duplicate_district_labels,
+                      "cross_city_overlap_pairs": len(cross_city_overlaps)},
         "taxonomy": {"subcategories": len(sub_ids)},
     }
 

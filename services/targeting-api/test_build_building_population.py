@@ -116,6 +116,10 @@ class BuildingPopulationTests(unittest.TestCase):
         _, rows = self.run_build()
         self.assertAlmostEqual(rows["1"]["dwelling_units"], self.households(2) + self.households(3), places=1)
         self.assertEqual(rows["1"]["villas"], 2)
+        self.assertAlmostEqual(rows["1"]["villa_units"], self.households(2) + self.households(3), places=1)
+        self.assertAlmostEqual(rows["1"]["classified_home_units"], self.households(2) + self.households(3), places=1)
+        self.assertAlmostEqual(rows["2"]["classified_home_units"], self.flats_per_storey(), delta=0.1)
+        self.assertEqual(rows["1"]["population_source"], "farq_buildings_dasymetric_v3_2", "the schema revision must invalidate the old startup-job signature")
         self.assertEqual(rows["1"]["shops_or_unoccupied_excluded"], 1)
         self.assertAlmostEqual(rows["2"]["dwelling_units"], self.flats_per_storey(), delta=0.1)
         self.assertEqual(rows["2"]["shops_or_unoccupied_excluded"], 1)
@@ -192,6 +196,14 @@ class BuildingPopulationTests(unittest.TestCase):
         finally:
             db.close()
         self.assertAlmostEqual(people, 9000, delta=1, msg="the district's buildings carry exactly its people")
+
+    def test_measured_zero_910ths_total_is_not_replaced_by_the_building_estimate(self):
+        reference = self.root / "districts_910ths.json"
+        reference.write_text(json.dumps({"cities": {"Riyadh": [{"district_ar": "الملقا", "population": 0}]}}, ensure_ascii=False), encoding="utf-8")
+        referenced, _ = bbp.reference_estimates(
+            self.districts, [1], {"1": "Riyadh"}, {1: {"weight": 100.0}}, reference,
+        )
+        self.assertEqual(referenced, {1: 0.0})
 
     def test_a_city_with_too_few_910ths_districts_is_not_calibrated_on_them(self):
         reference = self.root / "districts_910ths.json"

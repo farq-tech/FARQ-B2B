@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Farq identity: olive #3E573B primary, emerald #00805F accent, charcoal #303030, IBM Plex Sans Arabic.
+/// Farq identity: olive #3E573B primary, emerald #00805F accent, charcoal #303030, ITF Huwiya Arabic.
 enum Palette {
     static let brand = Color(hex: 0x3E573B)
     static let accent = Color(hex: 0x00805F)
@@ -40,12 +40,20 @@ extension Color {
     }
 }
 
-/// IBM Plex Sans Arabic, scaling with Dynamic Type; figures are tabular so columns line up.
+/// ITF Huwiya Arabic, scaling with Dynamic Type; figures are tabular so columns line up.
 enum Typo {
-    enum Weight: String { case regular = "Regular", medium = "Medium", semibold = "SemiBold", bold = "Bold" }
+    enum Weight { case regular, medium, semibold, bold
+        var postScriptName: String {
+            switch self {
+            case .regular: return "itfHuwiyaArabic-Regular"
+            case .medium, .semibold: return "itfHuwiyaArabic-Medium"
+            case .bold: return "itfHuwiyaArabic-Bold"
+            }
+        }
+    }
 
     static func font(_ size: CGFloat, _ weight: Weight = .regular, relativeTo style: Font.TextStyle = .body) -> Font {
-        .custom("IBMPlexSansArabic-\(weight.rawValue)", size: size, relativeTo: style)
+        .custom(weight.postScriptName, size: size, relativeTo: style)
     }
 
     static let largeTitle = font(30, .bold, relativeTo: .largeTitle)

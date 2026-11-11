@@ -26,13 +26,17 @@ class AdvisorProxyTest(unittest.TestCase):
 
     def test_forwards_with_the_fixed_model_and_returns_the_text(self):
         sent = {}
+        timeout_value = {}
 
         def opener(request, timeout):
             sent.update(json.loads(request.data))
+            timeout_value['seconds'] = timeout
             return Response(json.dumps({'stop_reason': 'end_turn', 'content': [{'type': 'text', 'text': 'جواب'}]}).encode())
 
         status, body = advisor_proxy.reply('s', [{'role': 'user', 'content': 'a'}], {'ANTHROPIC_API_KEY': 'k'}, opener)
         self.assertEqual((status, body, sent['model']), (200, {'reply': 'جواب'}, 'claude-opus-5-5'))
+        self.assertEqual(sent['max_tokens'], 1200)
+        self.assertEqual(timeout_value['seconds'], 20)
 
     def test_failures_map_to_plain_states(self):
         self.assertEqual(advisor_proxy.reply('s', [], {}, None), (503, {'error': 'UNCONFIGURED'}))

@@ -19,6 +19,7 @@ with (shared_with); golden.population and the building model split that one tota
 """
 import argparse
 import json
+import math
 import re
 import sys
 from collections import defaultdict
@@ -41,6 +42,16 @@ def same_district(n910_name, atlas_name):
     return bool(keys(n910_name) & keys(atlas_name))
 
 
+def measured_population(value):
+    """Keep a measured zero; reject missing, negative, nonnumeric, and nonfinite samples."""
+    if type(value) not in (int, float) or value < 0:
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 def build(samples, collection, city, source, retrieved, n910_names=None):
     n910_names = canonical_data.load_n910_names() if n910_names is None else n910_names
     canonical, id_map = canonical_data.canonical_districts(collection, canonical_data.load_corrections())
@@ -52,7 +63,7 @@ def build(samples, collection, city, source, retrieved, n910_names=None):
         polygon = str(row.get('district_id'))
         key = str(id_map.get(polygon, polygon))
         name = names.get(key)
-        if cities.get(key) != city or not row.get('n910_population'):
+        if cities.get(key) != city or not measured_population(row.get('n910_population')):
             continue
         linked = n910_names.get((city, polygon))
         if not name or not (same_district(row.get('n910_name'), bases.get(key) or name) or same_district(row.get('n910_name'), linked)):
@@ -85,8 +96,8 @@ def build(samples, collection, city, source, retrieved, n910_names=None):
         male = [float(row['n910_population']) * float(row['male_pct']) / 100 for row in parts if row.get('male_pct') is not None]
         saudi = [float(row['n910_population']) * float(row['saudi_pct']) / 100 for row in parts if row.get('saudi_pct') is not None]
         rows.append({'district_ar': name, 'polygon_ids': polygons, 'population': population,
-                     'male_pct': round(100 * sum(male) / population, 1) if len(male) == len(parts) else None,
-                     'saudi_pct': round(100 * sum(saudi) / population, 1) if len(saudi) == len(parts) else None,
+                     'male_pct': round(100 * sum(male) / population, 1) if population > 0 and len(male) == len(parts) else None,
+                     'saudi_pct': round(100 * sum(saudi) / population, 1) if population > 0 and len(saudi) == len(parts) else None,
                      **{field: None for field in FIELDS if field.startswith('income')},
                      'combined_910ths_districts': sorted({row.get('n910_name') for row in parts})})
         combined.append({'district_ar': name, '910ths': [(row.get('n910_name'), row.get('n910_population')) for row in parts]})

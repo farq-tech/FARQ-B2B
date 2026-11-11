@@ -12,11 +12,22 @@ browse of the public 910ths demographic map: {"source", "retrieved", "cities": {
 "income_saudi", "income_non_saudi"}]}}. Only districts whose 910ths name matches the atlas name are listed.
 """
 import json
+import math
 import os
 
 PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reference', 'districts_910ths.json')
 SOURCE = '910ths.sa'
 _CACHE = {}
+
+
+def measured_percentage(value):
+    """A source share in the closed interval 0–100, else unavailable (never clamp a bad measurement)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        return value if math.isfinite(value) and 0 <= value <= 100 else None
+    except (OverflowError, TypeError):
+        return None
 
 
 def load(path=PATH):
@@ -37,7 +48,17 @@ def load(path=PATH):
 def city_rows(city, path=PATH):
     """Canonical district name -> reference row for one city ({} when none)."""
     table = load(path) or {}
-    return {row['district_ar']: row for row in (table.get('cities') or {}).get(city, []) if row.get('district_ar')}
+    result = {}
+    for row in (table.get('cities') or {}).get(city, []):
+        name = row.get('district_ar') if isinstance(row, dict) else None
+        if not isinstance(name, str) or not name.strip():
+            continue
+        normalized = dict(row)
+        for key in ('male_pct', 'saudi_pct'):
+            if key in normalized:
+                normalized[key] = measured_percentage(normalized[key])
+        result[name] = normalized
+    return result
 
 
 def reference_year(path=PATH):

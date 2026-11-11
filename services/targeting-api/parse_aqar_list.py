@@ -3,9 +3,10 @@ build_real_estate_reference.py takes.
 
 A list card carries a title such as «شقة للإيجار في شارع مالك بن الحارث, حي بدر, مدينة الرياض, منطقة الرياض», a price
 («599,000 § ريال», with «/سنوي» on yearly rents), an area («168م²»), a photo and, when the scraper takes it, the
-listing's link. The district comes from the title (it names the street's own district); the photo URL identifies the
-listing for de-duplication, since the same card appears on more than one result page.
+listing's link. The district comes from the title (it names the street's own district). Stable listing IDs or URLs
+identify repeats; without one, only an exactly identical parsed row is collapsed, since photos can be shared.
 """
+import json
 import re
 
 import canonical_data
@@ -313,9 +314,8 @@ def parse_map_listing(record, city_en=None):
 
 
 def parse_rows(rows, city_en='Riyadh'):
-    """Parsed listings without the repeats a paginated list produces (same photo or same link = same listing).
-    Takes either a browser scraper's columns or tools/aqar-collector's records."""
-    seen, out = set(), []
+    """Drop exact pagination repeats; stable IDs/URLs must not conflict, and a photo alone is not a listing identity."""
+    seen, out = {}, []
     for row in rows:
         if 'location' in row or 'rent_period' in row:
             listing = parse_map_listing(row, city_en)
@@ -325,10 +325,20 @@ def parse_rows(rows, city_en='Riyadh'):
             listing = parse_row(row, city_en)
         if not listing:
             continue
-        key = listing.get('aqar_id') or listing.get('url') or listing.get('image') or (listing['title'], listing['priceSar'], listing['areaSqm'])
-        if key in seen:
+        aqar_id = str(listing.get('aqar_id') or '').strip()
+        url = str(listing.get('url') or '').strip()
+        if aqar_id and aqar_id.casefold() != 'none':
+            key = ('id', aqar_id)
+        elif url:
+            key = ('url', url)
+        else:
+            key = ('row', json.dumps(listing, ensure_ascii=False, sort_keys=True, separators=(',', ':')))
+        previous = seen.get(key)
+        if previous is not None:
+            if previous != listing:
+                raise ValueError('conflicting Aqar rows share listing identity')
             continue
-        seen.add(key)
+        seen[key] = listing
         out.append(listing)
     return out
 

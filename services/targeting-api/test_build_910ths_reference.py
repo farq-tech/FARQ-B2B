@@ -36,6 +36,12 @@ class ReferenceBuildTests(unittest.TestCase):
     def test_pieces_of_one_district_give_one_row(self):
         self.assertEqual((self.rows['الملز']['population'], self.rows['الملز']['polygon_ids']), (93100, ['1', '2']))
 
+    def test_a_measured_zero_population_is_kept_in_the_reference(self):
+        table, skipped, _ = ref.build([sample(1, 'الملز', 0)], ATLAS, 'Riyadh', '910ths.sa', '2026-10-27')
+        row = next(row for row in table['cities']['Riyadh'] if row['district_ar'] == 'الملز')
+        self.assertEqual(row['population'], 0)
+        self.assertEqual(skipped, [])
+
     def test_separate_districts_sharing_a_name_keep_their_own_figures(self):
         self.assertEqual(self.rows['الشهداء (شرق)']['population'], 29600)
         self.assertEqual(self.rows['الشهداء (غرب)']['population'], 1700)

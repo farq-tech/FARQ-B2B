@@ -3,6 +3,26 @@
   "corrections": [
     {
       "city_en": "Riyadh",
+      "id": "10101061033",
+      "from": "قاعدة الامير سلطان الجوية",
+      "ar": "قاعدة الأمير سلطان الجوية",
+      "en": "Prince Sultan Air Base",
+      "to_city_en": "Al Kharj",
+      "to_city_ar": "الخرج",
+      "evidence": "The live Riyadh outline response places this polygon at 47.37–47.75E, 23.92–24.18N. The pinned National Address dataset links district 10101061033 to city_id 1061; cities.csv names 1061 Al Kharj. Saudi AIP identifies OEPS as Al Kharj / Prince Sultan Air Base. Checked 2026-11-10."
+    },
+    {
+      "city_en": "Ad Dilam",
+      "id": "10101061032",
+      "from": "المدينة الصناعية بالخرج",
+      "ar": "المدينة الصناعية بالخرج",
+      "en": "Al Kharj Industrial City",
+      "to_city_en": "Al Kharj",
+      "to_city_ar": "الخرج",
+      "evidence": "The live Ad Dilam outline response contains the same-name SPL district ID 10101061032, and its geometry exactly matches the pinned National Address feature assigned to city_id 1061 (Al Kharj). This relocates the misfiled outline to the source city. Checked 2026-11-10."
+    },
+    {
+      "city_en": "Riyadh",
       "id": "463",
       "from": "العليا",
       "ar": "السليمانية",
@@ -178,19 +198,19 @@
       "from": "الدوحة الجنوبية",
       "ar": "الدوحة الجنوبية",
       "en": "Ad Dawhah Al Janubiyah",
-      "to_city_en": "Al Khobar",
-      "to_city_ar": "الخبر",
-      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 9.7 km from the centre of Al Khobar's own districts against 12.8 km from Dammam's, so it belongs to Al Khobar (Farq CTO rule: the nearest city, 2026-10-27)."
+      "to_city_en": "Dhahran",
+      "to_city_ar": "الظهران",
+      "evidence": "The Saudi National Address district layer (yasseralsamman/saudi-national-address, commit deedf8c) assigns this same-name, near-identical boundary to Dhahran; its city centre is closer than Al Khobar or Dammam. The upstream dataset rights remain under review. Reviewed 2026-11-08."
     },
     {
       "city_en": "Dammam",
       "id": "628",
       "from": "جامعة الملك فهد للبترول",
-      "ar": "جامعة الملك فهد للبترول",
-      "en": "King Fahd University of Petroleum",
-      "to_city_en": "Al Khobar",
-      "to_city_ar": "الخبر",
-      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 9.0 km from the centre of Al Khobar's own districts against 12.5 km from Dammam's, so it belongs to Al Khobar (Farq CTO rule: the nearest city, 2026-10-27)."
+      "ar": "جامعة الملك فهد للبترول والمعادن",
+      "en": "King Fahd University of Petroleum and Minerals",
+      "to_city_en": "Dhahran",
+      "to_city_ar": "الظهران",
+      "evidence": "The Saudi National Address district layer (yasseralsamman/saudi-national-address, commit deedf8c) assigns this same-name, near-identical boundary to Dhahran; its city centre is closer than Al Khobar or Dammam. The upstream dataset rights remain under review. Reviewed 2026-11-08."
     },
     {
       "city_en": "Dammam",
@@ -221,6 +241,136 @@
       "to_city_en": "Al Khobar",
       "to_city_ar": "الخبر",
       "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 4.6 km from the centre of Al Khobar's own districts against 22.2 km from Dammam's, so it belongs to Al Khobar (Farq CTO rule: the nearest city, 2026-10-27)."
+    },
+    {
+      "city_en": "Al Khobar",
+      "id": "48",
+      "from": "الدوحة الجنوبية",
+      "ar": "الدوحة الجنوبية",
+      "en": "Ad Dawhah Al Janubiyah",
+      "to_city_en": "Dhahran",
+      "to_city_ar": "الظهران",
+      "evidence": "The Saudi National Address district layer (yasseralsamman/saudi-national-address, commit deedf8c) assigns this same-name, near-identical boundary to Dhahran. Its Arabic district label matches; the polygon overlaps the existing outline by over 97%. Upstream dataset rights remain under review. Reviewed 2026-11-08."
+    },
+    {
+      "city_en": "Al Khobar",
+      "id": "49",
+      "from": "جامعة الملك فهد للبترول",
+      "ar": "جامعة الملك فهد للبترول والمعادن",
+      "en": "King Fahd University of Petroleum and Minerals",
+      "to_city_en": "Dhahran",
+      "to_city_ar": "الظهران",
+      "evidence": "The Saudi National Address district layer (yasseralsamman/saudi-national-address, commit deedf8c) assigns this same-name, near-identical boundary to Dhahran. Its Arabic district label matches; the polygon overlaps the existing outline by over 97%. Upstream dataset rights remain under review. Reviewed 2026-11-08."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "587",
+      "from": "تهامة",
+      "ar": "تهامة",
+      "en": "Tihamah",
+      "to_city_en": "Dhahran",
+      "to_city_ar": "الظهران",
+      "evidence": "The Saudi National Address district layer (yasseralsamman/saudi-national-address, commit deedf8c) assigns this same-name, near-identical boundary to Dhahran. Its Arabic district label matches; the polygon overlaps the existing outline by over 97%. Upstream dataset rights remain under review. Reviewed 2026-11-08."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "606",
+      "from": "هجر",
+      "ar": "هجر",
+      "en": "Hajr",
+      "to_city_en": "Dhahran",
+      "to_city_ar": "الظهران",
+      "evidence": "The Saudi National Address district layer (yasseralsamman/saudi-national-address, commit deedf8c) assigns this same-name, near-identical boundary to Dhahran. Its Arabic district label matches; the polygon overlaps the existing outline by over 97%. Upstream dataset rights remain under review. Reviewed 2026-11-08."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "622",
+      "from": "الدانة الشمالية",
+      "ar": "الدانة الشمالية",
+      "en": "Ad Danah Ash Shamaliyah",
+      "to_city_en": "Dhahran",
+      "to_city_ar": "الظهران",
+      "evidence": "The Saudi National Address district layer (yasseralsamman/saudi-national-address, commit deedf8c) assigns this same-name, near-identical boundary to Dhahran. Its Arabic district label matches; the polygon overlaps the existing outline by over 97%. Upstream dataset rights remain under review. Reviewed 2026-11-08."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "623",
+      "from": "الدوحة الشمالية",
+      "ar": "الدوحة الشمالية",
+      "en": "Ad Dawhah Ash Shamaliyah",
+      "to_city_en": "Dhahran",
+      "to_city_ar": "الظهران",
+      "evidence": "The Saudi National Address district layer (yasseralsamman/saudi-national-address, commit deedf8c) assigns this same-name, near-identical boundary to Dhahran. Its Arabic district label matches; the polygon overlaps the existing outline by over 97%. Upstream dataset rights remain under review. Reviewed 2026-11-08."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "624",
+      "from": "القشلة",
+      "ar": "القشلة",
+      "en": "Al Qashlah",
+      "to_city_en": "Dhahran",
+      "to_city_ar": "الظهران",
+      "evidence": "The Saudi National Address district layer (yasseralsamman/saudi-national-address, commit deedf8c) assigns this same-name, near-identical boundary to Dhahran. Its Arabic district label matches; the polygon overlaps the existing outline by over 97%. Upstream dataset rights remain under review. Reviewed 2026-11-08."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "627",
+      "from": "الجامعة",
+      "ar": "الجامعة",
+      "en": "Al Jamiah",
+      "to_city_en": "Dhahran",
+      "to_city_ar": "الظهران",
+      "evidence": "The Saudi National Address district layer (yasseralsamman/saudi-national-address, commit deedf8c) assigns this same-name, near-identical boundary to Dhahran. Its Arabic district label matches; the polygon overlaps the existing outline by over 97%. Upstream dataset rights remain under review. Reviewed 2026-11-08."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "629",
+      "from": "غرب الظهران",
+      "ar": "غرب الظهران",
+      "en": "Gharb Adh Dhahran",
+      "to_city_en": "Dhahran",
+      "to_city_ar": "الظهران",
+      "evidence": "The Saudi National Address district layer (yasseralsamman/saudi-national-address, commit deedf8c) assigns this same-name, near-identical boundary to Dhahran. Its Arabic district label matches; the polygon overlaps the existing outline by over 97%. Upstream dataset rights remain under review. Reviewed 2026-11-08."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "630",
+      "from": "القصور",
+      "ar": "القصور",
+      "en": "Al Qusur",
+      "to_city_en": "Dhahran",
+      "to_city_ar": "الظهران",
+      "evidence": "The Saudi National Address district layer (yasseralsamman/saudi-national-address, commit deedf8c) assigns this same-name, near-identical boundary to Dhahran. Its Arabic district label matches; the polygon overlaps the existing outline by over 97%. Upstream dataset rights remain under review. Reviewed 2026-11-08."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "631",
+      "from": "الحرس الوطني",
+      "ar": "الحرس الوطني",
+      "en": "Al Haras Al Watani",
+      "to_city_en": "Dhahran",
+      "to_city_ar": "الظهران",
+      "evidence": "The Saudi National Address district layer (yasseralsamman/saudi-national-address, commit deedf8c) assigns this same-name, near-identical boundary to Dhahran. Its Arabic district label matches; the polygon overlaps the existing outline by over 97%. Upstream dataset rights remain under review. Reviewed 2026-11-08."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "632",
+      "from": "الدانة الجنوبية",
+      "ar": "الدانة الجنوبية",
+      "en": "Ad Danah Al Janubiyah",
+      "to_city_en": "Dhahran",
+      "to_city_ar": "الظهران",
+      "evidence": "The Saudi National Address district layer (yasseralsamman/saudi-national-address, commit deedf8c) assigns this same-name, near-identical boundary to Dhahran. Its Arabic district label matches; the polygon overlaps the existing outline by over 97%. Upstream dataset rights remain under review. Reviewed 2026-11-08."
+    },
+    {
+      "city_en": "Riyadh",
+      "id": "546",
+      "from": "السرحية",
+      "ar": "السرحية",
+      "en": "Al Sarhiyah",
+      "to_city_en": "Diriyah",
+      "to_city_ar": "الدرعية",
+      "evidence": "The Saudi National Address district layer (yasseralsamman/saudi-national-address, commit deedf8c) assigns this same-name, near-identical boundary to Diriyah. Its Arabic district label matches; the polygon overlaps the existing outline by over 97%. Upstream dataset rights remain under review. Reviewed 2026-11-08."
     }
   ],
   "about_n910_names": "Reviewed links from an atlas polygon to the name 910ths gives its district, read only by build_910ths_reference.py; they never rename the atlas district. Left unlinked on purpose: a polygon whose point falls in another district (different boundaries), one 910ths district read in two cities (الحمراء Dammam/Al Khobar, جامعة الملك فهد للبترول), and atlas districts 910ths splits into numbered parts (البلد2, الأمل 1).",

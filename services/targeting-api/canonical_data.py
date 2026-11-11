@@ -30,7 +30,7 @@ import shapely.geometry
 import shapely.ops
 
 LOGGER = logging.getLogger('farq.targeting')
-VERSION = 5   # bump when the rules below change so cached copies are rebuilt
+VERSION = 9   # bump when the rules below change so cached copies are rebuilt
 
 # key -> (English, Arabic); keep in step with services/data-cleaning/city_names.py
 CITY_ALIAS = {
@@ -45,9 +45,134 @@ CITY_ALIAS = {
  'jizan': ('Jazan', 'جازان'), 'jazan': ('Jazan', 'جازان'), 'gizan': ('Jazan', 'جازان'), 'arar': ('Arar', 'عرعر'), 'sakaka': ('Sakaka', 'سكاكا'),
  'najran': ('Najran', 'نجران'), 'qatif': ('Qatif', 'القطيف'), 'bishah': ('Bisha', 'بيشة'), 'bisha': ('Bisha', 'بيشة'),
  'hafarbatin': ('Hafar Al Batin', 'حفر الباطن'), 'unaizah': ('Unaizah', 'عنيزة'), 'unayzah': ('Unaizah', 'عنيزة'),
- 'diriyah': ('Diriyah', 'الدرعية'), 'kharj': ('Al Kharj', 'الخرج'), 'baha': ('Al Bahah', 'الباحة'), 'bahah': ('Al Bahah', 'الباحة'),
+ 'diriyah': ('Diriyah', 'الدرعية'), 'kharj': ('Al Kharj', 'الخرج'), 'saih': ('Al Kharj', 'الخرج'), 'السيح': ('Al Kharj', 'الخرج'), 'baha': ('Al Bahah', 'الباحة'), 'bahah': ('Al Bahah', 'الباحة'),
  'qunfudhah': ('Al Qunfudhah', 'القنفذة'), 'majmaah': ('Al Majmaah', 'المجمعة'), 'zulfi': ('Az Zulfi', 'الزلفي'), 'khafji': ('Al Khafji', 'الخفجي'),
+ 'mudhaylif': ('Al Mudhaylif', 'المظيلف'), 'muzaylif': ('Al Mudhaylif', 'المظيلف'), 'المظيلف': ('Al Mudhaylif', 'المظيلف'),
+ 'sajir': ('Sajir', 'ساجر'), 'sajer': ('Sajir', 'ساجر'), 'ساجر': ('Sajir', 'ساجر'),
+ 'mutiah': ("Muti'ah", 'مطيعة'), 'مطيعة': ("Muti'ah", 'مطيعة'),
+ 'adham': ('Adham', 'أضم'), 'اضم': ('Adham', 'أضم'), 'أضم': ('Adham', 'أضم'),
+ 'bariq': ('Bariq', 'بارق'), 'bareq': ('Bariq', 'بارق'), 'بارق': ('Bariq', 'بارق'),
  'rastannurah': ('Ras Tanura', 'رأس تنورة'), 'ula': ('AlUla', 'العلا'), 'rabigh': ('Rabigh', 'رابغ'), 'qurayyat': ('Al Qurayyat', 'القريات'),
+ 'inak': ('Inak', 'عنك'),
+ 'abuarish': ('Abu Arish', 'ابو عريش'),
+ 'dilam': ('Ad Dilam', 'الدلم'),
+ 'duwadimi': ('Ad Duwadimi', 'الدوادمي'),
+ 'afif': ('Afif', 'عفيف'),
+ 'ahadmusarihah': ('Ahad Al Musarihah', 'احد المسارحة'),
+ 'ahadrifaydah': ('Ahad Rifaydah', 'احد رفيده'),
+'ahadrufaidah': ('Ahad Rifaydah', 'احد رفيده'), 'احدرفيده': ('Ahad Rifaydah', 'احد رفيده'), 'أحدرفيدة': ('Ahad Rifaydah', 'احد رفيده'),
+ 'aridah': ("Al 'Aridah", 'العارضة'),
+ 'uwayqiliyah': ("Al 'Uwayqiliyah", 'العويقلية'),
+ 'adari': ("Al Adari'", 'الأضارع'),
+ 'aqiq': ('Al Aqiq', 'العقيق'),
+ 'ardhiyahshimaliyah': ('Al Ardhiyah Al Shimaliyah', 'العرضية الشمالية'),
+ 'artawiyah': ('Al Artawiyah', 'الارطاوية'),
+ 'asyah': ('Al Asyah', 'الاسياح'),
+ 'badai': ("Al Badai'", 'البدائع'),
+ 'bijadiyah': ('Al Bijadiyah', 'البجادية'),
+ 'bukayriyah': ('Al Bukayriyah', 'البكيرية'),
+ 'ghat': ('Al Ghat', 'الغاط'),
+ 'hafuf': ('Al Ahsa', 'الأحساء'),
+ 'harajah': ('Al Harajah', 'الحرجة'),
+ 'hariq': ('Al Hariq', 'الحريق'),
+ 'hilaliyah': ('Al Hilaliyah', 'الهلالية'),
+ 'hilwah': ('Al Hilwah', 'الحلوة'),
+ 'hinakiyah': ('Al Hinakiyah', 'الحناكية'),
+ 'isawiyah': ('Al Isawiyah', 'العيساوية'),
+ 'jafr': ('Al Jafr', 'الجفر'),
+ 'jish': ('Al Jish', 'الجش'),
+ 'jumum': ('Al Jumum', 'الجموم'),
+ 'khabra': ("Al Khabra'", 'الخبراء'),
+ 'khurmah': ('Al Khurmah', 'الخرمة'),
+ 'lith': ('Al Lith', 'الليث'),
+ 'majardah': ('Al Majardah', 'المجاردة'),
+ 'marmuthah': ('Al Marmuthah', 'المرموثة'),
+ 'midhnab': ('Al Midhnab', 'المذنب'),
+ 'muzahimiyah': ('Al Muzahimiyah', 'المزاحمية'),
+ 'qasab': ('Al Qasab', 'القصب'),
+ 'qawz': ('Al Qawz', 'القوز'),
+ 'qaysumah': ('Al Qaysumah', 'القيصومة'),
+ 'qunfidhah': ('Al Qunfudhah', 'القنفذة'),
+ 'quwayiyah': ("Al Quway'iyah", 'القويعية'),
+ 'umran': ('Al Umran', 'العمران'),
+ 'uyainah': ('Al Uyainah', 'العيينة'),
+ 'uyun': ('Al Uyun', 'العيون'),
+ 'wajh': ('Al Wajh', 'الوجه'),
+ 'alhasat': ('Alhasat', 'الحصاة'),
+ 'nabhaniyah': ('An Nabhaniyah', 'النبهانية'),
+ 'namas': ('An Namas', 'النماص'),
+ 'nuayriyah': ("An Nu'ayriyah", 'النعيرية'),
+ 'rass': ('Ar Rass', 'الرس'),
+ 'rayn': ('Ar Rayn', 'الرين'),
+ 'ruwaydah': ('Ar Ruwaydah', 'الرويضة'),
+ 'sudah': ('As Sudah', 'السودة'),
+ 'sulayyil': ('As Sulayyil', 'السليل'),
+ 'shamli': ('Ash Shamli', 'الشملي'),
+ 'shimasiyah': ('Ash Shimasiyah', 'الشماسية'),
+ 'shinan': ('Ash Shinan', 'الشنان'),
+ 'badr': ('Badr', 'بدر'),
+ 'baqa': ("Baq'a", 'بقعاء'),
+ 'biljurashi': ('Biljurashi', 'بلجرشي'),
+ 'baljurashi': ('Biljurashi', 'بلجرشي'),
+ 'billahmar': ('Billahmar', 'بللحمر'),
+ 'billasmar': ('Billasmar', 'بللسمر'),
+ 'buqayq': ('Buqayq', 'بقيق'),
+ 'darin': ('Darin', 'دارين'),
+ 'dariyah': ('Dariyah', 'ضرية'),
+ 'dawmatjandal': ('Dawmat Al Jandal', 'دومة الجندل'),
+ 'dhahranjanub': ('Dhahran Al Janub', 'ظهران الجنوب'),
+ 'duba': ('Duba', 'ضبا'),
+ 'duruma': ('Duruma', 'ضرما'),
+ 'haql': ('Haql', 'حقل'),
+ 'harmah': ('Harmah', 'حرمة'),
+ 'hawtatbanitamim': ('Hawtat Bani Tamim', 'حوطة بني تميم'),
+ 'hawtatsudair': ('Hawtat Sudair', 'حوطة سدير'),
+ 'hubuna': ('Hubuna', 'حبونا'),
+ 'huraymila': ('Huraymila', 'حريملاء'),
+ 'jalajil': ('Jalajil', 'جلاجل'),
+ 'jawatha': ('Jawatha', 'جواثا'),
+ 'khaybar': ('Khaybar', 'خيبر'),
+ 'khulays': ('Khulays', 'خليص'),
+ 'kingabdullaheconomic': ('King Abdullah Economic City', 'مدينة الملك عبدالله الاقتصادية'),
+ 'layla': ('Layla', 'ليلى'),
+ 'mahddhahab': ('Mahd Adh Dhahab', 'مهد الذهب'),
+ 'muhayil': ('Muhayil', 'محايل'),
+ 'nifi': ('Nifi', 'نفي'),
+ 'qaryatulya': ("Qaryat Al 'Ulya", 'قرية العليا'),
+ 'qibah': ('Qibah', 'قبة'),
+ 'rafha': ("Rafha'", 'رفحاء'),
+ 'ranyah': ('Ranyah', 'رنية'),
+ 'riyadkhabra': ('Riyad Al Khabra', 'رياض الخبراء'),
+ 'sabtalayah': ("Sabt Al 'Alayah", 'سبت العلاية'),
+ 'sabya': ('Sabya', 'صبيا'),
+ 'safwa': ('Safwa', 'صفوى'),
+ 'samtah': ('Samtah', 'صامطة'),
+ 'saratabidah': ('Sarat Abidah', 'سراة عبيدة'),
+ 'sayhat': ('Sayhat', 'سيهات'),
+ 'shaqra': ("Shaqra'", 'شقراء'),
+ 'sharurah': ('Sharurah', 'شرورة'),
+ 'suwayr': ('Suwayr', 'صوير'),
+ 'tabab': ('Tabab', 'طبب'),
+ 'tanumah': ('Tanumah', 'تنومة'),
+ 'tarib': ('Tarib', 'طريب'),
+ 'tarut': ('Tarut', 'تاروت'),
+ 'tathlith': ('Tathlith', 'تثليث'),
+ 'tayma': ("Tayma'", 'تيماء'),
+ 'tendaha': ('Tendaha', 'تندحة'),
+ 'thadiq': ('Thadiq', 'ثادق'),
+ 'thuwal': ('Thuwal', 'ثول'),
+ 'tubarjal': ('Tubarjal', 'طبرجل'),
+ 'tumair': ('Tumair', 'تمير'),
+ 'turaif': ('Turaif', 'طريف'),
+ 'turbah': ('Turbah', 'تربه'),
+ 'umluj': ('Umluj', 'املج'),
+ 'ummhamam': ('Umm Al Hamam', 'ام الحمام'),
+ 'uqlatsuqur': ('Uqlat As Suqur', 'عقلة الصقور'),
+ 'uyunjawa': ("Uyun Al Jawa'", 'عيون الجواء'),
+ 'wadidawasir': ('Wadi Ad Dawasir', 'وادي الدواسر'),
+ 'yabrinjabrin': ('Yabrin', 'يبرين'),
+ 'yadamah': ('Yadamah', 'يدمة'),
+ 'yanbusinaiyah': ('Yanbu Al Sinaiyah', 'ينبع الصناعية'),
 }
 ARTICLES = r'^(al|el|ad|ar|as|at|az|an|ash|adh|ath|aj)[\s\-]+'
 AR_LETTERS = str.maketrans({'أ': 'ا', 'إ': 'ا', 'آ': 'ا', 'ة': 'ه', 'ى': 'ي', 'ؤ': 'و', 'ئ': 'ي'})
@@ -68,6 +193,12 @@ def city_key(name):
 def canonical_city(name):
     """(English, Arabic) for a known spelling, else None: unknown cities are served as they are."""
     return CITY_ALIAS.get(city_key(name))
+
+
+def canonical_city_name(name):
+    """Return the single English city key for a known spelling; preserve unknown values unchanged."""
+    canonical = canonical_city(name) if isinstance(name, str) else None
+    return canonical[0] if canonical else name
 
 
 def district_key(name):
@@ -122,16 +253,6 @@ def load_n910_names(path=CORRECTIONS_PATH):
             if row.get('city_en') and row.get('id') is not None and row.get('n910_ar')}
 
 
-def _polygons(geometry):
-    if not geometry:
-        return []
-    if geometry.get('type') == 'Polygon':
-        return [geometry['coordinates']]
-    if geometry.get('type') == 'MultiPolygon':
-        return list(geometry['coordinates'])
-    return []
-
-
 def _id_order(value):
     text = str(value)
     return (0, int(text), text) if text.isdigit() else (1, 0, text)
@@ -167,6 +288,17 @@ def _components(members):
     return sorted(groups.values(), key=lambda idx: _id_order(members[idx[0]][0]['id']))
 
 
+def _polygons(geometry):
+    """Polygon rings as GeoJSON coordinate arrays for spatial measurement helpers."""
+    if not geometry:
+        return []
+    if geometry.get('type') == 'Polygon':
+        return [geometry['coordinates']]
+    if geometry.get('type') == 'MultiPolygon':
+        return list(geometry['coordinates'])
+    return []
+
+
 def _centre(geometries):
     try:
         return shapely.ops.unary_union([shapely.geometry.shape(g) for g in geometries if g]).centroid
@@ -199,6 +331,74 @@ def _qualifiers(centres):
             for i, w in enumerate(words)]
 
 
+def _valid_polygon(geometry):
+    """Return valid polygonal GeoJSON, repairing invalid rings and dropping non-area remnants."""
+    if not geometry:
+        return None
+    try:
+        value = shapely.geometry.shape(geometry)
+        if not value.is_valid:
+            value = shapely.make_valid(value)
+        if isinstance(value, shapely.geometry.GeometryCollection):
+            areas = [part for part in value.geoms if isinstance(part, (shapely.geometry.Polygon, shapely.geometry.MultiPolygon))]
+            value = shapely.ops.unary_union(areas) if areas else None
+        if value is None or not isinstance(value, (shapely.geometry.Polygon, shapely.geometry.MultiPolygon)):
+            return None
+        if not value.is_valid:
+            value = shapely.make_valid(value)
+        if isinstance(value, shapely.geometry.GeometryCollection):
+            areas = [part for part in value.geoms if isinstance(part, (shapely.geometry.Polygon, shapely.geometry.MultiPolygon))]
+            value = shapely.ops.unary_union(areas) if areas else None
+        if value is None or value.is_empty or not isinstance(value, (shapely.geometry.Polygon, shapely.geometry.MultiPolygon)) or not value.is_valid:
+            return None
+        return shapely.geometry.mapping(value)
+    except (TypeError, ValueError, KeyError):
+        return None
+
+
+def sanitize_district_geometries(collection):
+    """Repair invalid district outlines once, dropping only geometries with no usable polygon area.
+
+    Return the cleaned FeatureCollection and aggregate counts so both map delivery and spatial lookups use the
+    same geometry. A missing or non-area outline is excluded rather than published as a zero-area district.
+    """
+    cleaned = []
+    repaired = 0
+    excluded = 0
+    for feature in collection.get('features') or []:
+        if not isinstance(feature, dict):
+            excluded += 1
+            continue
+        properties = feature.get('properties')
+        ident = properties.get('id') if isinstance(properties, dict) else None
+        city = properties.get('city_en') if isinstance(properties, dict) else None
+        name = (properties.get('ar') or properties.get('district_ar')) if isinstance(properties, dict) else None
+        valid_id = (isinstance(ident, (str, int, float)) and not isinstance(ident, bool)
+                    and bool(str(ident).strip()) and (not isinstance(ident, float) or math.isfinite(ident)))
+        if not valid_id or not isinstance(city, str) or not city.strip() or not isinstance(name, str) or not name.strip():
+            excluded += 1
+            continue
+        geometry = feature.get('geometry')
+        if geometry is None:
+            excluded += 1
+            continue
+        try:
+            was_valid = shapely.geometry.shape(geometry).is_valid
+        except (TypeError, ValueError, KeyError):
+            was_valid = False
+        valid = _valid_polygon(geometry)
+        if valid is None:
+            excluded += 1
+            continue
+        if not was_valid:
+            repaired += 1
+        cleaned_feature = dict(feature)
+        cleaned_feature['properties'] = dict(properties)
+        cleaned_feature['geometry'] = valid
+        cleaned.append(cleaned_feature)
+    return {**collection, 'features': cleaned}, repaired, excluded
+
+
 def canonical_districts(collection, corrections):
     """One feature per district: names corrected from the reviewed table, then polygons that carry the same
     name in the same city merged when they touch (a district drawn in pieces). Same-name polygons that do
@@ -210,6 +410,15 @@ def canonical_districts(collection, corrections):
         props = dict(feature.get('properties') or {})
         city, ident = props.get('city_en'), props.get('id')
         if ident is None:
+            continue
+        canonical = canonical_city(city) if isinstance(city, str) else None
+        if canonical:
+            city, city_ar = canonical
+            props['city_en'], props['city_ar'] = city, city_ar
+        raw_geometry = feature.get('geometry')
+        geometry = _valid_polygon(raw_geometry) if raw_geometry is not None else None
+        if raw_geometry is not None and geometry is None:
+            LOGGER.warning('canonical_data_invalid_district_geometry city=%s id=%s', city, ident)
             continue
         fix = corrections.get((city, str(ident)))
         if fix:
@@ -226,7 +435,7 @@ def canonical_districts(collection, corrections):
         if key not in groups:
             groups[key] = []
             order.append(key)
-        groups[key].append((props, feature.get('geometry')))
+        groups[key].append((props, geometry))
     features, id_map = [], {}
     for key in order:
         members = sorted(groups[key], key=lambda member: _id_order(member[0]['id']))
@@ -248,7 +457,15 @@ def canonical_districts(collection, corrections):
             if len(chosen) == 1:
                 geometry = chosen[0][1]
             else:
-                geometry = {'type': 'MultiPolygon', 'coordinates': [ring for _, geom in chosen for ring in _polygons(geom)]}
+                geometries = [shapely.geometry.shape(geom) for _, geom in chosen if geom]
+                if geometries:
+                    joined = shapely.ops.unary_union(geometries)
+                    geometry = _valid_polygon(shapely.geometry.mapping(joined))
+                    if geometry is None:
+                        LOGGER.warning('canonical_data_invalid_merged_geometry city=%s id=%s', city, canonical_id)
+                        continue
+                else:
+                    geometry = None
                 props['member_ids'] = [member[0]['id'] for member in chosen]
             if len(parts) > 1:
                 base = props.get('ar') or props.get('district_ar')
@@ -286,6 +503,7 @@ def merge_population_rows(rows, id_map, names, by_age=False):
             out['district_ar'], out['district_en'] = name_ar or row.get('district_ar'), name_en or row.get('district_en')
             out['_weight'] = 0.0
             out['_coverage'] = 0.0
+            out['_missing_fields'] = set()
             for field in ('population', 'valid_cells', 'polygon_cells', 'male', 'female', 'total'):
                 if field in out:
                     out[field] = None
@@ -293,7 +511,9 @@ def merge_population_rows(rows, id_map, names, by_age=False):
             order.append(key)
         out = merged[key]
         for field in ('population', 'valid_cells', 'polygon_cells', 'male', 'female', 'total'):
-            if field in row and row[field] is not None:
+            if field not in row or row[field] is None:
+                out['_missing_fields'].add(field)
+            elif field not in out['_missing_fields']:
                 out[field] = (out[field] or 0) + float(row[field])   # parquet decimals and doubles both sum as floats
         weight = row.get('total') if by_age else row.get('population')
         if weight and row.get('coverage_pct') is not None:
@@ -303,8 +523,13 @@ def merge_population_rows(rows, id_map, names, by_age=False):
     for key in order:
         out = merged[key]
         weight, coverage = out.pop('_weight'), out.pop('_coverage')
-        if not by_age and out.get('polygon_cells'):
+        missing = out.pop('_missing_fields')
+        for field in missing:
+            out[field] = None
+        if not by_age and out.get('polygon_cells') and out.get('valid_cells') is not None:
             out['coverage_pct'] = round(100 * (out.get('valid_cells') or 0) / out['polygon_cells'], 4)
+        elif by_age and 'total' in missing:
+            out['coverage_pct'] = None
         elif weight:
             out['coverage_pct'] = round(coverage / weight, 4)
         result.append(out)
