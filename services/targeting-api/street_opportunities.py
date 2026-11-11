@@ -147,6 +147,8 @@ def opportunities(db, path, city, subs=None, main_id=None, population=None, limi
     subs = [s for s in (subs or []) if s]
     if spec_key:
         wanted_spec = 'spec:' + spec_key
+        # the subcategories the specialty's shops sit in: «food.fast_food.burger» is a shop of «food.fast_food»
+        spec_parents = {x.rsplit('.', 1)[0] for x in spec_key.split('|')}
 
         def is_requested(sub, main):
             return sub == wanted_spec
@@ -222,7 +224,8 @@ def opportunities(db, path, city, subs=None, main_id=None, population=None, limi
         if (_is_group(sub) and not requested) or not _street_key(name):
             continue
         s = streets.setdefault(find(i), {'names': {}, 'districts': {}, 'total': 0, 'requested': 0, 'others': 0,
-                                         'kinds': set(), 'main': False, 'row_ids': [], 'requested_rows': set()})
+                                         'kinds': set(), 'main': False, 'row_ids': [], 'requested_rows': set(),
+                                         'parent': False})
         if spec_key and requested:
             # the specialty's shops already sit inside its subcategory's row on this street: they are its count, not
             # more street, and its line is that row's line
@@ -239,6 +242,8 @@ def opportunities(db, path, city, subs=None, main_id=None, population=None, limi
             s['requested'] += n
             s['requested_rows'].add(row_id)
         if not _is_group(sub):
+            if spec_key and sub in spec_parents:
+                s['parent'] = True
             s['total'] += n
             if not is_member(sub, main):
                 s['others'] += n
@@ -246,11 +251,13 @@ def opportunities(db, path, city, subs=None, main_id=None, population=None, limi
 
     if spec_key:
         # the specialty's shops are part of its subcategory's row, so the street's other shops are the rest of it;
-        # where that row was not kept (its subcategory passed the build's cap) the street still holds the specialty's
-        # shops, so they count in the city's total as they do in its share
+        # where that row was not kept (its subcategory passed the build's cap) they are in no other row: they are added
+        # to the street, so they count in the city's total as they do in its share, and no other trade loses them
         for s in streets.values():
-            s['total'] = max(s['total'], s['requested'])
-            s['others'] = s['total'] - s['requested']
+            if s['parent']:
+                s['others'] = max(0, s['total'] - s['requested'])
+            else:
+                s['total'] += s['requested']
 
     all_total = sum(s['total'] for s in streets.values())
     all_requested = sum(s['requested'] for s in streets.values())

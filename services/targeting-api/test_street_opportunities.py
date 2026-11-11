@@ -262,3 +262,14 @@ class SpecialtyOpportunityTests(unittest.TestCase):
         self.db.execute('copy t to ? (format parquet)', [self.path])
         out = so.opportunities(self.db, self.path, 'Riyadh', specialty_ids=self.KEY.split('|'))
         self.assertEqual(out['share'], round(20 / 173, 4), 'its 8 shops are in the total as in the share')
+
+    def test_a_specialty_without_its_trade_row_takes_nothing_from_another_trade(self):
+        # 100 fashion shops and 5 burger shops whose fast-food row was cut: 105 on the street, the 100 others all count
+        self.db.execute("""insert into t values ('Riyadh', 'fashion', 'fashion', 'retail', 'retail', 'شارع الثلاثين', 'الملقا', 'الملقا',
+            100, 0, 500, 20, null, 'main', '', null, ?), ('Riyadh', '', 'برجر', 'food', 'food', 'شارع الثلاثين', 'الملقا', 'الملقا',
+            5, 0, 500, 1, null, 'main', '', ?, ?)""", [line(0, 6000), self.KEY, line(0, 6000)])
+        self.db.execute('copy t to ? (format parquet)', [self.path])
+        out = so.opportunities(self.db, self.path, 'Riyadh', specialty_ids=self.KEY.split('|'))
+        self.assertEqual(out['share'], round(17 / 270, 4), 'its 5 shops are in the total as in the share')
+        street = {f['properties']['street_ar']: f['properties'] for f in out['features']}['شارع الثلاثين']
+        self.assertEqual((street['total'], street['others'], street['requested_n']), (105, 100, 5))
