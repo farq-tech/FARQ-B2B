@@ -46,7 +46,7 @@ struct FarqButtonStyle: SwiftUI.ButtonStyle {
                     .font(Typo.font(compact ? 18 : 16, .bold))
                     .foregroundStyle(kind == .primary ? Color.white : Tokens.primaryInk)
                     .padding(.horizontal, compact ? 14 : 18)
-                    .frame(maxWidth: compact ? nil : .infinity, minHeight: compact ? 44 : 52)
+                    .frame(minWidth: compact ? 44 : nil, maxWidth: compact ? nil : .infinity, minHeight: compact ? 44 : 52)
                     .background(kind == .primary ? AnyShapeStyle(Palette.brand) : AnyShapeStyle(Tokens.secondary),
                                 in: .rect(cornerRadius: Tokens.radius, style: .continuous))
             }
@@ -104,7 +104,7 @@ struct FarqBadge: View {
             var m = BadgeVM()
             m.title = title
             m.style = .light
-            m.font = .custom(name: "IBMPlexSansArabic-SemiBold", size: 11)
+            m.font = .custom(name: "itfHuwiyaArabic-Medium", size: 11)
             m.paddings = .init(horizontal: 8, vertical: 3)
             let main: Color = tone == .warning ? Palette.warning : tone == .good ? Palette.accent : Palette.brand
             m.color = ComponentColor(main: .universal(.color(main)), contrast: .universal(.color(.white)))

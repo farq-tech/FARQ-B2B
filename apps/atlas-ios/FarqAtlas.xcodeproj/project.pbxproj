@@ -14,6 +14,10 @@
 		292DC16FC687FAABF640E3BA /* OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 1EBA5B4035BB13A0DCCAE2C3 /* OFL.txt */; };
 		2C3492DF12CF62AC29373BAA /* ComponentsKit in Frameworks */ = {isa = PBXBuildFile; productRef = 812740E4D0837BBCB251F31B /* ComponentsKit */; };
 		2E1DB2354BA22BF4BB99758E /* Lenses.swift in Sources */ = {isa = PBXBuildFile; fileRef = E64118EB1960D13B9BD2E129 /* Lenses.swift */; };
+		3B8175DF158FBDFE95916FE3 /* itfHuwiyaArabic-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = C3F0025D0E0DA7561AE5C123 /* itfHuwiyaArabic-Medium.otf */; };
+		5B0555EDD38D3D20CADE8A11 /* itfHuwiyaArabic-Black.otf in Resources */ = {isa = PBXBuildFile; fileRef = 4D65EDD4A2F70F829B69689F /* itfHuwiyaArabic-Black.otf */; };
+		5F660328ECF1486498D1D3EF /* AtlasAdvisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1B26098598A50FB7D4E794 /* AtlasAdvisor.swift */; };
+		61FC0F481A008C39268B3B86 /* itfHuwiyaArabic-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = 9E365882BB3E5354BD232206 /* itfHuwiyaArabic-Bold.otf */; };
 		76F9651EAF307F2E834F1F15 /* FarqAtlasApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE11E80D4731E1AC1AC074EF /* FarqAtlasApp.swift */; };
 		78600D6359FB08C39936254D /* Explain.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F9AE7DE8BD02C9CE26968E /* Explain.swift */; };
 		8D3108C71165749A8A8F51E7 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = 1A955592765F5B775FD5A721 /* Pow */; };
@@ -21,20 +25,17 @@
 		9228F96B705B2D7F1CFEECD2 /* Kit.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD1BE9530D757A70AAE05880 /* Kit.swift */; };
 		A8C41A75087FE78BD8C28F99 /* FlowsOwnerMarketer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B6DD3BE2A12F959758ACD73 /* FlowsOwnerMarketer.swift */; };
 		A9AAA840B75C7EC2350F0A67 /* AtlasStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C691BBB9A6B3729E8B55ECC /* AtlasStore.swift */; };
-		ADD9711F56B817C331EC12C2 /* IBMPlexSansArabic-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = EC1DCFB2856797093E081609 /* IBMPlexSansArabic-Medium.ttf */; };
 		B60419E3C81AC380DCB74CCE /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35F9BF36461FECE1730ED9CE /* DesignSystem.swift */; };
 		B7D198A4E5D89B85A05AF68F /* SwiftUIX in Frameworks */ = {isa = PBXBuildFile; productRef = 245BB6196BDB50E5DC692D3D /* SwiftUIX */; };
 		B88F151DDAA30745FBF206E9 /* Home.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AEC26627A046620FAA4AA6C /* Home.swift */; };
 		BB5FBFE60466781DF58BEDBE /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 4F7CBDE69011C098117B34B1 /* InfoPlist.strings */; };
-		BBA8A871B7F690A629E10342 /* IBMPlexSansArabic-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9F4E3067741DE5CBD2D1AC0F /* IBMPlexSansArabic-Regular.ttf */; };
 		C00118DFD891D039AB54B8D9 /* LICENSE-SwiftPieces.txt in Resources */ = {isa = PBXBuildFile; fileRef = 9EACF1A466BE78CA5D768AD9 /* LICENSE-SwiftPieces.txt */; };
-		C131082A4C26D3757B51A6C1 /* IBMPlexSansArabic-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D8DF901C384EB5A24E69C436 /* IBMPlexSansArabic-Bold.ttf */; };
 		C1485A72ABBA713BFCAFA1A0 /* Common.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A9FB119E26308214A7AF9DB /* Common.swift */; };
-		C1DE43F508C832D9793A325E /* IBMPlexSansArabic-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A8605863C0B53CF09A5FBB69 /* IBMPlexSansArabic-SemiBold.ttf */; };
 		C3155BE9BF03BBC6F8113241 /* FarqAtlasTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AF0CB8717C581FB24396350 /* FarqAtlasTests.swift */; };
 		CD8B695B6779E5801527920F /* FarqAtlasUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D4CC725005D7F97D8A7563C /* FarqAtlasUITests.swift */; };
 		E65D95A4BEF372D0CA9034BD /* Format.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FEA089D7120D8329A89B42 /* Format.swift */; };
 		EC13E75A387EBE01C5D435DE /* AtlasMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09649B98E7426A263B485F95 /* AtlasMap.swift */; };
+		F62F95108F8EED0192E16C31 /* itfHuwiyaArabic-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = 96F12C534CF2189F05405FD3 /* itfHuwiyaArabic-Regular.otf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,28 +63,29 @@
 		22CE1BF3B7BE6722361E8A8E /* FarqAtlas.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FarqAtlas.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2C54F70B5E60501A3EA57488 /* FarqAtlasUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FarqAtlasUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		35F9BF36461FECE1730ED9CE /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		3A1B26098598A50FB7D4E794 /* AtlasAdvisor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasAdvisor.swift; sourceTree = "<group>"; };
 		3B6DD3BE2A12F959758ACD73 /* FlowsOwnerMarketer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowsOwnerMarketer.swift; sourceTree = "<group>"; };
 		3C49E16E2DB6DDE52ED5F1BC /* FarqAtlasTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FarqAtlasTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4AF0CB8717C581FB24396350 /* FarqAtlasTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FarqAtlasTests.swift; sourceTree = "<group>"; };
+		4D65EDD4A2F70F829B69689F /* itfHuwiyaArabic-Black.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "itfHuwiyaArabic-Black.otf"; sourceTree = "<group>"; };
 		688E88653F4B92E1D08378E4 /* ar */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ar; path = ar.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		78528B238B6E547EA36AC276 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8447AC4BC14A8AD9277E8D03 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		8C691BBB9A6B3729E8B55ECC /* AtlasStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasStore.swift; sourceTree = "<group>"; };
+		96F12C534CF2189F05405FD3 /* itfHuwiyaArabic-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "itfHuwiyaArabic-Regular.otf"; sourceTree = "<group>"; };
 		9A9FB119E26308214A7AF9DB /* Common.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Common.swift; sourceTree = "<group>"; };
+		9E365882BB3E5354BD232206 /* itfHuwiyaArabic-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "itfHuwiyaArabic-Bold.otf"; sourceTree = "<group>"; };
 		9EACF1A466BE78CA5D768AD9 /* LICENSE-SwiftPieces.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "LICENSE-SwiftPieces.txt"; sourceTree = "<group>"; };
-		9F4E3067741DE5CBD2D1AC0F /* IBMPlexSansArabic-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "IBMPlexSansArabic-Regular.ttf"; sourceTree = "<group>"; };
-		A8605863C0B53CF09A5FBB69 /* IBMPlexSansArabic-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "IBMPlexSansArabic-SemiBold.ttf"; sourceTree = "<group>"; };
 		AE11E80D4731E1AC1AC074EF /* FarqAtlasApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FarqAtlasApp.swift; sourceTree = "<group>"; };
 		B7CA4B391132EE8741CF9444 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B9FEA089D7120D8329A89B42 /* Format.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Format.swift; sourceTree = "<group>"; };
 		BD1BE9530D757A70AAE05880 /* Kit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kit.swift; sourceTree = "<group>"; };
 		C3068E9753BB05CCE11CE73F /* SkeletonLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkeletonLoader.swift; sourceTree = "<group>"; };
+		C3F0025D0E0DA7561AE5C123 /* itfHuwiyaArabic-Medium.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "itfHuwiyaArabic-Medium.otf"; sourceTree = "<group>"; };
 		C5FEA298329279DA08D8D22A /* FlowsOther.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowsOther.swift; sourceTree = "<group>"; };
 		C8F9AE7DE8BD02C9CE26968E /* Explain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Explain.swift; sourceTree = "<group>"; };
 		C9C1FF2FDA99CB1EDDB6697E /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
-		D8DF901C384EB5A24E69C436 /* IBMPlexSansArabic-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "IBMPlexSansArabic-Bold.ttf"; sourceTree = "<group>"; };
 		E64118EB1960D13B9BD2E129 /* Lenses.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Lenses.swift; sourceTree = "<group>"; };
-		EC1DCFB2856797093E081609 /* IBMPlexSansArabic-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "IBMPlexSansArabic-Medium.ttf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -133,6 +135,7 @@
 			children = (
 				C9C1FF2FDA99CB1EDDB6697E /* API.swift */,
 				78528B238B6E547EA36AC276 /* Assets.xcassets */,
+				3A1B26098598A50FB7D4E794 /* AtlasAdvisor.swift */,
 				09649B98E7426A263B485F95 /* AtlasMap.swift */,
 				8C691BBB9A6B3729E8B55ECC /* AtlasStore.swift */,
 				9A9FB119E26308214A7AF9DB /* Common.swift */,
@@ -174,10 +177,10 @@
 		F6455632157A195378E08BB4 /* Fonts */ = {
 			isa = PBXGroup;
 			children = (
-				D8DF901C384EB5A24E69C436 /* IBMPlexSansArabic-Bold.ttf */,
-				EC1DCFB2856797093E081609 /* IBMPlexSansArabic-Medium.ttf */,
-				9F4E3067741DE5CBD2D1AC0F /* IBMPlexSansArabic-Regular.ttf */,
-				A8605863C0B53CF09A5FBB69 /* IBMPlexSansArabic-SemiBold.ttf */,
+				4D65EDD4A2F70F829B69689F /* itfHuwiyaArabic-Black.otf */,
+				9E365882BB3E5354BD232206 /* itfHuwiyaArabic-Bold.otf */,
+				C3F0025D0E0DA7561AE5C123 /* itfHuwiyaArabic-Medium.otf */,
+				96F12C534CF2189F05405FD3 /* itfHuwiyaArabic-Regular.otf */,
 				1EBA5B4035BB13A0DCCAE2C3 /* OFL.txt */,
 			);
 			path = Fonts;
@@ -300,13 +303,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				00C24980DFBE7C63909C8645 /* Assets.xcassets in Resources */,
-				C131082A4C26D3757B51A6C1 /* IBMPlexSansArabic-Bold.ttf in Resources */,
-				ADD9711F56B817C331EC12C2 /* IBMPlexSansArabic-Medium.ttf in Resources */,
-				BBA8A871B7F690A629E10342 /* IBMPlexSansArabic-Regular.ttf in Resources */,
-				C1DE43F508C832D9793A325E /* IBMPlexSansArabic-SemiBold.ttf in Resources */,
 				BB5FBFE60466781DF58BEDBE /* InfoPlist.strings in Resources */,
 				C00118DFD891D039AB54B8D9 /* LICENSE-SwiftPieces.txt in Resources */,
 				292DC16FC687FAABF640E3BA /* OFL.txt in Resources */,
+				5B0555EDD38D3D20CADE8A11 /* itfHuwiyaArabic-Black.otf in Resources */,
+				61FC0F481A008C39268B3B86 /* itfHuwiyaArabic-Bold.otf in Resources */,
+				3B8175DF158FBDFE95916FE3 /* itfHuwiyaArabic-Medium.otf in Resources */,
+				F62F95108F8EED0192E16C31 /* itfHuwiyaArabic-Regular.otf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -326,6 +329,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1B3D937FD5F171270772E0B4 /* API.swift in Sources */,
+				5F660328ECF1486498D1D3EF /* AtlasAdvisor.swift in Sources */,
 				EC13E75A387EBE01C5D435DE /* AtlasMap.swift in Sources */,
 				A9AAA840B75C7EC2350F0A67 /* AtlasStore.swift in Sources */,
 				C1485A72ABBA713BFCAFA1A0 /* Common.swift in Sources */,
@@ -437,7 +441,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 19;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = MH7J92HV9N;
 				ENABLE_TESTABILITY = YES;
@@ -458,7 +462,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 19;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = MH7J92HV9N;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;

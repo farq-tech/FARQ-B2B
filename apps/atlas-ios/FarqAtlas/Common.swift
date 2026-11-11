@@ -1,49 +1,106 @@
 import SwiftUI
 import MapKit
 
-/// One flow screen: an optional map on top, one question, its answer, and at most one main button at the bottom.
+/// One flow screen: an optional map on top, one question, its answer, and persistent actions at the bottom.
 struct FlowScreen<Content: View>: View {
+    @Environment(AtlasStore.self) private var store
     let title: String
     let question: String
     var note: String? = nil
     var map: AtlasMap? = nil
     var primary: Primary? = nil
+    var secondary: Primary? = nil
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         VStack(spacing: 0) {
-            if let map {
-                map.equatable()
-                    .frame(height: 300)
-                    .clipShape(.rect(bottomLeadingRadius: 22, bottomTrailingRadius: 22, style: .continuous))
-                    .ignoresSafeArea(edges: .horizontal)
-            }
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    if let map {
+                        map.equatable()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 300)
+                            .clipShape(.rect(bottomLeadingRadius: 22, bottomTrailingRadius: 22, style: .continuous))
+                            .padding(.horizontal, -16)
+                    }
+                    if store.city.districts == 0 {
+                        Label(CityCoverageCopy.limitation(city: store.city.name), systemImage: "map")
+                            .font(Typo.caption).foregroundStyle(Palette.warning)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("city-boundaries-unavailable")
+                    }
+                    if store.layersLoading {
+                        Label("جار تحميل بعض مؤشرات المدينة…", systemImage: "arrow.triangle.2.circlepath")
+                            .font(Typo.caption).foregroundStyle(Tokens.mutedForeground)
+                            .accessibilityIdentifier("city-layers-loading")
+                    }
+                    if let error = store.layersError {
+                        RetryNotice(message: error) { store.retryFailedLayers() }
+                            .accessibilityIdentifier("city-layers-error")
+                    }
                     VStack(alignment: .leading, spacing: 6) {
                         Text(question).font(Typo.title).foregroundStyle(Tokens.foreground)
                         if let note { Text(note).font(Typo.subheadline).foregroundStyle(Tokens.mutedForeground) }
                     }
                     content()
                 }
-                .padding(.horizontal, 16).padding(.top, 18).padding(.bottom, 24)
+                .padding(.horizontal, 16).padding(.top, 18).padding(.bottom, secondary == nil ? (primary == nil ? 24 : 112) : 176)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollIndicators(.hidden)
-            if let primary {
-                Button(primary.title, action: primary.action)
-                    .buttonStyle(.farqPrimary)
-                    .font(Typo.font(16, .bold))
-                    .disabled(!primary.enabled)
-                    .opacity(primary.enabled ? 1 : 0.45)
-                    .accessibilityIdentifier("primary")
-                    .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 8)
-                    .background(Tokens.background.shadow(.drop(color: .black.opacity(0.06), radius: 8, y: -2)))
+            .accessibilityIdentifier("flow-scroll")
+            if primary != nil || secondary != nil {
+                VStack(spacing: 8) {
+                    if let secondary {
+                        Button(secondary.title, action: secondary.action)
+                            .buttonStyle(.farqSecondary)
+                            .font(Typo.font(15, .semibold))
+                            .disabled(!secondary.enabled)
+                            .opacity(secondary.enabled ? 1 : 0.45)
+                            .accessibilityIdentifier("listing-filter-reset")
+                    }
+                    if let primary {
+                        Button(primary.title, action: primary.action)
+                            .buttonStyle(.farqPrimary)
+                            .font(Typo.font(16, .bold))
+                            .disabled(!primary.enabled)
+                            .opacity(primary.enabled ? 1 : 0.45)
+                            .accessibilityIdentifier("primary")
+                    }
+                }
+                .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 8)
+                .background(Tokens.background.shadow(.drop(color: .black.opacity(0.06), radius: 8, y: -2)))
             }
         }
         .background(Tokens.background.ignoresSafeArea())
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct RetryNotice: View {
+    let message: String
+    let action: () -> Void
+    var messageAccessibilityIdentifier: String? = nil
+
+    @ViewBuilder
+    private var messageText: some View {
+        let label = Text(message).font(Typo.subheadline).foregroundStyle(Tokens.mutedForeground)
+        if let messageAccessibilityIdentifier {
+            label.accessibilityIdentifier(messageAccessibilityIdentifier)
+        } else {
+            label
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            messageText
+            Button("إعادة المحاولة", action: action)
+                .buttonStyle(.farqSecondary)
+        }
+        .shadCard(tint: Palette.warning)
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -196,9 +253,10 @@ struct ScoreHero: View {
     let value: Double?
     let score: Double?
     let city: String
+    var lines: [String] = Explain.score
 
     var body: some View {
-        Explained(title: title, lines: Explain.score) {
+        Explained(title: title, lines: lines) {
             HStack(spacing: 16) {
                 ScoreRing(score: score, size: 72)
                 VStack(alignment: .leading, spacing: 4) {
@@ -224,6 +282,7 @@ struct ScoreHero: View {
 struct DistrictDetails: View {
     @Environment(AtlasStore.self) private var store
     let shape: DistrictShape
+    var includeBusinessMetrics = true
     @State private var open = false
 
     var body: some View {
@@ -231,16 +290,20 @@ struct DistrictDetails: View {
         DisclosureGroup(isExpanded: $open) {
             FigureGrid {
                 Figure(label: "السكان", number: row?.population, explain: Explain.population)
-                Figure(label: "المنشآت", number: row?.n, explain: Explain.businesses)
-                Figure(label: "ساكن لكل منشأة", number: row?.residents_per, explain: Metric.residentsPerBusiness.explain)
+                if includeBusinessMetrics {
+                    Figure(label: "المنشآت", number: row?.n, explain: Explain.businesses)
+                    Figure(label: "ساكن لكل منشأة", number: row?.residents_per, explain: Metric.residentsPerBusiness.explain)
+                }
                 Figure(label: "السكان لكل كم²", number: row?.density, explain: Explain.density)
                 Figure(label: "السعوديون", value: Fmt.percent(store.audience[shape.name]?.saudi_pct), explain: Explain.saudi)
                 Figure(label: "الذكور", value: Fmt.percent(store.audience[shape.name]?.male_pct), explain: Explain.sex)
                 Figure(label: "متوسط الدخل", number: store.income[shape.name]?.income_all, unit: "ر.س", explain: Explain.income)
                 Figure(label: "حصة الفلل", value: Fmt.percent(store.housing[shape.name]?.villa_share_pct), explain: Explain.villaShare)
                 Figure(label: "مبانٍ تحت الإنشاء", number: store.growth[shape.name]?.under_construction, explain: Metric.underConstruction.explain)
-                Figure(label: "منشآت بواتساب", number: row?.n_whatsapp, explain: Metric.whatsapp.explain)
-                Figure(label: "منشآت الجملة", number: row?.n_wholesale, explain: Metric.wholesale.explain)
+                if includeBusinessMetrics {
+                    Figure(label: "منشآت بواتساب", number: row?.n_whatsapp, explain: Metric.whatsapp.explain)
+                    Figure(label: "منشآت الجملة", number: row?.n_wholesale, explain: Metric.wholesale.explain)
+                }
                 Figure(label: "المساحة", value: Fmt.withUnit(row?.area_km2 ?? shape.areaKm2, "كم²"), explain: ["مساحة الحي من حدوده الرسمية في الأطلس."])
             }
             .padding(.top, 8)
@@ -273,9 +336,28 @@ struct CityPicker: View {
                     HStack {
                         Text(city.name).font(Typo.body).foregroundStyle(Tokens.foreground)
                         Spacer()
-                        if let n = city.districts { Text(Fmt.counted(n, .district)).font(Typo.subheadline).foregroundStyle(Tokens.mutedForeground) }
+                        if let n = city.districts, n > 0 {
+                            Text(Fmt.counted(n, .district)).font(Typo.subheadline).foregroundStyle(Tokens.mutedForeground)
+                        } else if city.districts == 0 {
+                            Text("الأحياء غير متاحة").font(Typo.caption).foregroundStyle(Palette.warning)
+                        }
                         if city == store.city { Image(systemName: "checkmark").foregroundStyle(Palette.brand) }
                     }
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if store.citiesLoading {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("جارٍ تحميل المدن…").font(Typo.subheadline).foregroundStyle(Tokens.mutedForeground)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 10)
+                    .background(Tokens.background)
+                } else if let error = store.citiesError {
+                    RetryNotice(message: error) { store.retryCities() }
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(Tokens.background)
                 }
             }
             .searchable(text: $query, prompt: "ابحث عن مدينة")
