@@ -17,7 +17,7 @@ def route_label(path: str) -> str:
         return "template_status"
     known = {
         "/districts", "/facets", "/status", "/templates", "/cities", "/log", "/login", "/logout",
-        "/map-query", "/map-profile", "/map-focus", "/trial-search", "/clusters", "/market-summary",
+        "/map-query", "/map-profile", "/map-focus", "/trial-search", "/clusters", "/market-summary", "/market-activities",
         "/district-counts", "/district-insights", "/who-buys", "/street-density", "/street-density/catalog",
         "/suggest-specialties", "/search", "/demo-understand", "/demo-search", "/send-template",
         "/send-test-template", "/send-farq", "/metrics", "/healthz", "/inbox", "/whatsapp/webhook", "/inbox/read", "/inbox/unlinked", "/inbox/attach", "/inbox/dismiss",

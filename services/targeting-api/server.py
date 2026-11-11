@@ -297,7 +297,9 @@ def insight_response(path, body):
         if weight == 'population':
             weights = {name: row['population'] for name, row in population_by_name_cached(city).items() if row.get('population')}
         else:
-            activity = {key: body[key] for key in ('q', 'main_id') if body.get(key)}   # a distributor balances on its own customers
+            # a distributor balances on its own customers, read at the activity picked: a subcategory or specialty
+            # (market-activities) as well as a typed request or the older main activity
+            activity = {key: body[key] for key in ('q', 'main_id', 'sub_ids', 'specialty_ids') if body.get(key)}
             weights = {row['district_ar']: row['n'] for row in MARKET_ANALYTICS.district_counts({'city': city, **activity})['districts']}
         groups = insights.territories(_city_features(city), weights, count)
         return {'ok': True, 'city': city, 'weight': weight, 'territories': groups,
@@ -1522,10 +1524,11 @@ class H(BaseHTTPRequestHandler):
             except Exception as error:
                 log_map_api_failure('brands', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
-        elif self.path in ('/market-summary', '/district-counts', '/district-insights', '/who-buys'):
+        elif self.path in ('/market-summary', '/district-counts', '/district-insights', '/who-buys', '/market-activities'):
             # Read-only market aggregates for the map; analytics return aggregate counts only.
             try:
                 if self.path == '/market-summary': self._json(MARKET_ANALYTICS.market_summary(body))
+                elif self.path == '/market-activities': self._json(MARKET_ANALYTICS.activities(body))
                 elif self.path == '/district-counts': self._json(enrich_district_counts(MARKET_ANALYTICS.district_counts(body), body.get('city')))
                 elif self.path == '/district-insights': self._json(MARKET_ANALYTICS.district_insights(body))
                 else: self._json(MARKET_ANALYTICS.who_buys(body))

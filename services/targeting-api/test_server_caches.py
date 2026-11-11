@@ -85,3 +85,18 @@ class BrandsPopulationCacheTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TerritoriesActivityTests(unittest.TestCase):
+    def test_business_weight_reads_the_picked_subcategory_or_specialty(self):
+        # owner 2026-11-11: the specialty is the unit of every figure; territories used to keep only q and main_id
+        seen = []
+        original_counts, original_features = server.MARKET_ANALYTICS.district_counts, server._city_features
+        server.MARKET_ANALYTICS.district_counts = lambda body: seen.append(body) or {'districts': []}
+        server._city_features = lambda city: []
+        try:
+            server.insight_response('/territories', {'city': 'Riyadh', 'weight': 'businesses', 'count': 3,
+                                                      'sub_ids': ['personal.laundry'], 'specialty_ids': ['food.fast_food.burger']})
+        finally:
+            server.MARKET_ANALYTICS.district_counts, server._city_features = original_counts, original_features
+        self.assertEqual(seen, [{'city': 'Riyadh', 'sub_ids': ['personal.laundry'], 'specialty_ids': ['food.fast_food.burger']}])

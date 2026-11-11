@@ -121,6 +121,9 @@ GAP_MODEL_MIN_R = 0.3
 # Why no shortfall is shown, told apart so the rep can act: a thin directory (too few covered districts to
 # judge the relationship — not a verdict on the activity) versus a genuine non-population activity (enough
 # districts, but the count does not track population). The second keeps the product-mandated wording.
+ACTIVITIES_BASIS = ("كل تخصص يُعدّ بالمنشآت المصنفة عليه بثقة عالية أو متوسطة، وكل تخصص دقيق بالمنشآت الموسومة به. "
+                    "الرقم نفسه يظهر في الخريطة والأحياء والفجوات والسلاسل عند اختياره.")
+
 GAP_UNAVAILABLE_MESSAGES = {
     "too_few_districts": "عدد الأحياء التي تحمل سكاناً ومنشآت لهذا النشاط أقل من أن يُقاس به ارتباطه بالسكان، "
                          "وقد يكون النشاط قليل الظهور في الدليل هنا؛ فلا يُقدَّر النقص، وتُعرض الأحياء بأعدادها الفعلية فقط.",
@@ -1094,6 +1097,88 @@ class MarketAnalytics:
             "districts": results,
             "basis": "سجلات الدليل ذات إسناد حي موثوق وتصنيف نشاط عالي أو متوسط الثقة. الأنشطة الغائبة تعني عدم ظهور سجل مصنف لها في هذا الحي، ولا تثبت غيابها فعلياً.",
         }
+
+    def activities(self, body):
+        return self._remembered('activities', {"city": body.get("city")}, lambda: self._activities(body))
+
+    def _activities(self, body):
+        """Every activity a reader can pick in a city, at the level shops really are (owner 2026-11-11): each
+        subcategory («مغسلة ملابس», «صيدلية») and each specialty that has businesses here («برجر», «بيتزا»). A main
+        activity («أغذية ومشروبات») is only the group heading (main_ar), never an entry of its own.
+
+        A specialty named the same under two subcategories of one main («برجر» under restaurant and fast food) is one
+        entry. The same name under different mains («مغسلة خدمة ذاتية» for clothes and for cars) stays two entries,
+        told apart by parent_ar.
+
+        Each entry carries `query`, the exact body fragment that district-counts, market-summary, market-gaps,
+        brands and territories read; sent with the same city they return the same `n`. The counts are the ones
+        _where makes: a subcategory counts businesses classified to it with high or medium confidence, a specialty
+        counts the businesses tagged with it."""
+        city, *_ = self._validate({"city": body.get("city")})
+        tx = self._tx()
+        if tx is None:
+            return {"ok": True, "city": city, "available": False, "activities": [], "basis": ACTIVITIES_BASIS}
+        _, _, where, params, _, _ = self._where({"city": city})
+        subs = [(sid, item) for sid, item in tx.subs.items() if not sid.startswith(("unc.", "noncom."))]
+        groups = {}
+        for spec_id, spec in getattr(tx, "specs", {}).items():
+            parent = tx.subs.get(spec.get("sub_id"))
+            if not parent or spec["sub_id"].startswith(("unc.", "noncom.")) or not (spec.get("specialty_ar") or "").strip():
+                continue
+            key = (parent.get("main_id") or "", spec["specialty_ar"].strip())
+            groups.setdefault(key, []).append(spec_id)
+        # an entry must stay sendable as it is (_validate caps specialty_ids)
+        groups = {key: ids for key, ids in groups.items() if len(ids) <= MAX_SPECIALTY_IDS}
+        with self.lock:
+            sub_counts = dict(self.db.execute(
+                f"""select c.sub_id, count(distinct p.poi_key)
+                    from read_parquet(?) p join read_parquet(?) c on c.poi_key = p.poi_key
+                    where {where} and c.confidence in ('high', 'medium')
+                    group by c.sub_id""",
+                [self.data, taxonomy_path()] + params[1:],
+            ).fetchall())
+            spec_counts = {}
+            if groups and self._has_specialty_column():
+                members = [(spec_id, index) for index, ids in enumerate(groups.values()) for spec_id in ids]
+                values_sql = ",".join("(?, ?)" for _ in members)
+                spec_counts = dict(self.db.execute(
+                    f"""with members(specialty_id, grp) as (values {values_sql}),
+                        tagged as (
+                            select p.poi_key, unnest(string_split(coalesce(p.specialty_ids, ''), '|')) specialty_id
+                            from read_parquet(?) p where {where}
+                        )
+                        select m.grp, count(distinct t.poi_key) from tagged t join members m using (specialty_id)
+                        group by m.grp""",
+                    [value for member in members for value in member] + params,
+                ).fetchall())
+        activities = [{
+            "kind": "sub",
+            "key": sid,
+            "name_ar": item.get("sub_ar") or sid,
+            "parent_ar": item.get("main_ar") or "غير مصنف",
+            "main_id": item.get("main_id") or "",
+            "main_ar": item.get("main_ar") or "غير مصنف",
+            "n": sub_counts.get(sid, 0),
+            "query": {"sub_ids": [sid]},
+        } for sid, item in subs]
+        for index, ((main_id, name), ids) in enumerate(groups.items()):
+            n = spec_counts.get(index, 0)
+            if not n:
+                continue   # most specialties are expected-only names with no business yet; they stay searchable, not listed
+            parents = list(dict.fromkeys(tx.specs[spec_id]["sub_id"] for spec_id in ids))
+            main_ar = tx.subs[parents[0]].get("main_ar") or "غير مصنف"
+            activities.append({
+                "kind": "specialty",
+                "key": "|".join(sorted(ids)),
+                "name_ar": name,
+                "parent_ar": "، ".join(tx.subs[sid].get("sub_ar") or sid for sid in parents),
+                "main_id": main_id,
+                "main_ar": main_ar,
+                "n": n,
+                "query": {"specialty_ids": sorted(ids)},
+            })
+        activities.sort(key=lambda row: (-row["n"], row["kind"] != "sub", row["name_ar"]))
+        return {"ok": True, "city": city, "available": True, "activities": activities, "basis": ACTIVITIES_BASIS}
 
     def market_summary(self, body):
         return self._remembered('market_summary', body, lambda: self._market_summary(body))
