@@ -1,6 +1,6 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { IBM_Plex_Sans_Arabic } from 'next/font/google'
+import localFont from 'next/font/local'
 import { AppShell } from '@/components/app-shell'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -8,9 +8,15 @@ import { PALETTE } from '@/lib/palette'
 import { AppStoreProvider } from '@/lib/store'
 import './globals.css'
 
-const plex = IBM_Plex_Sans_Arabic({
-  subsets: ['arabic', 'latin'],
-  weight: ['300', '400', '500', '600', '700'],
+// خط هوية (ITF Huwiya Arabic) — نفس الخط المستخدم في تطبيق iOS. يغطي العربية واللاتينية والأرقام.
+const huwiya = localFont({
+  src: [
+    { path: './fonts/itfHuwiyaArabic-Light.woff2', weight: '300', style: 'normal' },
+    { path: './fonts/itfHuwiyaArabic-Regular.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/itfHuwiyaArabic-Medium.woff2', weight: '500', style: 'normal' },
+    { path: './fonts/itfHuwiyaArabic-Bold.woff2', weight: '700', style: 'normal' },
+    { path: './fonts/itfHuwiyaArabic-Black.woff2', weight: '900', style: 'normal' },
+  ],
   variable: '--font-arabic',
   display: 'swap',
 })
@@ -41,7 +47,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ar" dir="rtl" className={plex.variable}>
+    <html lang="ar" dir="rtl" className={huwiya.variable}>
       <body className="font-sans antialiased">
         <div className="atlas-aurora" aria-hidden><span /><span /><span /><span /></div>
         <div className="atlas-dots" aria-hidden />
